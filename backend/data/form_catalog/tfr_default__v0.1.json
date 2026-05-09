@@ -1,0 +1,45 @@
+{
+  "id": "tfr_default",
+  "version": "v0.1",
+  "title": "Default TFR Questionnaire",
+  "description": "Starter canonical form used while the audit schema is still evolving.",
+  "canonical": {
+    "form_id": "tfr_default",
+    "form_version": "v0.1",
+    "title": "Default TFR Questionnaire",
+    "peril": {
+      "peril": "Interior",
+      "notes": null
+    },
+    "questions": [
+      {
+        "id": "Q1",
+        "text": "Was the file documentation sufficient to support the estimate decision?",
+        "answer": "Yes",
+        "sub_questions": [],
+        "missing_info": null,
+        "help_text": "Review notes, photos, estimate line items, and supporting attachments."
+      },
+      {
+        "id": "Q2",
+        "text": "Were all applicable repair opportunities addressed?",
+        "answer": "No",
+        "sub_questions": [
+          {
+            "id": "Q2.1",
+            "text": "An applicable repair item appears missing or under-scoped.",
+            "reasoning": "",
+            "citations": "",
+            "answer": true,
+            "help_text": "Cite the file evidence that supports the opportunity."
+          }
+        ],
+        "missing_info": null,
+        "help_text": null
+      }
+    ],
+    "overall_outcome": "Does Not Meet",
+    "outcome_justification": "Starter canonical questionnaire template."
+  },
+  "created_at": "2026-05-09T00:00:00Z"
+}
