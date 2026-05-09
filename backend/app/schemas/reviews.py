@@ -27,4 +27,3 @@ class ReviewRecord(BaseModel):
 class ReviewUpdate(BaseModel):
     user_version: AuditFormResult
     comment: str | None = None
-

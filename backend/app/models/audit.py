@@ -150,9 +150,7 @@ class AuditFormResult(BaseModel):
                 output.append("Sub-Questions:")
                 for sub_question in question.sub_questions:
                     sub_help = (
-                        f" (help_text: {sub_question.help_text})"
-                        if sub_question.help_text
-                        else ""
+                        f" (help_text: {sub_question.help_text})" if sub_question.help_text else ""
                     )
                     output.append(f"  {sub_question.id}: {sub_question.text}{sub_help}")
 
@@ -161,4 +159,3 @@ class AuditFormResult(BaseModel):
 
 
 TFRAnalysisResult = AuditFormResult
-

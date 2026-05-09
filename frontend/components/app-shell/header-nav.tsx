@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, FileCheck2, Files, Home, Moon, PanelLeftOpen, Settings2, Sun } from "lucide-react";
+import { BarChart3, FileCheck2, Files, Home, Moon, Settings2, Sun } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -18,13 +18,9 @@ const navItems = [
 export function HeaderNav({
   theme,
   onToggleTheme,
-  chatOpen,
-  onToggleChat,
 }: {
   theme: "light" | "dark";
   onToggleTheme: () => void;
-  chatOpen: boolean;
-  onToggleChat: () => void;
 }) {
   const pathname = usePathname();
 
@@ -53,15 +49,6 @@ export function HeaderNav({
           })}
         </nav>
 
-        <Button
-          variant={chatOpen ? "secondary" : "ghost"}
-          size="icon"
-          onClick={onToggleChat}
-          aria-label="Toggle assistant"
-          title="Toggle assistant"
-        >
-          <PanelLeftOpen className="h-4 w-4" />
-        </Button>
         <Button variant="ghost" size="icon" onClick={onToggleTheme} aria-label="Toggle theme" title="Toggle theme">
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </Button>
@@ -69,4 +56,3 @@ export function HeaderNav({
     </header>
   );
 }
-

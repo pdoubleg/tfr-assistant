@@ -5,6 +5,7 @@ from app.models.audit import (
     PerilDetermination,
     TFRAnalysisResult,
 )
+from app.models.chat_state import TFRChatState
 
 __all__ = [
     "AuditFormResult",
@@ -12,5 +13,5 @@ __all__ = [
     "FormSubQuestion",
     "PerilDetermination",
     "TFRAnalysisResult",
+    "TFRChatState",
 ]
-

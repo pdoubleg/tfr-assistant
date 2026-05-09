@@ -17,3 +17,4 @@ uv sync
 uv run uvicorn app.main:app --reload
 ```
 
+The chat agent defaults to Pydantic-AI's local test model so the UI can stream without external credentials. Set `TFR_CHAT_MODEL=openai:gpt-4o-mini` plus the provider API key when you want live model calls.

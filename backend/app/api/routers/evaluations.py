@@ -26,4 +26,3 @@ def get_evaluation_summary() -> EvaluationSummary:
 def add_feedback(feedback: FeedbackCreate) -> FeedbackCreate:
     _feedback.append(feedback)
     return feedback
-

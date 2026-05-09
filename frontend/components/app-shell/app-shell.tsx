@@ -5,12 +5,12 @@ import { useEffect, useState } from "react";
 
 import { DockableChat } from "@/components/chat/dockable-chat";
 import { HeaderNav } from "@/components/app-shell/header-nav";
-import { cn } from "@/lib/utils";
+
+export type ChatPanelMode = "hidden" | "small" | "large";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<"light" | "dark">("light");
-  const [chatDocked, setChatDocked] = useState(true);
-  const [chatOpen, setChatOpen] = useState(true);
+  const [chatMode, setChatMode] = useState<ChatPanelMode>("hidden");
 
   useEffect(() => {
     const storedTheme = window.localStorage.getItem("tfr-theme") as "light" | "dark" | null;
@@ -31,23 +31,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       <HeaderNav
         theme={theme}
         onToggleTheme={toggleTheme}
-        chatOpen={chatOpen}
-        onToggleChat={() => setChatOpen((value) => !value)}
       />
       <DockableChat
-        open={chatOpen}
-        docked={chatDocked}
-        onOpenChange={setChatOpen}
-        onDockedChange={setChatDocked}
+        mode={chatMode}
+        onModeChange={setChatMode}
       />
-      <main
-        className={cn(
-          "min-h-[calc(100vh-56px)] pt-14 transition-[padding] duration-200",
-          chatOpen && chatDocked ? "lg:pl-[360px]" : "",
-        )}
-      >
-        {children}
-      </main>
+      <main className="min-h-[calc(100vh-56px)] pt-14">{children}</main>
     </div>
   );
 }

@@ -45,4 +45,3 @@ class FormCatalog:
     def _path_for(self, form_id: str, version: str) -> Path:
         safe_name = f"{form_id}__{version}".replace("/", "_")
         return self.catalog_dir / f"{safe_name}.json"
-

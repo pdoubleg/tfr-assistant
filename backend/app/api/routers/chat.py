@@ -1,5 +1,10 @@
 from fastapi import APIRouter
+from pydantic_ai.ag_ui import StateDeps, handle_ag_ui_request
+from starlette.requests import Request
+from starlette.responses import Response
 
+from app.agents.chat_agent import chat_agent
+from app.models.chat_state import TFRChatState
 from app.schemas.chat import ChatMessage, ChatRequest, ChatResponse
 
 router = APIRouter()
@@ -17,3 +22,11 @@ async def chat(request: ChatRequest) -> ChatResponse:
     )
     return ChatResponse(message=ChatMessage(role="assistant", content=content))
 
+
+@router.post("/ag-ui")
+async def chat_ag_ui(request: Request) -> Response:
+    return await handle_ag_ui_request(
+        chat_agent,
+        request,
+        deps=StateDeps(TFRChatState()),
+    )

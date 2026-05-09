@@ -54,4 +54,3 @@ class ReviewStore:
 
 
 review_store = ReviewStore()
-

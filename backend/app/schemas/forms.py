@@ -32,4 +32,3 @@ class AuditFormSummary(BaseModel):
     title: str
     description: str | None = None
     question_count: int
-

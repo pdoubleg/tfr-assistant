@@ -31,4 +31,3 @@ def update_user_version(review_id: str, update: ReviewUpdate) -> ReviewRecord:
         return review_store.update_user_version(review_id, update)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-

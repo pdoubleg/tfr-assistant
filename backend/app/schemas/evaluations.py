@@ -12,4 +12,3 @@ class EvaluationSummary(BaseModel):
     user_feedback_count: int
     edit_rate: float
     llm_judge_score: float | None = None
-
