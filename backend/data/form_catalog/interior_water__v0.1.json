@@ -1,0 +1,55 @@
+{
+  "id": "interior_water",
+  "version": "v0.1",
+  "title": "Interior Water Loss Review",
+  "description": "Canonical form for interior water loss file reviews.",
+  "canonical": {
+    "form_id": "interior_water",
+    "form_version": "v0.1",
+    "title": "Interior Water Loss Review",
+    "description": "Interior water loss review focused on cause-of-loss documentation, mitigation evidence, and estimate scope support.",
+    "questions": [
+      {
+        "id": "Q1",
+        "text": "Does the file identify the reported source and cause of interior water damage?",
+        "answer": "Yes",
+        "sub_questions": [],
+        "help_text": "Review loss notes, inspection summaries, plumbing reports, and cause-of-loss documentation."
+      },
+      {
+        "id": "Q2",
+        "text": "Were affected rooms and materials documented well enough to support the estimate?",
+        "answer": "No",
+        "sub_questions": [
+          {
+            "id": "Q2.1",
+            "text": "Room-level photos or notes do not support one or more estimated repair areas.",
+            "reasoning": "",
+            "citations": "",
+            "answer": true,
+            "help_text": "Cite the room, photo set, note, or estimate line item that is unsupported."
+          },
+          {
+            "id": "Q2.2",
+            "text": "Material quantities or dimensions appear inconsistent with the file evidence.",
+            "reasoning": "",
+            "citations": "",
+            "answer": false,
+            "help_text": "Compare estimate quantities against inspection measurements and photos."
+          }
+        ],
+        "help_text": "Check photos, diagrams, measurements, and line-item notes for each affected room."
+      },
+      {
+        "id": "Q3",
+        "text": "Were mitigation or dry-out details considered in the repair recommendation?",
+        "answer": "Yes",
+        "sub_questions": [],
+        "help_text": "Review mitigation invoices, drying logs, and material removal notes."
+      }
+    ],
+    "overall_outcome": "Does Not Meet",
+    "outcome_justification": "The canonical template includes a documentation-support opportunity for room-level repair scope."
+  },
+  "created_at": "2026-05-09T00:00:00Z"
+}

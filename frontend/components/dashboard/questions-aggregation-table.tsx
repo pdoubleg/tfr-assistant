@@ -17,7 +17,6 @@ export function QuestionsAggregationTable({ questions }: { questions: Aggregated
               <TableHead className="min-w-[260px]">Question</TableHead>
               <TableHead className="text-center">Yes</TableHead>
               <TableHead className="text-center">No</TableHead>
-              <TableHead className="text-center">Insuff.</TableHead>
               <TableHead className="text-center">Edits</TableHead>
             </TableRow>
           </TableHeader>
@@ -28,7 +27,6 @@ export function QuestionsAggregationTable({ questions }: { questions: Aggregated
                 <TableCell>{question.text}</TableCell>
                 <TableCell className="text-center"><Badge variant="success">{question.yesCount}</Badge></TableCell>
                 <TableCell className="text-center"><Badge variant="danger">{question.noCount}</Badge></TableCell>
-                <TableCell className="text-center"><Badge variant="warning">{question.insufficientCount}</Badge></TableCell>
                 <TableCell className="text-center tabular-nums">{question.editCount}</TableCell>
               </TableRow>
             ))}
@@ -38,4 +36,3 @@ export function QuestionsAggregationTable({ questions }: { questions: Aggregated
     </Card>
   );
 }
-

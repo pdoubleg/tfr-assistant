@@ -1,9 +1,13 @@
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 from app.models.audit import AuditFormResult
+
+ReviewStatus = Literal["queued", "running", "completed", "failed"]
+ReviewSource = Literal["api", "chat_tool", "batch"]
+BatchInputMode = Literal["manual", "upload", "synthetic"]
 
 
 class ReviewCreate(BaseModel):
@@ -13,13 +17,28 @@ class ReviewCreate(BaseModel):
     notes: str | None = None
 
 
+class ReviewGenerateRequest(BaseModel):
+    prompt: str = ""
+    claim_number: str = ""
+    effective_date: str = ""
+    instructions: str = ""
+    form_id: str = "tfr_default"
+    form_version: str = "v0.1"
+    source_file_ids: list[str] = Field(default_factory=list)
+    synthetic: bool = False
+
+
 class ReviewRecord(BaseModel):
     id: str
     form_id: str
     form_version: str
-    status: Literal["queued", "running", "completed", "failed"] = "completed"
-    original: AuditFormResult
-    user_version: AuditFormResult
+    status: ReviewStatus = "completed"
+    source: ReviewSource = "api"
+    batch_id: str | None = None
+    input_json: dict[str, Any] | None = None
+    original: AuditFormResult | None = None
+    user_version: AuditFormResult | None = None
+    error_message: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
@@ -27,3 +46,86 @@ class ReviewRecord(BaseModel):
 class ReviewUpdate(BaseModel):
     user_version: AuditFormResult
     comment: str | None = None
+
+
+class BatchReviewInput(BaseModel):
+    claim_number: str = ""
+    effective_date: str = ""
+    instructions: str = ""
+    prompt: str = ""
+    source_file_ids: list[str] = Field(default_factory=list)
+    form_id: str | None = None
+    form_version: str | None = None
+    synthetic: bool | None = None
+
+
+class BatchCreateRequest(BaseModel):
+    name: str = ""
+    description: str = ""
+    form_id: str = "tfr_default"
+    form_version: str = "v0.1"
+    synthetic: bool = False
+    synthetic_count: int = Field(default=0, ge=0)
+    input_mode: BatchInputMode = "manual"
+    excel_column_map: dict[str, str] = Field(default_factory=dict)
+    items: list[BatchReviewInput] = Field(default_factory=list)
+
+
+class BatchRecord(BaseModel):
+    id: str
+    template_id: str | None = None
+    name: str = ""
+    description: str = ""
+    status: ReviewStatus = "queued"
+    source: str = "batch"
+    total_count: int = 0
+    completed_count: int = 0
+    failed_count: int = 0
+    input_json: dict[str, Any] | None = None
+    error_message: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    duration_seconds: float | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class BatchTemplateCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=120)
+    description: str = ""
+    form_id: str = "tfr_default"
+    form_version: str = "v0.1"
+    synthetic: bool = False
+    synthetic_count: int = Field(default=0, ge=0)
+    input_mode: BatchInputMode = "manual"
+    excel_column_map: dict[str, str] = Field(default_factory=dict)
+    items: list[BatchReviewInput] = Field(default_factory=list)
+
+
+class BatchTemplateUpdate(BaseModel):
+    description: str = ""
+    form_id: str = "tfr_default"
+    form_version: str = "v0.1"
+    synthetic: bool = False
+    synthetic_count: int = Field(default=0, ge=0)
+    input_mode: BatchInputMode = "manual"
+    excel_column_map: dict[str, str] = Field(default_factory=dict)
+    items: list[BatchReviewInput] = Field(default_factory=list)
+
+
+class BatchTemplateRecord(BaseModel):
+    id: str
+    name: str
+    description: str = ""
+    form_id: str
+    form_version: str
+    synthetic: bool = False
+    synthetic_count: int = 0
+    input_mode: BatchInputMode = "manual"
+    excel_column_map: dict[str, str] = Field(default_factory=dict)
+    items: list[BatchReviewInput] = Field(default_factory=list)
+    item_count: int = 0
+    latest_run: BatchRecord | None = None
+    run_count: int = 0
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

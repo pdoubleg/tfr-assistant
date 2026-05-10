@@ -5,12 +5,13 @@ import { useEffect, useState } from "react";
 
 import { DockableChat } from "@/components/chat/dockable-chat";
 import { HeaderNav } from "@/components/app-shell/header-nav";
+import { TfrAgentProvider } from "@/hooks/use-tfr-agent";
 
 export type ChatPanelMode = "hidden" | "small" | "large";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<"light" | "dark">("light");
-  const [chatMode, setChatMode] = useState<ChatPanelMode>("hidden");
+  const [chatMode, setChatMode] = useState<ChatPanelMode>("small");
 
   useEffect(() => {
     const storedTheme = window.localStorage.getItem("tfr-theme") as "light" | "dark" | null;
@@ -27,16 +28,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <HeaderNav
-        theme={theme}
-        onToggleTheme={toggleTheme}
-      />
-      <DockableChat
-        mode={chatMode}
-        onModeChange={setChatMode}
-      />
-      <main className="min-h-[calc(100vh-56px)] pt-14">{children}</main>
-    </div>
+    <TfrAgentProvider>
+      <div className="min-h-screen bg-background">
+        <HeaderNav
+          theme={theme}
+          onToggleTheme={toggleTheme}
+        />
+        <DockableChat
+          mode={chatMode}
+          onModeChange={setChatMode}
+        />
+        <main className="min-h-[calc(100vh-56px)] pt-14">{children}</main>
+      </div>
+    </TfrAgentProvider>
   );
 }

@@ -22,23 +22,20 @@ class FormSubQuestion(BaseModel):
         description="Reasoning for why this driver/sub-question applies.",
     )
     citations: str = Field(default="", description="Specific evidence citations.")
-    answer: SkipJsonSchema[bool] = False
+    answer: bool = Field(
+        default=False,
+        description="True when this sub-question/driver applies to a No answer.",
+    )
     help_text: SkipJsonSchema[str | None] = None
 
 
 class FormQuestion(BaseModel):
     id: str = Field(..., description="Stable identifier, e.g. Q1 or Q2.")
     text: str = Field(..., description="Canonical question text from the form template.")
-    answer: Literal["Yes", "No", "Insufficient information"] = Field(
-        ..., description="Question answer."
-    )
+    answer: Literal["Yes", "No"] = Field(..., description="Question answer.")
     sub_questions: list[FormSubQuestion] = Field(
         default_factory=list,
         description="Applicable sub-questions when the answer identifies an opportunity.",
-    )
-    missing_info: str | None = Field(
-        None,
-        description="Required when the answer is 'Insufficient information'.",
     )
     help_text: SkipJsonSchema[str | None] = None
 
@@ -46,27 +43,22 @@ class FormQuestion(BaseModel):
     def validate_sub_questions(self) -> Self:
         if self.answer == "No" and not self.sub_questions:
             raise ValueError("Questions marked 'No' must include at least one sub-question.")
-        return self
-
-    @model_validator(mode="after")
-    def validate_missing_info(self) -> Self:
-        if self.answer == "Insufficient information" and not (self.missing_info or "").strip():
+        if self.answer == "No" and not any(
+            sub_question.answer for sub_question in self.sub_questions
+        ):
             raise ValueError(
-                "Questions marked 'Insufficient information' must specify missing_info."
+                "Questions marked 'No' must include at least one applicable sub-question."
             )
+        if self.answer == "Yes" and self.sub_questions:
+            raise ValueError("Questions marked 'Yes' must not include sub-questions.")
         return self
-
-
-class PerilDetermination(BaseModel):
-    peril: str = Field(..., description="Specific peril for the file review.")
-    notes: str | None = Field(None, description="Optional peril reasoning or caveats.")
 
 
 class AuditFormResult(BaseModel):
     form_id: str = Field(..., description="Registered canonical form identifier.")
     form_version: str = Field(..., description="Canonical form version completed by the agent.")
     title: str = Field(..., description="Human-friendly form title.")
-    peril: PerilDetermination
+    description: str = Field(..., description="Brief description of the completed audit form.")
     questions: list[FormQuestion]
     overall_outcome: Literal["Meets", "Does Not Meet"]
     outcome_justification: str
@@ -81,19 +73,15 @@ class AuditFormResult(BaseModel):
         lines = [
             f"# {self.title}",
             "",
-            "## Peril",
-            f"- {self.peril.peril}",
+            "## Description",
+            self.description,
         ]
-        if self.peril.notes:
-            lines.append(f"- Notes: {self.peril.notes}")
 
         lines.extend(["", "## Questions"])
         for question in self.questions:
             lines.extend([f"### {question.id} - {question.answer}", question.text])
             if question.help_text:
                 lines.append(f"- Help text: {question.help_text}")
-            if question.missing_info:
-                lines.append(f"- Missing info: {question.missing_info}")
             for sub_question in question.sub_questions:
                 lines.extend(
                     [
@@ -115,10 +103,6 @@ class AuditFormResult(BaseModel):
         )
         return "\n".join(lines).strip()
 
-    @property
-    def has_insufficient_info(self) -> bool:
-        return any(question.answer == "Insufficient information" for question in self.questions)
-
     def to_json(self, path: str | Path) -> None:
         destination = Path(path)
         with destination.open("w", encoding="utf-8") as file_obj:
@@ -139,9 +123,10 @@ class AuditFormResult(BaseModel):
     def as_questionnaire_string(self) -> str:
         output = [
             f"TFR Questionnaire: {self.title}",
-            "Complete each question from the file evidence. For 'No' answers, select at least "
-            "one applicable sub-question. Use 'Insufficient information' only when required "
-            "evidence is truly unavailable.",
+            "Complete each question from the file evidence. Answers must be exactly 'Yes' or "
+            "'No'. For 'Yes' answers, return an empty sub_questions list. For 'No' answers, "
+            "include at least one listed sub-question and set answer=true for every applicable "
+            "driver.",
         ]
         for question in self.questions:
             help_text = f" (help_text: {question.help_text})" if question.help_text else ""

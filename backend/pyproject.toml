@@ -5,6 +5,7 @@ description = "Backend API and agent runtime for the Targeted File Review assist
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "aiosqlite>=0.20.0",
     "fastapi>=0.115.0",
     "pydantic>=2.10.0",
     "pydantic-ai>=0.0.24",
@@ -30,4 +31,3 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
-

@@ -1,3 +1,6 @@
+from datetime import UTC, datetime
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -12,3 +15,16 @@ class EvaluationSummary(BaseModel):
     user_feedback_count: int
     edit_rate: float
     llm_judge_score: float | None = None
+
+
+class EvaluationCreate(BaseModel):
+    review_id: str
+    evaluator: str = "user"
+    score: float | None = None
+    notes: str | None = None
+    payload: dict[str, Any] | None = None
+
+
+class EvaluationRecord(EvaluationCreate):
+    id: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

@@ -4,7 +4,11 @@ from pydantic_ai.ag_ui import StateDeps
 from pydantic_ai.models.test import TestModel
 
 from app.core.config import Settings, get_settings
+from app.db.session import AsyncSessionLocal
 from app.models.chat_state import TFRChatState, log_activity
+from app.schemas.reviews import ReviewGenerateRequest
+from app.services.audit_generation import ChatReviewGenerationService
+from app.services.status_reporter import ChatStateStatusReporter
 
 
 def build_chat_agent(settings: Settings | None = None) -> Agent[StateDeps[TFRChatState], str]:
@@ -38,7 +42,9 @@ def build_chat_agent(settings: Settings | None = None) -> Agent[StateDeps[TFRCha
             "Help users navigate reviews, forms, dashboard data, and evaluation workflows. "
             "When connected to the UI, synchronize useful state through the CopilotKit AG-UI "
             "protocol rather than inventing hidden state. Use tools when you need current "
-            "workspace context or need to report visible progress."
+            "workspace context or need to report visible progress. When the user asks you to "
+            "create, generate, run, or smoke-test an audit form review, call "
+            "generate_audit_form_review so the result is persisted and rendered in the output pane."
         ),
     )
 
@@ -69,5 +75,61 @@ async def get_workspace_context(ctx: RunContext[StateDeps[TFRChatState]]) -> Too
     log_activity(state, state.current_step, "completed", "workspace_context")
     return ToolReturn(
         return_value=summary,
+        metadata=[StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=state)],
+    )
+
+
+@chat_agent.tool
+async def generate_audit_form_review(
+    ctx: RunContext[StateDeps[TFRChatState]],
+    prompt: str,
+    claim_number: str = "",
+    effective_date: str = "",
+    form_id: str = "tfr_default",
+    form_version: str = "v0.1",
+    synthetic: bool = True,
+) -> ToolReturn:
+    """Spawn a sub-agent to generate an AuditFormResult review.
+
+    Use synthetic=True for quick examples and smoke tests not involving the sub-agent. Use
+    synthetic=False to employ the sub-agent.
+    """
+
+    state = ctx.deps.state
+    reporter = ChatStateStatusReporter(state)
+    reporter.in_progress("Starting audit form generation tool...", progress=10)
+
+    request = ReviewGenerateRequest(
+        prompt=prompt,
+        claim_number=claim_number,
+        effective_date=effective_date,
+        instructions=prompt,
+        form_id=form_id,
+        form_version=form_version,
+        synthetic=synthetic,
+    )
+    async with AsyncSessionLocal() as session:
+        review = await ChatReviewGenerationService(session).generate(
+            request,
+            reporter=reporter,
+        )
+
+    state.active_review_id = review.id
+    if review.status == "completed":
+        state.status = "complete"
+        state.current_step = f"Audit review {review.id} is ready."
+    else:
+        state.status = "error"
+        state.error_message = review.error_message
+        state.current_step = f"Audit review {review.id} failed."
+
+    output = (
+        f"Audit review {review.id} saved with status {review.status}.\n"
+        f"Form: {review.form_id}@{review.form_version}\n"
+        f"Active review ID: {review.id}"
+        f"Results: {str(review.original)}"
+    )
+    return ToolReturn(
+        return_value=output,
         metadata=[StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=state)],
     )

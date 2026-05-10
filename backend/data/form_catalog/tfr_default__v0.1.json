@@ -2,22 +2,27 @@
   "id": "tfr_default",
   "version": "v0.1",
   "title": "Default TFR Questionnaire",
-  "description": "Starter canonical form used while the audit schema is still evolving.",
+  "description": "Starter canonical form used while the audit system is still evolving.",
   "canonical": {
     "form_id": "tfr_default",
     "form_version": "v0.1",
     "title": "Default TFR Questionnaire",
-    "peril": {
-      "peril": "Interior",
-      "notes": null
-    },
+    "description": "Default file review questionnaire for validating documentation, estimate support, and repair-scope opportunities.",
     "questions": [
       {
         "id": "Q1",
         "text": "Was the file documentation sufficient to support the estimate decision?",
-        "answer": "Yes",
-        "sub_questions": [],
-        "missing_info": null,
+        "answer": "No",
+        "sub_questions": [
+          {
+            "id": "Q1.1",
+            "text": "Documentation is missing, incomplete, or insufficient to support the estimate decision.",
+            "reasoning": "",
+            "citations": "",
+            "answer": true,
+            "help_text": "Cite the missing or insufficient notes, photos, estimate details, or attachments."
+          }
+        ],
         "help_text": "Review notes, photos, estimate line items, and supporting attachments."
       },
       {
@@ -34,7 +39,6 @@
             "help_text": "Cite the file evidence that supports the opportunity."
           }
         ],
-        "missing_info": null,
         "help_text": null
       }
     ],

@@ -1,12 +1,11 @@
 import type { AggregatedQuestion, AuditFormResult, FormCatalogEntry, ReviewRecord } from "@/lib/types";
 
-const baseQuestions = [
+const defaultQuestions = [
   {
     id: "Q1",
     text: "Was the file documentation sufficient to support the estimate decision?",
     answer: "Yes" as const,
     sub_questions: [],
-    missing_info: null,
     help_text: "Review notes, photos, estimate line items, and supporting attachments.",
   },
   {
@@ -31,16 +30,80 @@ const baseQuestions = [
         help_text: null,
       },
     ],
-    missing_info: null,
     help_text: null,
   },
   {
     id: "Q3",
-    text: "Is there enough evidence to determine the applicable peril?",
-    answer: "Insufficient information" as const,
+    text: "Was the overall outcome supported by the documented file evidence?",
+    answer: "Yes" as const,
     sub_questions: [],
-    missing_info: "The file does not include the final field inspection narrative.",
-    help_text: null,
+    help_text: "Check that the final outcome follows from the answered questions and cited evidence.",
+  },
+];
+
+const interiorWaterQuestions = [
+  {
+    id: "Q1",
+    text: "Does the file identify the reported source and cause of interior water damage?",
+    answer: "Yes" as const,
+    sub_questions: [],
+    help_text: "Review loss notes, inspection summaries, plumbing reports, and cause-of-loss documentation.",
+  },
+  {
+    id: "Q2",
+    text: "Were affected rooms and materials documented well enough to support the estimate?",
+    answer: "No" as const,
+    sub_questions: [
+      {
+        id: "Q2.1",
+        text: "Room-level photos or notes do not support one or more estimated repair areas.",
+        reasoning: "The hallway ceiling repair is scoped, but the photo set only shows kitchen staining.",
+        citations: "Estimate line 12; photos 08-11.",
+        answer: true,
+        help_text: "Cite the room, photo set, note, or estimate line item that is unsupported.",
+      },
+    ],
+    help_text: "Check photos, diagrams, measurements, and line-item notes for each affected room.",
+  },
+  {
+    id: "Q3",
+    text: "Were mitigation or dry-out details considered in the repair recommendation?",
+    answer: "Yes" as const,
+    sub_questions: [],
+    help_text: "Review mitigation invoices, drying logs, and material removal notes.",
+  },
+];
+
+const exteriorHailQuestions = [
+  {
+    id: "Q1",
+    text: "Does the file document exterior damage observations by area or elevation?",
+    answer: "Yes" as const,
+    sub_questions: [],
+    help_text: "Review roof photos, elevation photos, inspection notes, and damage summaries.",
+  },
+  {
+    id: "Q2",
+    text: "Is the estimate scope consistent with documented roof and exterior damage?",
+    answer: "No" as const,
+    sub_questions: [
+      {
+        id: "Q2.1",
+        text: "A documented exterior damage item is missing from the estimate.",
+        reasoning: "Inspection photos show dented gutter downspouts, but no downspout line item is included.",
+        citations: "Photos 22-24; estimate exterior section.",
+        answer: true,
+        help_text: "Cite the damage photo or note and the absent estimate scope.",
+      },
+    ],
+    help_text: "Compare documented damage to roof, gutter, siding, trim, and elevation line items.",
+  },
+  {
+    id: "Q3",
+    text: "Were collateral indicators or lack of collateral indicators addressed where relevant?",
+    answer: "Yes" as const,
+    sub_questions: [],
+    help_text: "Consider photos and notes for gutters, soft metals, screens, fencing, and nearby surfaces.",
   },
 ];
 
@@ -48,16 +111,16 @@ export const reviews: ReviewRecord[] = [
   {
     id: "rev-1001",
     feedback: "up",
-    comments: "Agent found the main issue, but the peril note needed tightening.",
+    comments: "Agent found the main issue, but the claim description needed tightening.",
     original: {
       id: "rev-1001",
       form_id: "tfr_default",
       form_version: "v0.1",
       title: "Claim 24019 Interior Review",
-      peril: { peril: "Interior", notes: "Water damage reported near kitchen ceiling." },
-      questions: baseQuestions,
+      description: "Interior water damage reported near kitchen ceiling.",
+      questions: defaultQuestions,
       overall_outcome: "Does Not Meet",
-      outcome_justification: "A repair opportunity was identified and required evidence is incomplete.",
+      outcome_justification: "A repair opportunity was identified in the submitted estimate.",
       created_at: "2026-05-07T15:21:00Z",
       updated_at: "2026-05-08T11:02:00Z",
     },
@@ -66,17 +129,10 @@ export const reviews: ReviewRecord[] = [
       form_id: "tfr_default",
       form_version: "v0.1",
       title: "Claim 24019 Interior Review",
-      peril: { peril: "Interior", notes: "Water damage reported near the kitchen and hallway ceiling." },
-      questions: baseQuestions.map((question) =>
-        question.id === "Q3"
-          ? {
-              ...question,
-              missing_info: "The field inspection narrative is missing from the uploaded packet.",
-            }
-          : question,
-      ),
+      description: "Interior water damage reported near the kitchen and hallway ceiling.",
+      questions: defaultQuestions,
       overall_outcome: "Does Not Meet",
-      outcome_justification: "A repair opportunity was identified; user clarified the missing evidence.",
+      outcome_justification: "A repair opportunity was identified; user clarified the affected area.",
       created_at: "2026-05-07T15:21:00Z",
       updated_at: "2026-05-08T14:36:00Z",
     },
@@ -87,11 +143,11 @@ export const reviews: ReviewRecord[] = [
     comments: "",
     original: {
       id: "rev-1002",
-      form_id: "tfr_default",
+      form_id: "exterior_hail",
       form_version: "v0.1",
       title: "Claim 24022 Exterior Review",
-      peril: { peril: "Exterior", notes: "Wind/hail review with roof photo packet." },
-      questions: baseQuestions.map((question) =>
+      description: "Wind and hail review with roof and elevation photo packet.",
+      questions: exteriorHailQuestions.map((question) =>
         question.id === "Q2" ? { ...question, answer: "Yes" as const, sub_questions: [] } : question,
       ),
       overall_outcome: "Meets",
@@ -101,11 +157,11 @@ export const reviews: ReviewRecord[] = [
     },
     userVersion: {
       id: "rev-1002",
-      form_id: "tfr_default",
+      form_id: "exterior_hail",
       form_version: "v0.1",
       title: "Claim 24022 Exterior Review",
-      peril: { peril: "Exterior", notes: "Wind/hail review with roof photo packet." },
-      questions: baseQuestions.map((question) =>
+      description: "Wind and hail review with roof and elevation photo packet.",
+      questions: exteriorHailQuestions.map((question) =>
         question.id === "Q2" ? { ...question, answer: "Yes" as const, sub_questions: [] } : question,
       ),
       overall_outcome: "Meets",
@@ -120,11 +176,11 @@ export const reviews: ReviewRecord[] = [
     comments: "Missed a clear sub-question driver.",
     original: {
       id: "rev-1003",
-      form_id: "tfr_default",
+      form_id: "interior_water",
       form_version: "v0.1",
-      title: "Claim 24031 Interior Review",
-      peril: { peril: "Interior", notes: null },
-      questions: baseQuestions.map((question) =>
+      title: "Claim 24031 Interior Water Review",
+      description: "Interior water loss with kitchen ceiling and hallway scope.",
+      questions: interiorWaterQuestions.map((question) =>
         question.id === "Q2" ? { ...question, answer: "Yes" as const, sub_questions: [] } : question,
       ),
       overall_outcome: "Meets",
@@ -134,47 +190,49 @@ export const reviews: ReviewRecord[] = [
     },
     userVersion: {
       id: "rev-1003",
-      form_id: "tfr_default",
+      form_id: "interior_water",
       form_version: "v0.1",
-      title: "Claim 24031 Interior Review",
-      peril: { peril: "Interior", notes: "Interior water loss." },
-      questions: baseQuestions,
+      title: "Claim 24031 Interior Water Review",
+      description: "Interior water loss with kitchen ceiling and hallway scope.",
+      questions: interiorWaterQuestions,
       overall_outcome: "Does Not Meet",
-      outcome_justification: "User identified an omitted repair item in the estimate.",
+      outcome_justification: "User identified an unsupported hallway ceiling repair item in the estimate.",
       created_at: "2026-05-08T16:44:00Z",
       updated_at: "2026-05-08T17:19:00Z",
     },
   },
 ];
 
-export const savedForms: AuditFormResult[] = reviews.map((review) => review.userVersion);
+export const savedForms: AuditFormResult[] = reviews
+  .map((review) => review.userVersion ?? review.user_version ?? review.original)
+  .filter((form): form is AuditFormResult => Boolean(form));
 
 export const formCatalog: FormCatalogEntry[] = [
   {
     id: "tfr_default",
     version: "v0.1",
     title: "Default TFR Questionnaire",
-    description: "Starter canonical form for question, sub-question, peril, and outcome workflows.",
+    description: "Starter canonical form for question, sub-question, description, and outcome workflows.",
     questionCount: 3,
     status: "active",
     lastUpdated: "2026-05-09",
   },
   {
     id: "interior_water",
-    version: "draft",
+    version: "v0.1",
     title: "Interior Water Loss",
-    description: "Draft variant for interior water file reviews and repair-scope checks.",
-    questionCount: 8,
-    status: "draft",
+    description: "Canonical form for interior water file reviews and repair-scope checks.",
+    questionCount: 3,
+    status: "active",
     lastUpdated: "2026-05-09",
   },
   {
     id: "exterior_hail",
-    version: "draft",
+    version: "v0.1",
     title: "Exterior Hail Review",
-    description: "Draft variant for exterior peril determination and roof/siding evidence review.",
-    questionCount: 10,
-    status: "draft",
+    description: "Canonical form for exterior hail reviews and roof/siding evidence checks.",
+    questionCount: 3,
+    status: "active",
     lastUpdated: "2026-05-09",
   },
 ];
@@ -185,7 +243,6 @@ export const aggregatedQuestions: AggregatedQuestion[] = [
     text: "Was the file documentation sufficient to support the estimate decision?",
     yesCount: 3,
     noCount: 0,
-    insufficientCount: 0,
     totalCount: 3,
     editCount: 0,
   },
@@ -194,18 +251,15 @@ export const aggregatedQuestions: AggregatedQuestion[] = [
     text: "Were all applicable repair opportunities addressed?",
     yesCount: 1,
     noCount: 2,
-    insufficientCount: 0,
     totalCount: 3,
     editCount: 1,
   },
   {
     id: "Q3",
-    text: "Is there enough evidence to determine the applicable peril?",
-    yesCount: 0,
+    text: "Was the overall outcome supported by the documented file evidence?",
+    yesCount: 3,
     noCount: 0,
-    insufficientCount: 3,
     totalCount: 3,
     editCount: 1,
   },
 ];
-

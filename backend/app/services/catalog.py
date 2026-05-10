@@ -22,14 +22,14 @@ class FormCatalog:
         ]
 
     def get_form(self, form_id: str, version: str) -> AuditFormDefinition:
-        path = self._path_for(form_id, version)
+        path = self.path_for(form_id, version)
         if not path.exists():
             raise KeyError(f"Unknown audit form: {form_id}@{version}")
         return AuditFormDefinition.model_validate_json(path.read_text(encoding="utf-8"))
 
     def register_form(self, registration: AuditFormRegistration) -> AuditFormDefinition:
         definition = AuditFormDefinition(**registration.model_dump())
-        path = self._path_for(definition.id, definition.version)
+        path = self.path_for(definition.id, definition.version)
         path.write_text(
             json.dumps(definition.model_dump(mode="json"), indent=2),
             encoding="utf-8",
@@ -42,6 +42,6 @@ class FormCatalog:
             forms.append(AuditFormDefinition.model_validate_json(path.read_text(encoding="utf-8")))
         return forms
 
-    def _path_for(self, form_id: str, version: str) -> Path:
+    def path_for(self, form_id: str, version: str) -> Path:
         safe_name = f"{form_id}__{version}".replace("/", "_")
         return self.catalog_dir / f"{safe_name}.json"

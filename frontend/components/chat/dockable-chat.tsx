@@ -32,10 +32,12 @@ import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { ChatPanelMode } from "@/components/app-shell/app-shell";
+import { apiBaseUrl } from "@/lib/api";
+import type { TFRChatState, ToolStep } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { initialTfrChatState, useTfrAgent } from "@/hooks/use-tfr-agent";
 
 type ChatRole = "user" | "assistant";
-type ToolStepStatus = "in_progress" | "completed" | "error";
 
 interface UserAssistantMessage {
   id: string;
@@ -53,25 +55,6 @@ interface ToolStatusMessage {
 
 type ChatMessage = UserAssistantMessage | ToolStatusMessage;
 
-interface ToolStep {
-  id: string;
-  message: string;
-  status: ToolStepStatus;
-  timestamp?: string;
-}
-
-interface TFRChatState {
-  active_route: string;
-  active_review_id: string | null;
-  selected_form_ids: string[];
-  documents: Array<Record<string, unknown>>;
-  status: "idle" | "thinking" | "using_tools" | "complete" | "error";
-  progress: number;
-  current_step: string;
-  activity_log: ToolStep[];
-  error_message: string | null;
-}
-
 const starterMessages: ChatMessage[] = [
   {
     id: "welcome",
@@ -81,25 +64,14 @@ const starterMessages: ChatMessage[] = [
   },
 ];
 
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 const RESPONSE_STARTED_STEP_ID = "assistant-response-started";
 const MIN_PANEL_WIDTH = 460;
 const MIN_PANEL_HEIGHT = 520;
 const HEADER_OFFSET = 72;
+const QUEUE_CONTEXT_TOP_OFFSET = 148;
+const QUEUE_CONTEXT_BOTTOM_OFFSET = 24;
 const PANEL_MARGIN = 8;
 const DEFAULT_SMALL_SIZE = { width: 520, height: 0 };
-
-const initialSharedState: TFRChatState = {
-  active_route: "/",
-  active_review_id: null,
-  selected_form_ids: [],
-  documents: [],
-  status: "idle",
-  progress: 0,
-  current_step: "",
-  activity_log: [],
-  error_message: null,
-};
 
 export function DockableChat({
   mode,
@@ -111,11 +83,11 @@ export function DockableChat({
   const [messages, setMessages] = useState<ChatMessage[]>(starterMessages);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
-  const [sharedState, setSharedState] = useState<TFRChatState>(initialSharedState);
+  const { state: sharedState, setState: setSharedState } = useTfrAgent();
   const [collapsedToolMessages, setCollapsedToolMessages] = useState<Set<string>>(new Set());
   const [panelRect, setPanelRect] = useState({
     left: 24,
-    top: HEADER_OFFSET,
+    top: QUEUE_CONTEXT_TOP_OFFSET,
     width: DEFAULT_SMALL_SIZE.width,
     height: 760,
   });
@@ -173,20 +145,20 @@ export function DockableChat({
         const width = Math.min(Math.max(DEFAULT_SMALL_SIZE.width, MIN_PANEL_WIDTH), window.innerWidth - PANEL_MARGIN * 2);
         const height = Math.max(
           MIN_PANEL_HEIGHT,
-          window.innerHeight - HEADER_OFFSET - PANEL_MARGIN,
+          window.innerHeight - QUEUE_CONTEXT_TOP_OFFSET - QUEUE_CONTEXT_BOTTOM_OFFSET,
         );
         const nextRect = restorePreviousRectOnShowRef.current
           ? lastSmallRectRef.current
           : {
               ...lastSmallRectRef.current,
               left: Number.isFinite(lastSmallRectRef.current.left) ? lastSmallRectRef.current.left : 24,
-              top: HEADER_OFFSET,
+              top: QUEUE_CONTEXT_TOP_OFFSET,
               width: Math.max(MIN_PANEL_WIDTH, Math.min(lastSmallRectRef.current.width || width, Math.min(720, window.innerWidth - PANEL_MARGIN * 2))),
               height,
             };
         setPanelRect(clampRectToViewport({
           ...nextRect,
-        }));
+        }, mode));
       }
 
       if (mode === "large") {
@@ -203,7 +175,7 @@ export function DockableChat({
             };
         setPanelRect(clampRectToViewport({
           ...nextRect,
-        }));
+        }, mode));
       }
 
       restorePreviousRectOnShowRef.current = false;
@@ -236,7 +208,7 @@ export function DockableChat({
     const onMove = (moveEvent: PointerEvent) => {
       const dx = moveEvent.clientX - startX;
       const dy = moveEvent.clientY - startY;
-      setPanelRect(resizeRect(startRect, direction, dx, dy));
+      setPanelRect(resizeRect(startRect, direction, dx, dy, mode));
     };
 
     const onUp = () => {
@@ -261,7 +233,7 @@ export function DockableChat({
       setPanelRect({
         ...startRect,
         left: clamp(startRect.left + moveEvent.clientX - startX, 12, window.innerWidth - startRect.width - 12),
-        top: clamp(startRect.top + moveEvent.clientY - startY, 62, window.innerHeight - startRect.height - 12),
+        top: clamp(startRect.top + moveEvent.clientY - startY, HEADER_OFFSET, window.innerHeight - startRect.height - PANEL_MARGIN),
       });
     };
 
@@ -410,7 +382,6 @@ export function DockableChat({
           </div>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">TFR Assistant</p>
-            <p className="truncate text-xs text-muted-foreground">Pydantic-AI AG-UI stream</p>
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -802,8 +773,8 @@ function upsertToolStep(
 }
 
 function normalizeStateSnapshot(snapshot: Partial<TFRChatState>): TFRChatState {
-  return {
-    ...initialSharedState,
+    return {
+    ...initialTfrChatState,
     ...snapshot,
     selected_form_ids: snapshot.selected_form_ids ?? [],
     documents: snapshot.documents ?? [],
@@ -987,6 +958,7 @@ function resizeRect(
   direction: ResizeDirection,
   dx: number,
   dy: number,
+  mode: ChatPanelMode = "large",
 ) {
   let { left, top, width, height } = start;
 
@@ -1011,15 +983,20 @@ function resizeRect(
     height = MIN_PANEL_HEIGHT;
   }
 
-  return clampRectToViewport({ left, top, width, height });
+  return clampRectToViewport({ left, top, width, height }, mode);
 }
 
-function clampRectToViewport(rect: { left: number; top: number; width: number; height: number }) {
+function clampRectToViewport(
+  rect: { left: number; top: number; width: number; height: number },
+  mode: ChatPanelMode = "large",
+) {
+  const topOffset = mode === "small" ? QUEUE_CONTEXT_TOP_OFFSET : HEADER_OFFSET;
+  const bottomOffset = mode === "small" ? QUEUE_CONTEXT_BOTTOM_OFFSET : PANEL_MARGIN;
   const width = Math.min(Math.max(rect.width, MIN_PANEL_WIDTH), window.innerWidth - PANEL_MARGIN * 2);
-  const height = Math.min(Math.max(rect.height, MIN_PANEL_HEIGHT), window.innerHeight - HEADER_OFFSET - PANEL_MARGIN);
+  const height = Math.min(Math.max(rect.height, MIN_PANEL_HEIGHT), window.innerHeight - topOffset - bottomOffset);
   return {
     left: clamp(rect.left, PANEL_MARGIN, window.innerWidth - width - PANEL_MARGIN),
-    top: clamp(rect.top, HEADER_OFFSET, window.innerHeight - height - PANEL_MARGIN),
+    top: clamp(rect.top, topOffset, window.innerHeight - height - bottomOffset),
     width,
     height,
   };

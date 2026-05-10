@@ -14,7 +14,7 @@ export function FormsDataTable({ forms }: { forms: AuditFormResult[] }) {
   const filteredForms = useMemo(() => {
     const query = search.toLowerCase().trim();
     if (!query) return forms;
-    return forms.filter((form) => form.title.toLowerCase().includes(query) || form.peril.peril.toLowerCase().includes(query));
+    return forms.filter((form) => form.title.toLowerCase().includes(query) || form.description.toLowerCase().includes(query));
   }, [forms, search]);
 
   return (
@@ -35,7 +35,7 @@ export function FormsDataTable({ forms }: { forms: AuditFormResult[] }) {
               <TableHead className="min-w-[220px]">
                 <span className="flex items-center gap-1">Form <ArrowDownUp className="h-3 w-3" /></span>
               </TableHead>
-              <TableHead>Peril</TableHead>
+              <TableHead>Description</TableHead>
               <TableHead>Outcome</TableHead>
               <TableHead className="text-center">Questions</TableHead>
               <TableHead className="text-center">Drivers</TableHead>
@@ -49,14 +49,16 @@ export function FormsDataTable({ forms }: { forms: AuditFormResult[] }) {
                 <TableRow key={form.id}>
                   <TableCell className="font-medium">{form.title}</TableCell>
                   <TableCell>
-                    <Badge variant="outline">{form.peril.peril}</Badge>
+                    <span className="text-sm text-muted-foreground">{form.description}</span>
                   </TableCell>
                   <TableCell>
                     <Badge variant={form.overall_outcome === "Meets" ? "success" : "danger"}>{form.overall_outcome}</Badge>
                   </TableCell>
                   <TableCell className="text-center tabular-nums">{form.questions.length}</TableCell>
                   <TableCell className="text-center tabular-nums">{driverCount}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{new Date(form.updated_at).toLocaleDateString()}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {form.updated_at ? new Date(form.updated_at).toLocaleDateString() : "n/a"}
+                  </TableCell>
                 </TableRow>
               );
             })}
@@ -66,4 +68,3 @@ export function FormsDataTable({ forms }: { forms: AuditFormResult[] }) {
     </Card>
   );
 }
-

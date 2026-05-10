@@ -12,9 +12,8 @@ const metrics = [
 ];
 
 const outcomeData = [
-  { label: "Meets", value: 42, className: "bg-emerald-500" },
-  { label: "Does Not Meet", value: 38, className: "bg-rose-500" },
-  { label: "Insufficient", value: 20, className: "bg-amber-500" },
+  { label: "Meets", value: 48, className: "bg-emerald-500" },
+  { label: "Does Not Meet", value: 52, className: "bg-rose-500" },
 ];
 
 export function DashboardCharts() {
@@ -66,4 +65,3 @@ const toneClasses: Record<string, string> = {
   emerald: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   rose: "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300",
 };
-

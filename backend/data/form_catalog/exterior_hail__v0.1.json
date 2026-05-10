@@ -1,0 +1,55 @@
+{
+  "id": "exterior_hail",
+  "version": "v0.1",
+  "title": "Exterior Hail Review",
+  "description": "Canonical form for exterior hail and wind file reviews.",
+  "canonical": {
+    "form_id": "exterior_hail",
+    "form_version": "v0.1",
+    "title": "Exterior Hail Review",
+    "description": "Exterior hail and wind review focused on observed damage, roof and elevation documentation, and estimate consistency.",
+    "questions": [
+      {
+        "id": "Q1",
+        "text": "Does the file document exterior damage observations by area or elevation?",
+        "answer": "Yes",
+        "sub_questions": [],
+        "help_text": "Review roof photos, elevation photos, inspection notes, and damage summaries."
+      },
+      {
+        "id": "Q2",
+        "text": "Is the estimate scope consistent with documented roof and exterior damage?",
+        "answer": "No",
+        "sub_questions": [
+          {
+            "id": "Q2.1",
+            "text": "A documented exterior damage item is missing from the estimate.",
+            "reasoning": "",
+            "citations": "",
+            "answer": true,
+            "help_text": "Cite the damage photo or note and the absent estimate scope."
+          },
+          {
+            "id": "Q2.2",
+            "text": "The estimate includes an exterior repair item not supported by the file evidence.",
+            "reasoning": "",
+            "citations": "",
+            "answer": false,
+            "help_text": "Cite the unsupported line item and explain the evidence gap."
+          }
+        ],
+        "help_text": "Compare documented damage to roof, gutter, siding, trim, and elevation line items."
+      },
+      {
+        "id": "Q3",
+        "text": "Were collateral indicators or lack of collateral indicators addressed where relevant?",
+        "answer": "Yes",
+        "sub_questions": [],
+        "help_text": "Consider photos and notes for gutters, soft metals, screens, fencing, and nearby surfaces."
+      }
+    ],
+    "overall_outcome": "Does Not Meet",
+    "outcome_justification": "The canonical template includes a scope-consistency opportunity for exterior damage."
+  },
+  "created_at": "2026-05-09T00:00:00Z"
+}

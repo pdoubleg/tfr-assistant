@@ -53,6 +53,19 @@
     letter-spacing: 0;
   }
 
+  input[type="date"] {
+    color-scheme: light;
+  }
+
+  .dark input[type="date"] {
+    color-scheme: dark;
+  }
+
+  .dark input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) brightness(1.4);
+    opacity: 0.9;
+  }
+
   * {
     scrollbar-color: hsl(var(--muted-foreground) / 0.45) transparent;
     scrollbar-width: thin;
@@ -62,6 +75,21 @@
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  @keyframes output-rise {
+    from {
+      opacity: 0;
+      transform: translateY(18px) scale(0.995);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  .output-rise {
+    animation: output-rise 260ms ease-out both;
   }
 
   .chat-markdown h1,

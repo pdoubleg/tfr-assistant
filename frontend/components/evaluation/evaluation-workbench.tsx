@@ -22,27 +22,32 @@ export function EvaluationWorkbench() {
           <CardTitle>Review Set</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 pt-5">
-          {reviews.map((review) => (
-            <button
-              key={review.id}
-              type="button"
-              onClick={() => setSelectedId(review.id)}
-              className={cn(
-                "w-full rounded-lg border p-3 text-left transition-colors hover:bg-secondary/60",
-                selected?.id === review.id && "border-primary bg-primary/5",
-              )}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-sm font-medium">{review.userVersion.title}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{review.userVersion.peril.peril} · {review.id}</p>
+          {reviews.map((review) => {
+            const userVersion = review.userVersion ?? review.user_version ?? review.original;
+            const original = review.original;
+            if (!userVersion || !original) return null;
+            return (
+              <button
+                key={review.id}
+                type="button"
+                onClick={() => setSelectedId(review.id)}
+                className={cn(
+                  "w-full rounded-lg border p-3 text-left transition-colors hover:bg-secondary/60",
+                  selected?.id === review.id && "border-primary bg-primary/5",
+                )}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium">{userVersion.title}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{userVersion.description} · {review.id}</p>
+                  </div>
+                  <Badge variant={original.overall_outcome === userVersion.overall_outcome ? "secondary" : "warning"}>
+                    {original.overall_outcome === userVersion.overall_outcome ? "same" : "edited"}
+                  </Badge>
                 </div>
-                <Badge variant={review.original.overall_outcome === review.userVersion.overall_outcome ? "secondary" : "warning"}>
-                  {review.original.overall_outcome === review.userVersion.overall_outcome ? "same" : "edited"}
-                </Badge>
-              </div>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </CardContent>
       </Card>
 
@@ -100,6 +105,10 @@ function FormVersion({
 }) {
   const form = review[version];
 
+  if (!form) {
+    return null;
+  }
+
   return (
     <Card>
       <CardHeader className="border-b">
@@ -121,24 +130,16 @@ function FormVersion({
                   <p className="font-mono text-xs font-semibold text-primary">{question.id}</p>
                   <p className="mt-1 text-sm">{question.text}</p>
                 </div>
-                <Badge
-                  variant={
-                    question.answer === "Yes"
-                      ? "success"
-                      : question.answer === "No"
-                        ? "danger"
-                        : "warning"
-                  }
-                >
+                <Badge variant={question.answer === "Yes" ? "success" : "danger"}>
                   {question.answer}
                 </Badge>
               </div>
-              {question.missing_info || !readOnly ? (
+              {!readOnly ? (
                 <Textarea
                   className="mt-3 min-h-[72px]"
-                  defaultValue={question.missing_info ?? ""}
+                  defaultValue=""
                   readOnly={readOnly}
-                  placeholder="Missing information or user edit note..."
+                  placeholder="User edit note..."
                 />
               ) : null}
             </div>
@@ -164,4 +165,3 @@ function Signal({ label, value, tone }: { label: string; value: string; tone: "a
     </div>
   );
 }
-
