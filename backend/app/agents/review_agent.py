@@ -16,6 +16,8 @@ class FileReviewAgentDeps:
     claim_number: str = ""
     effective_date: str = ""
     instructions: str = ""
+    audit_scope: str = ""
+    tool_instructions: str = ""
 
 
 def load_canonical_form(path: str | Path) -> AuditFormResult:
@@ -25,6 +27,22 @@ def load_canonical_form(path: str | Path) -> AuditFormResult:
         return AuditFormDefinition.model_validate_json(payload).canonical
     except Exception:
         return AuditFormResult.model_validate_json(payload)
+
+
+def load_form_definition(path: str | Path) -> AuditFormDefinition:
+    source = Path(path)
+    payload = source.read_text(encoding="utf-8")
+    try:
+        return AuditFormDefinition.model_validate_json(payload)
+    except Exception:
+        canonical = AuditFormResult.model_validate_json(payload)
+        return AuditFormDefinition(
+            id=canonical.form_id,
+            version=canonical.form_version,
+            title=canonical.title,
+            description=canonical.description,
+            canonical=canonical,
+        )
 
 
 def build_file_review_agent() -> Agent[FileReviewAgentDeps, AuditFormResult]:
@@ -52,8 +70,27 @@ def build_file_review_agent() -> Agent[FileReviewAgentDeps, AuditFormResult]:
             form_path = settings.default_questionnaire_path
         else:
             form_path = ctx.deps.path_to_questionnaire
-        form_canonical = load_canonical_form(form_path)
-        return form_canonical.as_questionnaire_string()
+        definition = load_form_definition(form_path)
+        sections = [definition.canonical.as_questionnaire_string()]
+        audit_scope = ctx.deps.audit_scope or definition.audit_scope
+        tool_instructions = ctx.deps.tool_instructions or definition.tool_instructions
+        if audit_scope:
+            sections.extend(
+                [
+                    "",
+                    "Audit Scope:",
+                    audit_scope,
+                ]
+            )
+        if tool_instructions:
+            sections.extend(
+                [
+                    "",
+                    "Tool Instructions:",
+                    tool_instructions,
+                ]
+            )
+        return "\n".join(sections)
 
     return agent
 
@@ -64,6 +101,8 @@ async def run_file_review_agent(
     instructions: str,
     path_to_questionnaire: str = "",
     user_prompt: str = "",
+    audit_scope: str = "",
+    tool_instructions: str = "",
 ) -> AuditFormResult:
     agent = build_file_review_agent()
     deps = FileReviewAgentDeps(
@@ -71,6 +110,8 @@ async def run_file_review_agent(
         claim_number=claim_number,
         effective_date=effective_date,
         instructions=instructions,
+        audit_scope=audit_scope,
+        tool_instructions=tool_instructions,
     )
     prompt = user_prompt or "Please run a TFR audit."
     if claim_number:

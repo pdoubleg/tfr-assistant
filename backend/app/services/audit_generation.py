@@ -207,6 +207,8 @@ class AgentAuditFormGenerator:
             instructions=request.instructions,
             path_to_questionnaire=str(form_path),
             user_prompt=request.prompt,
+            audit_scope=canonical.audit_scope or "",
+            tool_instructions=canonical.tool_instructions or "",
         )
 
 

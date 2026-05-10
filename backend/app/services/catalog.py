@@ -16,7 +16,13 @@ class FormCatalog:
                 version=form.version,
                 title=form.title,
                 description=form.description,
+                audit_scope=form.audit_scope,
+                tool_instructions=form.tool_instructions,
                 question_count=len(form.canonical.questions),
+                sub_question_count=sum(
+                    len(question.sub_questions) for question in form.canonical.questions
+                ),
+                created_at=form.created_at,
             )
             for form in self._load_all()
         ]
@@ -30,6 +36,8 @@ class FormCatalog:
     def register_form(self, registration: AuditFormRegistration) -> AuditFormDefinition:
         definition = AuditFormDefinition(**registration.model_dump())
         path = self.path_for(definition.id, definition.version)
+        if path.exists():
+            raise ValueError(f"Audit form {definition.id}@{definition.version} already exists.")
         path.write_text(
             json.dumps(definition.model_dump(mode="json"), indent=2),
             encoding="utf-8",

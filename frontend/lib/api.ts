@@ -1,4 +1,5 @@
 import type {
+  AuditFormDefinition,
   AuditFormResult,
   BatchRecord,
   BatchTemplatePayload,
@@ -93,7 +94,15 @@ export async function listFormCatalog(): Promise<FormCatalogEntry[]> {
       version: string;
       title: string;
       description?: string | null;
+      audit_scope?: string | null;
+      tool_instructions?: string | null;
       question_count: number;
+      sub_question_count?: number;
+      review_count?: number;
+      completed_count?: number;
+      failed_count?: number;
+      last_reviewed_at?: string | null;
+      created_at?: string | null;
     }>
   >(response);
   return forms.map((form) => ({
@@ -101,10 +110,60 @@ export async function listFormCatalog(): Promise<FormCatalogEntry[]> {
     version: form.version,
     title: form.title,
     description: form.description ?? "",
+    auditScope: form.audit_scope ?? "",
+    toolInstructions: form.tool_instructions ?? "",
     questionCount: form.question_count,
+    subQuestionCount: form.sub_question_count ?? 0,
     status: "active",
-    lastUpdated: "",
+    lastUpdated: form.last_reviewed_at ?? form.created_at ?? "",
+    reviewCount: form.review_count ?? 0,
+    completedCount: form.completed_count ?? 0,
+    failedCount: form.failed_count ?? 0,
+    lastReviewedAt: form.last_reviewed_at ?? "",
+    createdAt: form.created_at ?? "",
   }));
+}
+
+export async function getFormDefinition(
+  formId: string,
+  version: string,
+): Promise<AuditFormDefinition> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/forms/${encodeURIComponent(formId)}/${encodeURIComponent(version)}`,
+    {
+      cache: "no-store",
+    },
+  );
+  return parseJsonResponse<AuditFormDefinition>(response);
+}
+
+export async function registerForm(
+  definition: AuditFormDefinition,
+): Promise<AuditFormDefinition> {
+  const response = await fetch(`${apiBaseUrl}/api/forms`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      id: definition.id,
+      version: definition.version,
+      title: definition.title,
+      description: definition.description ?? "",
+      audit_scope: definition.audit_scope ?? "",
+      tool_instructions: definition.tool_instructions ?? "",
+      canonical: definition.canonical,
+    }),
+  });
+  return parseJsonResponse<AuditFormDefinition>(response);
+}
+
+export async function extractFormFromExcel(file: File): Promise<AuditFormDefinition> {
+  const formData = new FormData();
+  formData.append("workbook", file);
+  const response = await fetch(`${apiBaseUrl}/api/forms/extract-excel`, {
+    method: "POST",
+    body: formData,
+  });
+  return parseJsonResponse<AuditFormDefinition>(response);
 }
 
 export async function listBatchTemplates(): Promise<BatchTemplateRecord[]> {

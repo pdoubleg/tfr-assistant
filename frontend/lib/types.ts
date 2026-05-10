@@ -31,6 +31,17 @@ export interface AuditFormResult {
   updated_at?: string;
 }
 
+export interface AuditFormDefinition {
+  id: string;
+  version: string;
+  title: string;
+  description?: string | null;
+  audit_scope?: string | null;
+  tool_instructions?: string | null;
+  canonical: AuditFormResult;
+  created_at?: string;
+}
+
 export interface ReviewRecord {
   id: string;
   form_id?: string;
@@ -120,9 +131,17 @@ export interface FormCatalogEntry {
   version: string;
   title: string;
   description: string;
+  auditScope: string;
+  toolInstructions: string;
   questionCount: number;
+  subQuestionCount: number;
   status: "active" | "draft";
   lastUpdated: string;
+  reviewCount: number;
+  completedCount: number;
+  failedCount: number;
+  lastReviewedAt: string;
+  createdAt: string;
 }
 
 export interface AggregatedQuestion {
