@@ -20,9 +20,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { EvalRoleBadge } from "@/components/dashboard/eval-role-badge";
 import { TablePagination } from "@/components/dashboard/table-pagination";
 import {
   compareDashboardValues,
+  evalRoleLabel,
   formatDateTime,
   resultVersionLabels,
   type DashboardReviewRow,
@@ -38,6 +40,7 @@ type FormSortKey =
   | "formId"
   | "formVersion"
   | "source"
+  | "evalRole"
   | "outcome"
   | "questionCount"
   | "yesCount"
@@ -60,6 +63,7 @@ const columns: ColumnDef[] = [
   { key: "formId", label: "Form" },
   { key: "formVersion", label: "Version" },
   { key: "source", label: "Source" },
+  { key: "evalRole", label: "Eval Role" },
   { key: "outcome", label: "Outcome" },
   { key: "questionCount", label: "Questions", align: "center" },
   { key: "yesCount", label: "Yes", align: "center" },
@@ -94,6 +98,7 @@ const viewColumns: ExportColumn<DashboardReviewRow>[] = [
   { header: "Form ID", value: (row) => row.formId },
   { header: "Form Version", value: (row) => row.formVersion },
   { header: "Source", value: (row) => row.source },
+  { header: "Eval Role", value: (row) => evalRoleLabel(row.evalResultRole, row.evalReferenceKind) },
   { header: "Outcome", value: (row) => row.outcome },
   { header: "Questions", value: (row) => row.questionCount },
   { header: "Yes Count", value: (row) => row.yesCount },
@@ -109,6 +114,10 @@ const dataColumns: ExportColumn<DashboardReviewRow>[] = [
   { header: "Batch ID", value: (row) => row.batchId },
   { header: "Status", value: (row) => row.status },
   { header: "Source", value: (row) => row.source },
+  { header: "Eval Run ID", value: (row) => row.evalRunId },
+  { header: "Eval Run", value: (row) => row.evalRunName },
+  { header: "Eval Result Role", value: (row) => evalRoleLabel(row.evalResultRole, row.evalReferenceKind) },
+  { header: "Eval Config Version", value: (row) => row.evalConfigVersion ?? "" },
   { header: "Created", value: (row) => formatDateTime(row.createdAt) },
   { header: "Updated", value: (row) => formatDateTime(row.updatedAt) },
   { header: "Claim Number", value: (row) => row.claimNumber },
@@ -139,6 +148,7 @@ const dataColumns: ExportColumn<DashboardReviewRow>[] = [
 ];
 
 function getSortValue(row: DashboardReviewRow, key: FormSortKey): string | number | boolean {
+  if (key === "evalRole") return evalRoleLabel(row.evalResultRole, row.evalReferenceKind);
   return row[key];
 }
 
@@ -222,6 +232,8 @@ export function FormsDataTable({
         row.formVersion,
         row.outcome,
         row.source,
+        evalRoleLabel(row.evalResultRole, row.evalReferenceKind),
+        row.evalRunName,
       ]
         .join(" ")
         .toLowerCase()
@@ -410,6 +422,13 @@ export function FormsDataTable({
                     <TableCell className="font-mono text-xs">{row.formVersion}</TableCell>
                     <TableCell>
                       <Badge variant="secondary">{row.source}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {row.source === "eval" || row.evalResultRole ? (
+                        <EvalRoleBadge role={row.evalResultRole} referenceKind={row.evalReferenceKind} />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge

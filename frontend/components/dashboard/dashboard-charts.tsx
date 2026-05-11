@@ -6,6 +6,7 @@ import { Activity, BarChart3, Gauge, LineChart, Pencil, TrendingUp } from "lucid
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   aggregateQuestions,
+  evalRoleLabel,
   percent,
   trendCompareLabels,
   trendMetricLabels,
@@ -106,6 +107,9 @@ function compareLabel(row: DashboardReviewRow, compareBy: TrendCompareBy): strin
   if (compareBy === "form_version") return row.formKey || "Unknown version";
   if (compareBy === "source") return row.source || "Unknown source";
   if (compareBy === "result_version") return row.resultVersion === "original" ? "Original agent" : "Current user";
+  if (compareBy === "eval_result_role") {
+    return evalRoleLabel(row.evalResultRole, row.evalReferenceKind);
+  }
   return "All reviews";
 }
 

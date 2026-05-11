@@ -47,7 +47,7 @@ export interface ReviewRecord {
   form_id?: string;
   form_version?: string;
   status?: "queued" | "running" | "completed" | "failed";
-  source?: "api" | "chat_tool" | "batch";
+  source?: "api" | "chat_tool" | "batch" | "eval";
   batch_id?: string | null;
   input_json?: {
     claim_number?: string;
@@ -59,6 +59,12 @@ export interface ReviewRecord {
     batch_template_id?: string;
     source_file_ids?: string[];
     synthetic?: boolean;
+    eval_run_id?: string;
+    eval_run_name?: string;
+    eval_dataset_id?: string;
+    eval_result_role?: string;
+    eval_reference_kind?: EvalReferenceKind;
+    eval_config_version?: number;
     [key: string]: unknown;
   } | null;
   original?: AuditFormResult | null;
@@ -125,6 +131,125 @@ export type BatchTemplatePayload = Omit<
   BatchTemplateRecord,
   "id" | "item_count" | "latest_run" | "run_count" | "created_at" | "updated_at"
 >;
+
+export type EvalReferenceKind = "R1" | "R2";
+export type EvalReferencePolicy = "prefer_r2" | "r1" | "r2" | "all";
+export type EvalRunStatus = "queued" | "running" | "paused" | "completed" | "failed" | "canceled";
+export type EvalRunItemStatus = "queued" | "running" | "completed" | "failed" | "skipped";
+
+export interface EvalGroundTruthRecord {
+  id: string;
+  case_id: string;
+  reference_kind: EvalReferenceKind;
+  result: AuditFormResult;
+  reviewer?: string | null;
+  source_metadata?: Record<string, unknown> | null;
+  created_at?: string;
+}
+
+export interface EvalCaseRecord {
+  id: string;
+  dataset_id: string;
+  claim_number: string;
+  effective_date?: string | null;
+  instructions: string;
+  input: Record<string, unknown>;
+  ground_truths: EvalGroundTruthRecord[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface EvalDatasetRecord {
+  id: string;
+  name: string;
+  description: string;
+  form_id: string;
+  form_version: string;
+  source_kind: string;
+  source_metadata?: Record<string, unknown> | null;
+  dataset_hash: string;
+  case_count: number;
+  r1_count: number;
+  r2_count: number;
+  cases?: EvalCaseRecord[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface EvalRunPayload {
+  dataset_id: string;
+  name: string;
+  model_name?: string;
+  reference_policy: EvalReferencePolicy;
+  concurrency?: number;
+  retry_limit: number;
+  enable_mlflow: boolean;
+  synthetic: boolean;
+  base_run_id?: string | null;
+}
+
+export interface EvalRunRecord {
+  id: string;
+  dataset_id: string;
+  dataset_name: string;
+  lineage_id?: string | null;
+  source_run_id?: string | null;
+  config_version: number;
+  name: string;
+  status: EvalRunStatus;
+  model_name: string;
+  reference_policy: EvalReferencePolicy;
+  concurrency: number;
+  retry_limit: number;
+  enable_mlflow: boolean;
+  mlflow_run_id?: string | null;
+  synthetic: boolean;
+  total_count: number;
+  completed_count: number;
+  failed_count: number;
+  running_count: number;
+  queued_count: number;
+  progress_percent: number;
+  primary_score?: number | null;
+  input: Record<string, unknown>;
+  error_message?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  duration_seconds?: number | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface EvalComparisonRecord {
+  id: string;
+  run_id: string;
+  run_item_id: string;
+  case_id: string;
+  ground_truth_id: string;
+  reference_kind: EvalReferenceKind;
+  score?: number | null;
+  metrics: Record<string, unknown>;
+  created_at?: string;
+}
+
+export interface EvalRunItemRecord {
+  id: string;
+  run_id: string;
+  case_id: string;
+  claim_number: string;
+  effective_date?: string | null;
+  status: EvalRunItemStatus;
+  attempt_count: number;
+  generated_review_id?: string | null;
+  generated_result?: AuditFormResult | null;
+  ground_truths: EvalGroundTruthRecord[];
+  error_message?: string | null;
+  comparisons: EvalComparisonRecord[];
+  started_at?: string | null;
+  completed_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
 
 export interface FormCatalogEntry {
   id: string;

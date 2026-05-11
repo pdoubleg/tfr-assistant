@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from app.models.audit import AuditFormResult
 
 ReviewStatus = Literal["queued", "running", "completed", "failed"]
-ReviewSource = Literal["api", "chat_tool", "batch"]
+ReviewSource = Literal["api", "chat_tool", "batch", "eval"]
 BatchInputMode = Literal["manual", "upload", "synthetic"]
 
 
@@ -26,6 +26,11 @@ class ReviewGenerateRequest(BaseModel):
     form_version: str = "v0.1"
     source_file_ids: list[str] = Field(default_factory=list)
     synthetic: bool = False
+    eval_run_id: str = ""
+    eval_run_name: str = ""
+    eval_dataset_id: str = ""
+    eval_result_role: str = ""
+    eval_config_version: int | None = None
 
 
 class ReviewRecord(BaseModel):

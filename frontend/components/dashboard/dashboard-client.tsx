@@ -12,7 +12,7 @@ import { QuestionsAggregationTable } from "@/components/dashboard/questions-aggr
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { listReviews } from "@/lib/api";
+import { listEvalRunItems, listEvalRuns, listReviews } from "@/lib/api";
 import {
   defaultDashboardFilters,
   deriveReviewRows,
@@ -25,7 +25,7 @@ import {
   type CommentQuestionFilter,
   type ResultVersionKind,
 } from "@/lib/dashboard-data";
-import type { ReviewRecord } from "@/lib/types";
+import type { EvalRunItemRecord, EvalRunRecord, ReviewRecord } from "@/lib/types";
 
 const dashboardSettingsKey = "tfr-dashboard-settings";
 
@@ -93,6 +93,39 @@ function DateControl({
   );
 }
 
+function buildEvalGroundTruthReviews(
+  runs: EvalRunRecord[],
+  itemsByRun: Record<string, EvalRunItemRecord[]>,
+): ReviewRecord[] {
+  return runs.flatMap((run) =>
+    (itemsByRun[run.id] ?? []).flatMap((item) =>
+      item.ground_truths.map((truth) => ({
+        id: `eval-ground-truth:${run.id}:${truth.id}`,
+        form_id: truth.result.form_id,
+        form_version: truth.result.form_version,
+        status: "completed",
+        source: "eval",
+        input_json: {
+          claim_number: item.claim_number,
+          effective_date: item.effective_date ?? "",
+          batch_run_name: run.name,
+          eval_run_id: run.id,
+          eval_run_name: run.name,
+          eval_dataset_id: run.dataset_id,
+          eval_result_role: "ground_truth",
+          eval_reference_kind: truth.reference_kind,
+          eval_config_version: run.config_version,
+          synthetic: run.synthetic,
+        },
+        original: truth.result,
+        user_version: truth.result,
+        created_at: truth.created_at ?? item.created_at,
+        updated_at: item.updated_at ?? truth.created_at,
+      }) satisfies ReviewRecord),
+    ),
+  );
+}
+
 export function DashboardClient() {
   const [reviews, setReviews] = useState<ReviewRecord[]>([]);
   const [filters, setFilters] = useState<DashboardFilters>(defaultDashboardFilters);
@@ -110,8 +143,15 @@ export function DashboardClient() {
     setLoading(true);
     setError("");
     try {
-      const nextReviews = await listReviews();
-      setReviews(nextReviews);
+      const [nextReviews, evalRuns] = await Promise.all([listReviews(), listEvalRuns()]);
+      const evalItemsEntries = await Promise.all(
+        evalRuns.map(async (run) => [run.id, await listEvalRunItems(run.id)] as const),
+      );
+      const evalGroundTruthReviews = buildEvalGroundTruthReviews(
+        evalRuns,
+        Object.fromEntries(evalItemsEntries),
+      );
+      setReviews([...nextReviews, ...evalGroundTruthReviews]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard data.");
     } finally {
@@ -204,7 +244,7 @@ export function DashboardClient() {
               {filteredRows.length} of {completedReviewCount} completed reviews
             </span>
           </div>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.4fr)_repeat(7,minmax(130px,1fr))_auto]">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.4fr)_repeat(8,minmax(130px,1fr))_auto]">
             <label className="space-y-1">
               <span className="block text-[11px] font-semibold uppercase text-muted-foreground">Search</span>
               <div className="relative">
@@ -265,6 +305,15 @@ export function DashboardClient() {
               <option value="all">All outcomes</option>
               <option value="Meets">Meets</option>
               <option value="Does Not Meet">Does Not Meet</option>
+            </SelectControl>
+
+            <SelectControl label="Eval Role" value={filters.evalRole} onChange={(value) => setFilter("evalRole", value)}>
+              <option value="all">All eval roles</option>
+              {filterOptions.evalRoles.map((role) => (
+                <option key={role} value={role}>
+                  {role}
+                </option>
+              ))}
             </SelectControl>
 
             <DateControl label="From" value={filters.dateFrom} onChange={(value) => setFilter("dateFrom", value)} />

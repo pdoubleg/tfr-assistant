@@ -44,7 +44,6 @@ type QuestionSortKey =
   | "yesPercent"
   | "noPercent"
   | "driverCount"
-  | "driverPercent"
   | "editCount";
 
 interface ColumnDef {
@@ -64,8 +63,6 @@ const columns: ColumnDef[] = [
   { key: "noCount", label: "No", align: "center" },
   { key: "noPercent", label: "% No", align: "center" },
   { key: "driverCount", label: "Drivers", align: "center" },
-  { key: "driverPercent", label: "Driver %", align: "center" },
-  { key: "editCount", label: "Edits", align: "center" },
 ];
 
 function FilterCheckbox({
@@ -117,8 +114,6 @@ interface QuestionExportRow {
   noCount: number;
   noPercent: number;
   driverCount: number;
-  driverPercent: number;
-  editCount: number;
   subQuestionKey: string;
   subQuestionId: string;
   subQuestionText: string;
@@ -191,8 +186,6 @@ function buildQuestionExportRows(rows: AggregatedQuestionRow[]): QuestionExportR
       noCount: row.noCount,
       noPercent: row.noPercent,
       driverCount: row.driverCount,
-      driverPercent: row.driverPercent,
-      editCount: row.editCount,
     };
 
     if (row.subQuestions.length === 0) {
@@ -301,8 +294,6 @@ const viewColumns: ExportColumn<QuestionExportRow>[] = [
   { header: "No", value: (row) => row.noCount },
   { header: "% No", value: (row) => `${row.noPercent}%` },
   { header: "Flagged", value: (row) => (row.subQuestionId ? row.subQuestionDriverCount : row.driverCount) },
-  { header: "% Flagged", value: (row) => `${row.subQuestionId ? row.subQuestionDriverPercent : row.driverPercent}%` },
-  { header: "Edits", value: (row) => row.editCount },
 ];
 
 const dataColumns: ExportColumn<QuestionDetailExportRow>[] = [
@@ -678,10 +669,6 @@ export function QuestionsAggregationTable({
                       <TableCell className="text-center">
                         <Badge variant={row.driverCount ? "warning" : "outline"}>{row.driverCount}</Badge>
                       </TableCell>
-                      <TableCell className="text-center tabular-nums text-amber-700 dark:text-amber-300">
-                        {row.driverPercent}%
-                      </TableCell>
-                      <TableCell className="text-center tabular-nums">{row.editCount}</TableCell>
                     </TableRow>
                     {isExpanded
                       ? row.subQuestions.map((subQuestion) => (
@@ -702,12 +689,12 @@ export function QuestionsAggregationTable({
                             <TableCell className="max-w-[520px] text-sm text-muted-foreground" colSpan={4}>
                               <span className="line-clamp-2">{subQuestion.text}</span>
                             </TableCell>
-                            <TableCell className="text-center" colSpan={3}>
+                            <TableCell className="text-center" colSpan={2}>
                               <Badge variant={subQuestion.driverCount ? "warning" : "outline"}>
                                 Flagged {subQuestion.driverCount} of {subQuestion.questionNoCount} No answers
                               </Badge>
                             </TableCell>
-                            <TableCell className="text-center tabular-nums text-amber-700 dark:text-amber-300" colSpan={2}>
+                            <TableCell className="text-center tabular-nums text-amber-700 dark:text-amber-300">
                               {subQuestion.driverPercent}% flagged
                             </TableCell>
                           </TableRow>

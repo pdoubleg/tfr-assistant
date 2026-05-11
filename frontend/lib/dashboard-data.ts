@@ -2,7 +2,13 @@ import type { AuditFormResult, FormQuestion, FormSubQuestion, OverallOutcome, Re
 
 export type ResultVersionKind = "current" | "original";
 export type TrendGranularity = "day" | "week" | "month";
-export type TrendCompareBy = "none" | "form_id" | "form_version" | "source" | "result_version";
+export type TrendCompareBy =
+  | "none"
+  | "form_id"
+  | "form_version"
+  | "source"
+  | "result_version"
+  | "eval_result_role";
 export type TrendMetric = "review_volume" | "meets_rate" | "does_not_meet_rate" | "question_no_rate" | "driver_review_rate";
 
 export interface DashboardFilters {
@@ -14,6 +20,7 @@ export interface DashboardFilters {
   dateFrom: string;
   dateTo: string;
   resultVersion: ResultVersionKind;
+  evalRole: string;
 }
 
 export interface DashboardReviewRow {
@@ -29,6 +36,12 @@ export interface DashboardReviewRow {
   batchDescription: string;
   batchTemplateId: string;
   sourceFileIds: string;
+  evalRunId: string;
+  evalRunName: string;
+  evalResultRole: string;
+  evalReferenceKind: string;
+  evalConfigVersion: number | null;
+  evalGroupKey: string;
   formId: string;
   formVersion: string;
   formKey: string;
@@ -54,6 +67,7 @@ export interface DashboardFilterOptions {
   formIds: string[];
   formVersions: string[];
   sources: string[];
+  evalRoles: string[];
 }
 
 export interface AggregatedSubQuestionRow {
@@ -127,6 +141,7 @@ export const defaultDashboardFilters: DashboardFilters = {
   dateFrom: "",
   dateTo: "",
   resultVersion: "current",
+  evalRole: "all",
 };
 
 export const resultVersionLabels: Record<ResultVersionKind, string> = {
@@ -148,7 +163,14 @@ export const trendCompareLabels: Record<TrendCompareBy, string> = {
   form_version: "Form version",
   source: "Source",
   result_version: "Original vs current",
+  eval_result_role: "Eval role",
 };
+
+export function evalRoleLabel(role: string, referenceKind?: string): string {
+  if (role === "model") return "Model";
+  if (role === "ground_truth") return referenceKind ? `Ground Truth ${referenceKind}` : "Ground Truth";
+  return role || "Non-eval";
+}
 
 export function questionCommentKey(formKey: string, questionId: string): string {
   return `${formKey}:${questionId}`;
@@ -176,6 +198,11 @@ function getBooleanField(record: ReviewRecord, key: string): boolean {
 function getSourceFileIds(record: ReviewRecord): string {
   const value = record.input_json?.source_file_ids;
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string").join("; ") : "";
+}
+
+function getNumberField(record: ReviewRecord, key: string): number | null {
+  const value = record.input_json?.[key];
+  return typeof value === "number" ? value : null;
 }
 
 export function getCurrentForm(record: ReviewRecord): AuditFormResult | null {
@@ -242,6 +269,11 @@ export function deriveReviewRows(records: ReviewRecord[], resultVersion: ResultV
       const stats = countQuestionStats(form);
       const formId = form.form_id || record.form_id || "";
       const formVersion = form.form_version || record.form_version || "";
+      const evalResultRole =
+        getStringField(record, "eval_result_role") || (record.source === "eval" ? "model" : "");
+      const evalReferenceKind = getStringField(record, "eval_reference_kind");
+      const evalRunId = getStringField(record, "eval_run_id");
+      const evalRunName = getStringField(record, "eval_run_name");
       return {
         reviewId: record.id,
         batchId: record.batch_id ?? "",
@@ -255,6 +287,17 @@ export function deriveReviewRows(records: ReviewRecord[], resultVersion: ResultV
         batchDescription: getStringField(record, "batch_description"),
         batchTemplateId: getStringField(record, "batch_template_id"),
         sourceFileIds: getSourceFileIds(record),
+        evalRunId,
+        evalRunName,
+        evalResultRole,
+        evalReferenceKind,
+        evalConfigVersion: getNumberField(record, "eval_config_version"),
+        evalGroupKey: [
+          evalRunId,
+          getStringField(record, "claim_number"),
+          formId,
+          formVersion,
+        ].filter(Boolean).join(":"),
         formId,
         formVersion,
         formKey: formVersion ? `${formId}@${formVersion}` : formId,
@@ -311,6 +354,10 @@ export function filterDashboardRows(rows: DashboardReviewRow[], filters: Dashboa
     if (filters.formVersion !== "all" && row.formVersion !== filters.formVersion) return false;
     if (filters.source !== "all" && row.source !== filters.source) return false;
     if (filters.outcome !== "all" && row.outcome !== filters.outcome) return false;
+    if (filters.evalRole !== "all") {
+      const rowRole = evalRoleLabel(row.evalResultRole, row.evalReferenceKind);
+      if (rowRole !== filters.evalRole) return false;
+    }
 
     const rowDate = dateForFilter(row);
     if (start && (!rowDate || rowDate < start)) return false;
@@ -330,6 +377,8 @@ export function filterDashboardRows(rows: DashboardReviewRow[], filters: Dashboa
       row.description,
       row.outcome,
       row.source,
+      evalRoleLabel(row.evalResultRole, row.evalReferenceKind),
+      row.evalRunName,
       row.outcomeJustification,
     ]
       .filter(Boolean)
@@ -348,6 +397,13 @@ export function getFilterOptions(rows: DashboardReviewRow[]): DashboardFilterOpt
     formIds: sortStrings(new Set(rows.map((row) => row.formId))),
     formVersions: sortStrings(new Set(rows.map((row) => row.formVersion))),
     sources: sortStrings(new Set(rows.map((row) => row.source))),
+    evalRoles: sortStrings(
+      new Set(
+        rows
+          .filter((row) => row.source === "eval" || row.evalResultRole)
+          .map((row) => evalRoleLabel(row.evalResultRole, row.evalReferenceKind)),
+      ),
+    ),
   };
 }
 

@@ -22,10 +22,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { EvalRoleBadge } from "@/components/dashboard/eval-role-badge";
 import { TablePagination } from "@/components/dashboard/table-pagination";
 import {
   buildCommentRows,
   compareDashboardValues,
+  evalRoleLabel,
   formatDateTime,
   questionCommentKey,
   resultVersionLabels,
@@ -44,10 +46,10 @@ type CommentSortKey =
   | "formId"
   | "formVersion"
   | "outcome"
+  | "evalRole"
   | "commentType"
   | "questionId"
-  | "subQuestionId"
-  | "applicable";
+  | "subQuestionId";
 
 interface ColumnDef {
   key: CommentSortKey;
@@ -61,10 +63,10 @@ const columns: ColumnDef[] = [
   { key: "formId", label: "Form" },
   { key: "formVersion", label: "Version" },
   { key: "outcome", label: "Outcome" },
+  { key: "evalRole", label: "Eval Role" },
   { key: "commentType", label: "Comment Type" },
   { key: "questionId", label: "Question" },
   { key: "subQuestionId", label: "Sub-question" },
-  { key: "applicable", label: "Applicable" },
 ];
 
 function exportRowId(row: CommentReportRow): string {
@@ -95,10 +97,10 @@ const viewColumns: ExportColumn<CommentReportRow>[] = [
   { header: "Form ID", value: (row) => row.formId },
   { header: "Form Version", value: (row) => row.formVersion },
   { header: "Outcome", value: (row) => row.outcome },
+  { header: "Eval Role", value: (row) => evalRoleLabel(row.row.evalResultRole, row.row.evalReferenceKind) },
   { header: "Comment Type", value: (row) => row.commentType },
   { header: "Question ID", value: (row) => row.questionId },
   { header: "Sub-question ID", value: (row) => row.subQuestionId },
-  { header: "Applicable", value: (row) => (row.applicable === null ? "" : row.applicable ? "Yes" : "No") },
   { header: "Comment", value: (row) => row.comment },
 ];
 
@@ -117,6 +119,7 @@ const dataColumns: ExportColumn<CommentReportRow>[] = [
   { header: "Synthetic", value: (row) => (row.row.synthetic ? "Yes" : "No") },
   { header: "Source File IDs", value: (row) => row.row.sourceFileIds },
   { header: "Source", value: (row) => row.source },
+  { header: "Eval Role", value: (row) => evalRoleLabel(row.row.evalResultRole, row.row.evalReferenceKind) },
   { header: "Form ID", value: (row) => row.formId },
   { header: "Form Version", value: (row) => row.formVersion },
   { header: "Form Key", value: (row) => row.row.formKey },
@@ -131,7 +134,6 @@ const dataColumns: ExportColumn<CommentReportRow>[] = [
   { header: "Answer", value: (row) => row.answer },
   { header: "Sub-question ID", value: (row) => row.subQuestionId },
   { header: "Sub-question", value: (row) => row.subQuestionText },
-  { header: "Applicable", value: (row) => (row.applicable === null ? "" : row.applicable ? "Yes" : "No") },
   { header: "Comment", value: (row) => row.comment },
   { header: "Citations", value: (row) => row.citations },
   { header: "Input JSON", value: (row) => stringifyJson(row.row.inputJson) },
@@ -144,6 +146,7 @@ function SortIcon({ active, direction }: { active: boolean; direction: SortDir }
 }
 
 function getSortValue(row: CommentReportRow, key: CommentSortKey): string | boolean | null {
+  if (key === "evalRole") return evalRoleLabel(row.row.evalResultRole, row.row.evalReferenceKind);
   return row[key];
 }
 
@@ -162,7 +165,6 @@ export function CommentsReportTable({
   const activeQuestionFilterCount = questionFilter.questionKeys.size + questionFilter.subQuestionKeys.size;
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
-  const [applicableFilter, setApplicableFilter] = useState("all");
   const [sortKey, setSortKey] = useState<CommentSortKey>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -185,8 +187,6 @@ export function CommentsReportTable({
         }
       }
       if (typeFilter !== "all" && row.commentType !== typeFilter) return false;
-      if (applicableFilter === "applicable" && row.applicable !== true) return false;
-      if (applicableFilter === "not_applicable" && row.applicable !== false) return false;
       if (!query) return true;
       return [
         row.reviewId,
@@ -196,6 +196,7 @@ export function CommentsReportTable({
         row.formId,
         row.formVersion,
         row.outcome,
+        evalRoleLabel(row.row.evalResultRole, row.row.evalReferenceKind),
         row.commentType,
         row.questionId,
         row.questionText,
@@ -214,7 +215,6 @@ export function CommentsReportTable({
     );
   }, [
     activeQuestionFilterCount,
-    applicableFilter,
     commentRows,
     questionFilter.questionKeys,
     questionFilter.subQuestionKeys,
@@ -296,15 +296,6 @@ export function CommentsReportTable({
             <option value="Outcome justification">Outcome justification</option>
             <option value="Sub-question reasoning">Sub-question reasoning</option>
           </select>
-          <select
-            value={applicableFilter}
-            onChange={(event) => setApplicableFilter(event.target.value)}
-            className="h-8 rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <option value="all">All applicability</option>
-            <option value="applicable">Applicable only</option>
-            <option value="not_applicable">Not applicable only</option>
-          </select>
           <Button
             type="button"
             variant="ghost"
@@ -312,9 +303,8 @@ export function CommentsReportTable({
             onClick={() => {
               setSearch("");
               setTypeFilter("all");
-              setApplicableFilter("all");
             }}
-            disabled={!search && typeFilter === "all" && applicableFilter === "all"}
+            disabled={!search && typeFilter === "all"}
           >
             <X className="h-3.5 w-3.5" />
             Clear
@@ -440,6 +430,9 @@ export function CommentsReportTable({
                         </Badge>
                       </TableCell>
                       <TableCell>
+                        <EvalRoleBadge role={row.row.evalResultRole} referenceKind={row.row.evalReferenceKind} />
+                      </TableCell>
+                      <TableCell>
                         <Badge
                           variant={row.commentType === "Outcome justification" ? "secondary" : "outline"}
                           className="whitespace-nowrap text-[11px]"
@@ -450,13 +443,6 @@ export function CommentsReportTable({
                       </TableCell>
                       <TableCell className="font-mono text-xs">{row.questionId}</TableCell>
                       <TableCell className="font-mono text-xs">{row.subQuestionId || "n/a"}</TableCell>
-                      <TableCell>
-                        {row.applicable === null ? (
-                          <span className="text-xs text-muted-foreground">n/a</span>
-                        ) : (
-                          <Badge variant={row.applicable ? "warning" : "outline"}>{row.applicable ? "Yes" : "No"}</Badge>
-                        )}
-                      </TableCell>
                       <TableCell className="max-w-[420px]">
                         <span className={cn("block text-sm leading-relaxed", !isExpanded && "line-clamp-2")}>{row.comment}</span>
                       </TableCell>

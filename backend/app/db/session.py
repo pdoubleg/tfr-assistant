@@ -45,6 +45,20 @@ def _run_sqlite_migrations(connection) -> None:
         if column not in batch_columns:
             connection.exec_driver_sql(statement)
 
+    eval_run_columns = {
+        row[1] for row in connection.exec_driver_sql("PRAGMA table_info(eval_runs)").fetchall()
+    }
+    eval_run_additions = {
+        "lineage_id": "ALTER TABLE eval_runs ADD COLUMN lineage_id VARCHAR(36)",
+        "source_run_id": "ALTER TABLE eval_runs ADD COLUMN source_run_id VARCHAR(36)",
+        "config_version": "ALTER TABLE eval_runs ADD COLUMN config_version INTEGER DEFAULT 1",
+    }
+    for column, statement in eval_run_additions.items():
+        if column not in eval_run_columns:
+            connection.exec_driver_sql(statement)
+    if "lineage_id" in eval_run_columns or "lineage_id" in eval_run_additions:
+        connection.exec_driver_sql("UPDATE eval_runs SET lineage_id = id WHERE lineage_id IS NULL")
+
 
 async def get_session() -> AsyncIterator[AsyncSession]:
     async with AsyncSessionLocal() as session:

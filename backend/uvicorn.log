@@ -1,22 +1,4 @@
-INFO:     127.0.0.1:57826 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57838 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57839 - "GET /api/forms/exterior_hail/v0.1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57910 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57955 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57956 - "GET /api/batches/templates HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57957 - "GET /api/reviews HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57956 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57957 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57958 - "GET /api/forms/tfr_default/v0.1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57966 - "GET /api/forms/tfr_default/v0.1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58036 - "OPTIONS /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58036 - "POST /api/forms HTTP/1.1" 201 Created
-INFO:     127.0.0.1:58036 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58036 - "GET /api/forms/tfr_default/v0.2 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58036 - "GET /api/forms/tfr_default/v0.1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58038 - "GET /api/forms/tfr_default/v0.2 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58049 - "GET /api/forms/exterior_hail/v0.1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58049 - "GET /api/forms/interior_water/v0.1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58052 - "GET /api/forms/tfr_default/v0.1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58052 - "GET /api/forms/tfr_default/v0.2 HTTP/1.1" 200 OK
- 
+INFO:     127.0.0.1:59568 - "GET /api/evaluations/datasets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59567 - "GET /api/evaluations/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59593 - "GET /api/evaluations/datasets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59592 - "GET /api/evaluations/runs HTTP/1.1" 200 OK

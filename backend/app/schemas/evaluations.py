@@ -1,7 +1,14 @@
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
+
+from app.models.audit import AuditFormResult
+
+EvalReferenceKind = Literal["R1", "R2"]
+EvalReferencePolicy = Literal["prefer_r2", "r1", "r2", "all"]
+EvalRunStatus = Literal["queued", "running", "paused", "completed", "failed", "canceled"]
+EvalRunItemStatus = Literal["queued", "running", "completed", "failed", "skipped"]
 
 
 class FeedbackCreate(BaseModel):
@@ -28,3 +35,145 @@ class EvaluationCreate(BaseModel):
 class EvaluationRecord(EvaluationCreate):
     id: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class EvalGroundTruthCreate(BaseModel):
+    reference_kind: EvalReferenceKind
+    result: AuditFormResult
+    reviewer: str | None = None
+    source_metadata: dict[str, Any] | None = None
+
+
+class EvalCaseCreate(BaseModel):
+    claim_number: str = Field(..., min_length=1)
+    effective_date: str | None = None
+    instructions: str = ""
+    input: dict[str, Any] = Field(default_factory=dict)
+    ground_truths: list[EvalGroundTruthCreate] = Field(default_factory=list)
+
+
+class EvalDatasetCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=120)
+    description: str = ""
+    form_id: str = "tfr_default"
+    form_version: str = "v0.1"
+    source_kind: str = "manual"
+    source_metadata: dict[str, Any] | None = None
+    cases: list[EvalCaseCreate] = Field(default_factory=list)
+
+
+class EvalGroundTruthRecord(BaseModel):
+    id: str
+    case_id: str
+    reference_kind: EvalReferenceKind
+    result: AuditFormResult
+    reviewer: str | None = None
+    source_metadata: dict[str, Any] | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class EvalCaseRecord(BaseModel):
+    id: str
+    dataset_id: str
+    claim_number: str
+    effective_date: str | None = None
+    instructions: str = ""
+    input: dict[str, Any] = Field(default_factory=dict)
+    ground_truths: list[EvalGroundTruthRecord] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class EvalDatasetRecord(BaseModel):
+    id: str
+    name: str
+    description: str = ""
+    form_id: str
+    form_version: str
+    source_kind: str = "manual"
+    source_metadata: dict[str, Any] | None = None
+    dataset_hash: str
+    case_count: int = 0
+    r1_count: int = 0
+    r2_count: int = 0
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class EvalDatasetDetail(EvalDatasetRecord):
+    cases: list[EvalCaseRecord] = Field(default_factory=list)
+
+
+class EvalRunCreate(BaseModel):
+    dataset_id: str
+    name: str = Field(..., min_length=1, max_length=120)
+    model_name: str = ""
+    reference_policy: EvalReferencePolicy = "prefer_r2"
+    concurrency: int = Field(default=1, ge=1, le=10)
+    retry_limit: int = Field(default=0, ge=0, le=3)
+    enable_mlflow: bool = False
+    synthetic: bool = False
+    base_run_id: str | None = None
+
+
+class EvalComparisonRecord(BaseModel):
+    id: str
+    run_id: str
+    run_item_id: str
+    case_id: str
+    ground_truth_id: str
+    reference_kind: EvalReferenceKind
+    score: float | None = None
+    metrics: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class EvalRunItemRecord(BaseModel):
+    id: str
+    run_id: str
+    case_id: str
+    claim_number: str
+    effective_date: str | None = None
+    status: EvalRunItemStatus = "queued"
+    attempt_count: int = 0
+    generated_review_id: str | None = None
+    generated_result: AuditFormResult | None = None
+    ground_truths: list[EvalGroundTruthRecord] = Field(default_factory=list)
+    error_message: str | None = None
+    comparisons: list[EvalComparisonRecord] = Field(default_factory=list)
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class EvalRunRecord(BaseModel):
+    id: str
+    dataset_id: str
+    dataset_name: str = ""
+    lineage_id: str | None = None
+    source_run_id: str | None = None
+    config_version: int = 1
+    name: str
+    status: EvalRunStatus = "queued"
+    model_name: str = ""
+    reference_policy: EvalReferencePolicy = "prefer_r2"
+    concurrency: int = 1
+    retry_limit: int = 0
+    enable_mlflow: bool = False
+    mlflow_run_id: str | None = None
+    synthetic: bool = False
+    total_count: int = 0
+    completed_count: int = 0
+    failed_count: int = 0
+    running_count: int = 0
+    queued_count: int = 0
+    progress_percent: float = 0
+    primary_score: float | None = None
+    input: dict[str, Any] = Field(default_factory=dict)
+    error_message: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    duration_seconds: float | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

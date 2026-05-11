@@ -4,6 +4,10 @@ import type {
   BatchRecord,
   BatchTemplatePayload,
   BatchTemplateRecord,
+  EvalDatasetRecord,
+  EvalRunItemRecord,
+  EvalRunPayload,
+  EvalRunRecord,
   FormCatalogEntry,
   ReviewRecord,
 } from "@/lib/types";
@@ -215,6 +219,78 @@ export async function listBatchReviews(batchId: string): Promise<ReviewRecord[]>
     cache: "no-store",
   });
   return parseJsonResponse<ReviewRecord[]>(response);
+}
+
+export async function listEvalDatasets(): Promise<EvalDatasetRecord[]> {
+  const response = await fetch(`${apiBaseUrl}/api/evaluations/datasets`, {
+    cache: "no-store",
+  });
+  return parseJsonResponse<EvalDatasetRecord[]>(response);
+}
+
+export async function createSmokeEvalDataset(): Promise<EvalDatasetRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/evaluations/datasets/smoke-test`, {
+    method: "POST",
+  });
+  return parseJsonResponse<EvalDatasetRecord>(response);
+}
+
+export async function getEvalDataset(datasetId: string): Promise<EvalDatasetRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/evaluations/datasets/${datasetId}`, {
+    cache: "no-store",
+  });
+  return parseJsonResponse<EvalDatasetRecord>(response);
+}
+
+export async function listEvalRuns(): Promise<EvalRunRecord[]> {
+  const response = await fetch(`${apiBaseUrl}/api/evaluations/runs`, {
+    cache: "no-store",
+  });
+  return parseJsonResponse<EvalRunRecord[]>(response);
+}
+
+export async function createEvalRun(payload: EvalRunPayload): Promise<EvalRunRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/evaluations/runs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<EvalRunRecord>(response);
+}
+
+export async function getEvalRun(runId: string): Promise<EvalRunRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/evaluations/runs/${runId}`, {
+    cache: "no-store",
+  });
+  return parseJsonResponse<EvalRunRecord>(response);
+}
+
+export async function listEvalRunItems(runId: string): Promise<EvalRunItemRecord[]> {
+  const response = await fetch(`${apiBaseUrl}/api/evaluations/runs/${runId}/items`, {
+    cache: "no-store",
+  });
+  return parseJsonResponse<EvalRunItemRecord[]>(response);
+}
+
+export async function pauseEvalRun(runId: string): Promise<EvalRunRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/evaluations/runs/${runId}/pause`, {
+    method: "POST",
+  });
+  return parseJsonResponse<EvalRunRecord>(response);
+}
+
+export async function resumeEvalRun(runId: string): Promise<EvalRunRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/evaluations/runs/${runId}/resume`, {
+    method: "POST",
+  });
+  return parseJsonResponse<EvalRunRecord>(response);
+}
+
+export async function cancelEvalRun(runId: string): Promise<EvalRunRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/evaluations/runs/${runId}/cancel`, {
+    method: "POST",
+  });
+  return parseJsonResponse<EvalRunRecord>(response);
 }
 
 export function getUserVersion(review: ReviewRecord): AuditFormResult | null {
