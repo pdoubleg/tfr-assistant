@@ -100,7 +100,7 @@ export interface AggregatedQuestionRow {
   subQuestions: AggregatedSubQuestionRow[];
 }
 
-export type CommentReportType = "Outcome justification" | "Sub-question reasoning";
+export type CommentReportType = "Outcome justification" | "Question comments" | "Sub-question reasoning";
 
 export interface CommentReportRow {
   id: string;
@@ -543,6 +543,35 @@ export function buildCommentRows(rows: DashboardReviewRow[]): CommentReportRow[]
     }
 
     for (const question of row.form.questions ?? []) {
+      const questionComment = (question.comments ?? "").trim();
+      const questionCitations = (question.citations ?? "").trim();
+      if (questionComment || questionCitations) {
+        commentRows.push({
+          id: `${row.reviewId}:${question.id}:question`,
+          reviewId: row.reviewId,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+          claimNumber: row.claimNumber,
+          runName: row.runName,
+          source: row.source,
+          formId: row.formId,
+          formVersion: row.formVersion,
+          title: row.title,
+          outcome: row.outcome,
+          resultVersion: row.resultVersion,
+          commentType: "Question comments",
+          questionId: question.id,
+          questionText: question.text,
+          answer: question.answer,
+          subQuestionId: "",
+          subQuestionText: "",
+          applicable: null,
+          comment: questionComment,
+          citations: questionCitations,
+          row,
+        });
+      }
+
       for (const subQuestion of question.sub_questions ?? []) {
         const reasoning = subQuestion.reasoning.trim();
         const citations = subQuestion.citations.trim();

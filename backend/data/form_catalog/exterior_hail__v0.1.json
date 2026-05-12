@@ -13,6 +13,8 @@
         "id": "Q1",
         "text": "Does the file document exterior damage observations by area or elevation?",
         "answer": "Yes",
+        "comments": "Canonical template question has no sub-questions; completed audits must put question-level reasoning here.",
+        "citations": "Canonical template placeholder.",
         "sub_questions": [],
         "help_text": "Review roof photos, elevation photos, inspection notes, and damage summaries."
       },
@@ -24,8 +26,8 @@
           {
             "id": "Q2.1",
             "text": "A documented exterior damage item is missing from the estimate.",
-            "reasoning": "",
-            "citations": "",
+            "reasoning": "Canonical template marks this driver as applicable for validation.",
+            "citations": "Canonical template placeholder.",
             "answer": true,
             "help_text": "Cite the damage photo or note and the absent estimate scope."
           },
@@ -44,6 +46,8 @@
         "id": "Q3",
         "text": "Were collateral indicators or lack of collateral indicators addressed where relevant?",
         "answer": "Yes",
+        "comments": "Canonical template question has no sub-questions; completed audits must put question-level reasoning here.",
+        "citations": "Canonical template placeholder.",
         "sub_questions": [],
         "help_text": "Consider photos and notes for gutters, soft metals, screens, fencing, and nearby surfaces."
       }

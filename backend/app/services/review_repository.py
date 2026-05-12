@@ -70,28 +70,18 @@ def _repair_result_payload_for_read(payload: dict[str, Any]) -> dict[str, Any]:
         sub_questions = question.get("sub_questions")
         if not isinstance(sub_questions, list):
             sub_questions = []
-            question["sub_questions"] = sub_questions
-
-        if answer == "Yes":
-            question["sub_questions"] = []
-            continue
-
-        if answer != "No":
-            continue
+            question["sub_questions"] = None
 
         if not sub_questions:
-            question["sub_questions"] = [
-                {
-                    "id": f"{question.get('id', 'Q')}.legacy",
-                    "text": "Legacy stored result did not include a driver option.",
-                    "reasoning": (
-                        "Read repair added this placeholder so the saved review can be displayed."
-                    ),
-                    "citations": "",
-                    "answer": True,
-                    "help_text": None,
-                }
-            ]
+            question["sub_questions"] = None
+            question["comments"] = (
+                question.get("comments")
+                or "Read repair added this question-level comment for a legacy answer."
+            )
+            question["citations"] = question.get("citations") or "Legacy stored result."
+            continue
+
+        if answer not in {"Yes", "No"}:
             continue
 
         if not any(
@@ -109,6 +99,18 @@ def _repair_result_payload_for_read(payload: dict[str, Any]) -> dict[str, Any]:
                     first_subquestion.get("reasoning")
                     or "Read repair marked this existing driver as applicable for display."
                 )
+                first_subquestion["citations"] = (
+                    first_subquestion.get("citations") or "Legacy stored result."
+                )
+
+        for sub_question in sub_questions:
+            if not isinstance(sub_question, dict) or not sub_question.get("answer"):
+                continue
+            sub_question["reasoning"] = (
+                sub_question.get("reasoning")
+                or "Read repair marked this existing driver as applicable for display."
+            )
+            sub_question["citations"] = sub_question.get("citations") or "Legacy stored result."
 
     return repaired
 
@@ -486,7 +488,7 @@ class ReviewRepository:
                     position=question_position,
                 )
             )
-            for sub_position, sub_question in enumerate(question.sub_questions, start=1):
+            for sub_position, sub_question in enumerate(question.sub_questions or [], start=1):
                 self.session.add(
                     AuditSubQuestionAnswerORM(
                         id=str(uuid4()),

@@ -17,8 +17,8 @@
           {
             "id": "Q1.1",
             "text": "Documentation is missing, incomplete, or insufficient to support the estimate decision.",
-            "reasoning": "",
-            "citations": "",
+            "reasoning": "Canonical template marks this driver as applicable for validation.",
+            "citations": "Canonical template placeholder.",
             "answer": true,
             "help_text": "Cite the missing or insufficient notes, photos, estimate details, or attachments."
           }
@@ -33,8 +33,8 @@
           {
             "id": "Q2.1",
             "text": "An applicable repair item appears missing or under-scoped.",
-            "reasoning": "",
-            "citations": "",
+            "reasoning": "Canonical template marks this driver as applicable for validation.",
+            "citations": "Canonical template placeholder.",
             "answer": true,
             "help_text": "Cite the file evidence that supports the opportunity."
           }

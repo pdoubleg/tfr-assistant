@@ -127,7 +127,14 @@ class EvaluationRepository:
                 mixed_questions.append(
                     question.model_copy(
                         deep=True,
-                        update={"answer": "Yes", "sub_questions": []},
+                        update={
+                            "answer": "Yes",
+                            "comments": (
+                                "Smoke reference found no repair-scope risk for this question."
+                            ),
+                            "citations": "Smoke reference file.",
+                            "sub_questions": None,
+                        },
                     )
                 )
             else:
@@ -143,7 +150,15 @@ class EvaluationRepository:
         )
 
         clean_questions = [
-            question.model_copy(deep=True, update={"answer": "Yes", "sub_questions": []})
+            question.model_copy(
+                deep=True,
+                update={
+                    "answer": "Yes",
+                    "comments": "Smoke reference found no audit issue for this question.",
+                    "citations": "Smoke reference file.",
+                    "sub_questions": None,
+                },
+            )
             for question in canonical.questions
         ]
         case_two_r2 = canonical.model_copy(

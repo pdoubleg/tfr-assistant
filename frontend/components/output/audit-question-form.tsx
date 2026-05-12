@@ -75,9 +75,12 @@ function buildMetadataItems(reviewId: string, metadata?: AuditFormMetadata) {
 function normalizeFormForSubmit(form: AuditFormResult): AuditFormResult {
   return {
     ...form,
-    questions: form.questions.map((question) =>
-      question.answer === "Yes" ? { ...question, sub_questions: [] } : question,
-    ),
+    questions: form.questions.map((question) => ({
+      ...question,
+      comments: question.comments?.trim() ? question.comments : null,
+      citations: question.citations?.trim() ? question.citations : null,
+      sub_questions: question.sub_questions?.length ? question.sub_questions : null,
+    })),
   };
 }
 
@@ -276,18 +279,19 @@ function QuestionRow({
 }) {
   const [expanded, setExpanded] = useState(question.answer === "No");
   const [expandedSubs, setExpandedSubs] = useState<Set<string>>(new Set());
-  const driverCount = question.sub_questions.filter((subQuestion) => subQuestion.answer).length;
+  const subQuestions = question.sub_questions ?? [];
+  const driverCount = subQuestions.filter((subQuestion) => subQuestion.answer).length;
 
   useEffect(() => {
-    if (question.answer === "No" && question.sub_questions.length > 0) {
+    if (question.answer === "No" && subQuestions.length > 0) {
       setExpanded(true);
     }
-  }, [question.answer, question.sub_questions.length]);
+  }, [question.answer, subQuestions.length]);
 
   useEffect(() => {
     if (expandAllSignal === 0) return;
     setExpanded(true);
-    setExpandedSubs(new Set(question.sub_questions.map((subQuestion) => subQuestion.id)));
+    setExpandedSubs(new Set(subQuestions.map((subQuestion) => subQuestion.id)));
   }, [expandAllSignal]);
 
   useEffect(() => {
@@ -299,7 +303,7 @@ function QuestionRow({
   const updateSubQuestion = (subQuestion: FormSubQuestion) => {
     onChange({
       ...question,
-      sub_questions: question.sub_questions.map((candidate) =>
+      sub_questions: subQuestions.map((candidate) =>
         candidate.id === subQuestion.id ? subQuestion : candidate,
       ),
     });
@@ -321,7 +325,7 @@ function QuestionRow({
           {question.help_text ? (
             <p className="mt-1 text-xs italic text-muted-foreground">{question.help_text}</p>
           ) : null}
-          {question.sub_questions.length > 0 ? (
+          {subQuestions.length > 0 ? (
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <button
                 type="button"
@@ -329,7 +333,7 @@ function QuestionRow({
                 className="inline-flex items-center gap-1.5 rounded-md border bg-secondary/50 px-2.5 py-1.5 text-xs font-semibold text-foreground/75 transition-colors hover:bg-secondary"
               >
                 {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                {question.sub_questions.length} option{question.sub_questions.length === 1 ? "" : "s"}
+                {subQuestions.length} option{subQuestions.length === 1 ? "" : "s"}
               </button>
               {driverCount ? (
                 <Badge variant="danger" className="text-[11px]">
@@ -345,9 +349,36 @@ function QuestionRow({
         />
       </div>
 
+      {subQuestions.length === 0 ? (
+        <div className="grid gap-3 border-t bg-secondary/20 p-4 md:grid-cols-2">
+          <div>
+            <label className="text-[11px] font-semibold uppercase text-muted-foreground">Comments</label>
+            <div className="mt-1 flex items-start gap-1">
+              <AutoResizeTextarea
+                value={question.comments ?? ""}
+                onChange={(event) => onChange({ ...question, comments: event.target.value })}
+                placeholder="Question-level reasoning..."
+              />
+              <CopyButton text={question.comments ?? ""} />
+            </div>
+          </div>
+          <div>
+            <label className="text-[11px] font-semibold uppercase text-muted-foreground">Citations</label>
+            <div className="mt-1 flex items-start gap-1">
+              <AutoResizeTextarea
+                value={question.citations ?? ""}
+                onChange={(event) => onChange({ ...question, citations: event.target.value })}
+                placeholder="Question-level evidence references..."
+              />
+              <CopyButton text={question.citations ?? ""} />
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {expanded ? (
         <div className="divide-y border-t bg-secondary/30">
-          {question.sub_questions.map((subQuestion) => (
+          {subQuestions.map((subQuestion) => (
             <SubQuestionRow
               key={subQuestion.id}
               subQuestion={subQuestion}
@@ -413,7 +444,7 @@ export function AuditQuestionForm({
   const yesCount = draft.questions.filter((question) => question.answer === "Yes").length;
   const noCount = draft.questions.filter((question) => question.answer === "No").length;
   const driverCount = draft.questions.reduce(
-    (count, question) => count + question.sub_questions.filter((subQuestion) => subQuestion.answer).length,
+    (count, question) => count + (question.sub_questions ?? []).filter((subQuestion) => subQuestion.answer).length,
     0,
   );
   const metadataItems = useMemo(
@@ -447,7 +478,7 @@ export function AuditQuestionForm({
       setSavedPulse(true);
       setSaveNotice({
         type: "success",
-        message: "Form saved. Yes answers were submitted without driver options.",
+        message: "Form saved.",
       });
       window.setTimeout(() => setSavedPulse(false), 1800);
     } catch (error) {
@@ -693,16 +724,26 @@ export function AuditQuestionForm({
 
 function validateFormForSubmit(form: AuditFormResult): string {
   for (const question of form.questions) {
-    if (question.answer !== "No") continue;
-    if (question.sub_questions.length === 0) {
-      return (
-        `${question.id} is marked No, but this result does not include any driver options for ` +
-        "that question yet. Choose Yes for now, or regenerate/merge with the canonical form so " +
-        "the driver options are available."
-      );
+    const subQuestions = question.sub_questions ?? [];
+    if (subQuestions.length === 0) {
+      if (!question.comments?.trim()) {
+        return `${question.id} needs question-level comments before submitting.`;
+      }
+      if (!question.citations?.trim()) {
+        return `${question.id} needs question-level citations before submitting.`;
+      }
     }
-    if (!question.sub_questions.some((subQuestion) => subQuestion.answer)) {
-      return `${question.id} is marked No. Select at least one driver option before submitting.`;
+    if (subQuestions.length > 0 && !subQuestions.some((subQuestion) => subQuestion.answer)) {
+      return `${question.id} has driver options. Select at least one driver before submitting.`;
+    }
+    for (const subQuestion of subQuestions) {
+      if (!subQuestion.answer) continue;
+      if (!subQuestion.reasoning.trim()) {
+        return `${subQuestion.id} is selected and needs reasoning before submitting.`;
+      }
+      if (!subQuestion.citations.trim()) {
+        return `${subQuestion.id} is selected and needs citations before submitting.`;
+      }
     }
   }
 

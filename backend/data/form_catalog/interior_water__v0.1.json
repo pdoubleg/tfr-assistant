@@ -13,6 +13,8 @@
         "id": "Q1",
         "text": "Does the file identify the reported source and cause of interior water damage?",
         "answer": "Yes",
+        "comments": "Canonical template question has no sub-questions; completed audits must put question-level reasoning here.",
+        "citations": "Canonical template placeholder.",
         "sub_questions": [],
         "help_text": "Review loss notes, inspection summaries, plumbing reports, and cause-of-loss documentation."
       },
@@ -24,8 +26,8 @@
           {
             "id": "Q2.1",
             "text": "Room-level photos or notes do not support one or more estimated repair areas.",
-            "reasoning": "",
-            "citations": "",
+            "reasoning": "Canonical template marks this driver as applicable for validation.",
+            "citations": "Canonical template placeholder.",
             "answer": true,
             "help_text": "Cite the room, photo set, note, or estimate line item that is unsupported."
           },
@@ -44,6 +46,8 @@
         "id": "Q3",
         "text": "Were mitigation or dry-out details considered in the repair recommendation?",
         "answer": "Yes",
+        "comments": "Canonical template question has no sub-questions; completed audits must put question-level reasoning here.",
+        "citations": "Canonical template placeholder.",
         "sub_questions": [],
         "help_text": "Review mitigation invoices, drying logs, and material removal notes."
       }

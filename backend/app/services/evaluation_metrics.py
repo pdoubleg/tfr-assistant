@@ -22,7 +22,11 @@ def _question_map(form: AuditFormResult) -> dict[str, FormQuestion]:
 def _applicable_driver_ids(question: FormQuestion | None) -> set[str]:
     if question is None:
         return set()
-    return {sub_question.id for sub_question in question.sub_questions if bool(sub_question.answer)}
+    return {
+        sub_question.id
+        for sub_question in question.sub_questions or []
+        if bool(sub_question.answer)
+    }
 
 
 def compare_audit_results(

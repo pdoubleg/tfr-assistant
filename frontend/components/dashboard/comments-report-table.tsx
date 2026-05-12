@@ -86,7 +86,9 @@ function outcomeLabel(outcome: string): string {
 }
 
 function commentTypeLabel(type: string): string {
-  return type === "Outcome justification" ? "Outcome" : "Sub-question";
+  if (type === "Outcome justification") return "Outcome";
+  if (type === "Question comments") return "Question";
+  return "Sub-question";
 }
 
 const viewColumns: ExportColumn<CommentReportRow>[] = [
@@ -176,7 +178,7 @@ export function CommentsReportTable({
     const query = search.trim().toLowerCase();
     const filtered = commentRows.filter((row) => {
       if (activeQuestionFilterCount > 0) {
-        if (row.commentType !== "Sub-question reasoning") return false;
+        if (row.commentType === "Outcome justification") return false;
         const questionKey = questionCommentKey(row.row.formKey, row.questionId);
         const subQuestionKey =
           row.subQuestionId && row.subQuestionText
@@ -294,6 +296,7 @@ export function CommentsReportTable({
           >
             <option value="all">All comments</option>
             <option value="Outcome justification">Outcome justification</option>
+            <option value="Question comments">Question comments</option>
             <option value="Sub-question reasoning">Sub-question reasoning</option>
           </select>
           <Button

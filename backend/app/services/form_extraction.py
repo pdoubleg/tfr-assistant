@@ -57,6 +57,8 @@ def extract_audit_form_from_excel(
                     FormSubQuestion(
                         id="Q1.1",
                         text="The file evidence does not satisfy the uploaded form requirement.",
+                        reasoning="Placeholder extracted form driver selected for validation.",
+                        citations="Uploaded workbook placeholder.",
                         answer=True,
                         help_text=(
                             "Replace this placeholder driver with the extracted workbook "

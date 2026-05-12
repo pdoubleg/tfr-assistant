@@ -20,7 +20,7 @@ class FormCatalog:
                 tool_instructions=form.tool_instructions,
                 question_count=len(form.canonical.questions),
                 sub_question_count=sum(
-                    len(question.sub_questions) for question in form.canonical.questions
+                    len(question.sub_questions or []) for question in form.canonical.questions
                 ),
                 created_at=form.created_at,
             )

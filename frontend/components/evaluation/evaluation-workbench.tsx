@@ -1555,6 +1555,7 @@ function ReadOnlyFormPanel({ title, form }: { title: string; form: AuditFormResu
 }
 
 function ReadOnlyQuestion({ question }: { question: FormQuestion }) {
+  const subQuestions = question.sub_questions ?? [];
   return (
     <div className="rounded-md border bg-card p-3">
       <div className="flex items-start justify-between gap-3">
@@ -1564,9 +1565,9 @@ function ReadOnlyQuestion({ question }: { question: FormQuestion }) {
         </div>
         <Badge variant={question.answer === "Yes" ? "success" : "danger"}>{question.answer}</Badge>
       </div>
-      {question.sub_questions.length ? (
+      {subQuestions.length ? (
         <div className="mt-3 space-y-2">
-          {question.sub_questions.map((subQuestion) => (
+          {subQuestions.map((subQuestion) => (
             <div key={subQuestion.id} className="rounded-md border bg-background px-3 py-2">
               <div className="flex items-center gap-2">
                 <span className="font-mono text-[11px] font-semibold text-muted-foreground">{subQuestion.id}</span>
@@ -1578,6 +1579,11 @@ function ReadOnlyQuestion({ question }: { question: FormQuestion }) {
               {subQuestion.reasoning ? <p className="mt-1 text-xs text-muted-foreground">{subQuestion.reasoning}</p> : null}
             </div>
           ))}
+        </div>
+      ) : question.comments || question.citations ? (
+        <div className="mt-3 rounded-md border bg-background px-3 py-2 text-xs text-muted-foreground">
+          {question.comments ? <p>{question.comments}</p> : null}
+          {question.citations ? <p className="mt-1">{question.citations}</p> : null}
         </div>
       ) : null}
     </div>

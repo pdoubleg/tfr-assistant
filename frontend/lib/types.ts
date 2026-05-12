@@ -14,7 +14,9 @@ export interface FormQuestion {
   id: string;
   text: string;
   answer: QuestionAnswer;
-  sub_questions: FormSubQuestion[];
+  comments?: string | null;
+  citations?: string | null;
+  sub_questions?: FormSubQuestion[] | null;
   help_text?: string | null;
 }
 

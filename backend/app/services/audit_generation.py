@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.review_agent import run_file_review_agent
 from app.core.config import Settings, get_settings
 from app.db.session import AsyncSessionLocal
-from app.models.audit import AuditFormResult, FormQuestion
+from app.models.audit import AuditFormResult, merge_with_canonical
 from app.schemas.forms import AuditFormDefinition
 from app.schemas.reviews import (
     BatchCreateRequest,
@@ -35,106 +35,14 @@ class AuditResultValidator:
         result: AuditFormResult,
         canonical: AuditFormDefinition,
     ) -> AuditFormResult:
-        canonical_result = canonical.canonical
-        questions_by_id = {question.id: question for question in result.questions}
-        aligned_questions: list[FormQuestion] = []
-
-        for canonical_question in canonical_result.questions:
-            generated_question = questions_by_id.get(canonical_question.id)
-            if generated_question is None:
-                raise ValueError(f"Generated result is missing question {canonical_question.id}.")
-            generated_subquestions = {
-                sub_question.id: sub_question for sub_question in generated_question.sub_questions
-            }
-            aligned_subquestions = []
-            for generated_subquestion in generated_question.sub_questions:
-                canonical_subquestion = next(
-                    (
-                        sub_question
-                        for sub_question in canonical_question.sub_questions
-                        if sub_question.id == generated_subquestion.id
-                    ),
-                    None,
-                )
-                aligned_subquestions.append(
-                    generated_subquestion.model_copy(
-                        update={
-                            "text": (
-                                canonical_subquestion.text
-                                if canonical_subquestion
-                                else generated_subquestion.text
-                            ),
-                            "help_text": (
-                                canonical_subquestion.help_text
-                                if canonical_subquestion
-                                else generated_subquestion.help_text
-                            ),
-                        }
-                    )
-                )
-
-            if generated_question.answer == "Yes":
-                aligned_subquestions = []
-
-            if generated_question.answer == "No" and not aligned_subquestions:
-                fallback_subquestion = next(
-                    (
-                        sub_question
-                        for sub_question in canonical_question.sub_questions
-                        if generated_subquestions.get(sub_question.id)
-                    ),
-                    None,
-                )
-                if fallback_subquestion is None and canonical_question.sub_questions:
-                    fallback_subquestion = canonical_question.sub_questions[0]
-                if fallback_subquestion is not None:
-                    aligned_subquestions.append(
-                        fallback_subquestion.model_copy(
-                            update={
-                                "answer": True,
-                                "reasoning": (
-                                    "Generated result identified this question as a review "
-                                    "opportunity."
-                                ),
-                            }
-                        )
-                    )
-
-            if (
-                generated_question.answer == "No"
-                and aligned_subquestions
-                and not any(sub_question.answer for sub_question in aligned_subquestions)
-            ):
-                aligned_subquestions[0] = aligned_subquestions[0].model_copy(
-                    update={
-                        "answer": True,
-                        "reasoning": (
-                            aligned_subquestions[0].reasoning
-                            or "Generated result identified this question as a review opportunity."
-                        ),
-                    }
-                )
-
-            aligned_questions.append(
-                generated_question.model_copy(
-                    update={
-                        "text": canonical_question.text,
-                        "help_text": canonical_question.help_text,
-                        "sub_questions": aligned_subquestions,
-                    }
-                )
-            )
-
-        aligned = result.model_copy(
-            update={
-                "form_id": canonical.id,
-                "form_version": canonical.version,
-                "title": canonical.title,
-                "description": canonical.canonical.description,
-                "questions": aligned_questions,
-            }
+        return merge_with_canonical(
+            result,
+            canonical.canonical,
+            form_id=canonical.id,
+            form_version=canonical.version,
+            title=canonical.title,
+            description=canonical.canonical.description,
         )
-        return AuditFormResult.model_validate(aligned.model_dump(mode="json"))
 
 
 class SyntheticAuditFormGenerator:
@@ -146,9 +54,7 @@ class SyntheticAuditFormGenerator:
         result = canonical.canonical.model_copy(deep=True)
         questions = []
         for index, question in enumerate(result.questions, start=1):
-            if question.answer == "No" and not question.sub_questions:
-                question = question.model_copy(update={"answer": "Yes"})
-            if question.answer == "No":
+            if question.sub_questions:
                 sub_questions = [
                     sub_question.model_copy(
                         update={
@@ -167,9 +73,31 @@ class SyntheticAuditFormGenerator:
                     )
                     for sub_index, sub_question in enumerate(question.sub_questions, start=1)
                 ]
-                questions.append(question.model_copy(update={"sub_questions": sub_questions}))
+                questions.append(
+                    question.model_copy(
+                        update={
+                            "comments": None,
+                            "citations": None,
+                            "sub_questions": sub_questions,
+                        }
+                    )
+                )
             else:
-                questions.append(question.model_copy(update={"sub_questions": []}))
+                questions.append(
+                    question.model_copy(
+                        update={
+                            "comments": (
+                                question.comments
+                                or "Synthetic review evidence supports this question answer."
+                            ),
+                            "citations": (
+                                question.citations
+                                or f"Synthetic file note {index}; document set {index:02d}."
+                            ),
+                            "sub_questions": None,
+                        }
+                    )
+                )
 
         outcome = (
             "Does Not Meet" if any(question.answer == "No" for question in questions) else "Meets"

@@ -250,7 +250,9 @@ function buildQuestionDetailRows(rows: DashboardReviewRow[]): QuestionDetailExpo
         inputJson: stringifyJson(row.inputJson),
       };
 
-      if (question.sub_questions.length === 0) {
+      const subQuestions = question.sub_questions ?? [];
+
+      if (subQuestions.length === 0) {
         return [
           {
             ...base,
@@ -266,7 +268,7 @@ function buildQuestionDetailRows(rows: DashboardReviewRow[]): QuestionDetailExpo
         ];
       }
 
-      return question.sub_questions.map((subQuestion) => ({
+      return subQuestions.map((subQuestion) => ({
         ...base,
         exportRowId: detailExportRowId(row.formKey, question.id, subQuestion.id, subQuestion.text),
         detailRowId: `${row.reviewId}:${question.id}:${subQuestion.id}`,

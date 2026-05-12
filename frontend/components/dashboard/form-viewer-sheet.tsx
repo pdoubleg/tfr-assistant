@@ -90,7 +90,8 @@ function SubQuestionViewer({ subQuestion }: { subQuestion: FormSubQuestion }) {
 }
 
 function QuestionViewer({ question }: { question: FormQuestion }) {
-  const hasSubQuestions = question.sub_questions.length > 0;
+  const subQuestions = question.sub_questions ?? [];
+  const hasSubQuestions = subQuestions.length > 0;
   const [expanded, setExpanded] = useState(question.answer === "No" && hasSubQuestions);
   const driverCount = getQuestionDriverCount(question);
 
@@ -126,9 +127,15 @@ function QuestionViewer({ question }: { question: FormQuestion }) {
         </div>
         <Badge variant={question.answer === "Yes" ? "success" : "danger"}>{question.answer}</Badge>
       </button>
+      {!hasSubQuestions ? (
+        <div className="grid gap-3 border-t bg-secondary/20 p-4 lg:grid-cols-2">
+          <TextBlock label="Comments" text={question.comments ?? ""} />
+          <TextBlock label="Citations" text={question.citations ?? ""} />
+        </div>
+      ) : null}
       {expanded ? (
         <div className="divide-y border-t bg-secondary/25">
-          {question.sub_questions.map((subQuestion) => (
+          {subQuestions.map((subQuestion) => (
             <SubQuestionViewer key={subQuestion.id} subQuestion={subQuestion} />
           ))}
         </div>

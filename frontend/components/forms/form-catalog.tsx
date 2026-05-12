@@ -5,7 +5,6 @@ import {
   AlertTriangle,
   Braces,
   BookOpen,
-  CheckCircle2,
   ChevronDown,
   ChevronRight,
   ClipboardCheck,
@@ -81,34 +80,43 @@ const questionSchema = z
     id: z.string().trim().min(1, "Question ID is required."),
     text: z.string().trim().min(1, "Question text is required."),
     answer: z.enum(["Yes", "No"]),
-    sub_questions: z.array(subQuestionSchema),
+    comments: z.string().nullable().optional(),
+    citations: z.string().nullable().optional(),
+    sub_questions: z.array(subQuestionSchema).nullable().optional().default([]),
     help_text: z.string().nullable().optional(),
   })
   .superRefine((question, ctx) => {
-    if (question.answer === "No" && question.sub_questions.length === 0) {
+    const subQuestions = question.sub_questions ?? [];
+    if (subQuestions.length === 0 && !question.comments?.trim()) {
       ctx.addIssue({
         code: "custom",
-        message: `${question.id}: No answers need at least one driver.`,
-        path: ["sub_questions"],
+        message: `${question.id}: Questions without drivers need question comments.`,
+        path: ["comments"],
       });
     }
-    if (
-      question.answer === "No" &&
-      question.sub_questions.length > 0 &&
-      !question.sub_questions.some((subQuestion) => subQuestion.answer)
-    ) {
+    if (subQuestions.length === 0 && !question.citations?.trim()) {
       ctx.addIssue({
         code: "custom",
-        message: `${question.id}: Mark at least one driver as applicable.`,
-        path: ["sub_questions"],
+        message: `${question.id}: Questions without drivers need question citations.`,
+        path: ["citations"],
       });
     }
-    if (question.answer === "Yes" && question.sub_questions.length > 0) {
-      ctx.addIssue({
-        code: "custom",
-        message: `${question.id}: Yes answers must not include drivers.`,
-        path: ["sub_questions"],
-      });
+    for (const subQuestion of subQuestions) {
+      if (!subQuestion.answer) continue;
+      if (!subQuestion.reasoning.trim()) {
+        ctx.addIssue({
+          code: "custom",
+          message: `${subQuestion.id}: Applicable drivers need reasoning.`,
+          path: ["sub_questions"],
+        });
+      }
+      if (!subQuestion.citations.trim()) {
+        ctx.addIssue({
+          code: "custom",
+          message: `${subQuestion.id}: Applicable drivers need citations.`,
+          path: ["sub_questions"],
+        });
+      }
     }
   });
 
@@ -135,7 +143,7 @@ const emptySubQuestion = (questionId: string, index: number): FormSubQuestion =>
   text: "",
   reasoning: "",
   citations: "",
-  answer: true,
+  answer: false,
   help_text: "",
 });
 
@@ -145,6 +153,8 @@ const emptyQuestion = (index: number): FormQuestion => {
     id,
     text: "",
     answer: "No",
+    comments: "",
+    citations: "",
     help_text: "",
     sub_questions: [emptySubQuestion(id, 1)],
   };
@@ -211,30 +221,33 @@ function buildCanonical(state: FormEditorState): AuditFormResult {
   const version = state.version.trim();
   const title = state.title.trim() || titleFromId(formId);
   const description = state.description.trim() || "Canonical audit form template.";
+  const questions = state.questions.map((question) => {
+    const subQuestions = (question.sub_questions ?? []).map((subQuestion) => ({
+      ...subQuestion,
+      id: subQuestion.id.trim(),
+      text: subQuestion.text.trim(),
+      reasoning: subQuestion.reasoning ?? "",
+      citations: subQuestion.citations ?? "",
+      help_text: normalizeOptionalText(subQuestion.help_text),
+      answer: Boolean(subQuestion.answer),
+    }));
+    return {
+      ...question,
+      id: question.id.trim(),
+      text: question.text.trim(),
+      comments: normalizeOptionalText(question.comments),
+      citations: normalizeOptionalText(question.citations),
+      help_text: normalizeOptionalText(question.help_text),
+      answer: question.answer,
+      sub_questions: subQuestions.length ? subQuestions : undefined,
+    };
+  });
   return {
     form_id: formId,
     form_version: version,
     title,
     description,
-    questions: state.questions.map((question) => ({
-      ...question,
-      id: question.id.trim(),
-      text: question.text.trim(),
-      help_text: normalizeOptionalText(question.help_text),
-      answer: question.answer,
-      sub_questions:
-        question.answer === "Yes"
-          ? []
-          : question.sub_questions.map((subQuestion) => ({
-              ...subQuestion,
-              id: subQuestion.id.trim(),
-              text: subQuestion.text.trim(),
-              reasoning: subQuestion.reasoning ?? "",
-              citations: subQuestion.citations ?? "",
-              help_text: normalizeOptionalText(subQuestion.help_text),
-              answer: Boolean(subQuestion.answer),
-            })),
-    })),
+    questions,
     overall_outcome: state.overallOutcome || "Does Not Meet",
     outcome_justification:
       state.outcomeJustification.trim() || "Canonical template placeholder outcome.",
@@ -257,18 +270,21 @@ function buildDefinition(state: FormEditorState): AuditFormDefinition {
 function asQuestionnaireString(form: AuditFormResult): string {
   const lines = [
     `TFR Questionnaire: ${form.title}`,
-    "Complete each question from the file evidence. Answers must be exactly 'Yes' or 'No'. For 'Yes' answers, return an empty sub_questions list. For 'No' answers, include at least one listed sub-question and set answer=true for every applicable driver.",
+    "Complete each question from the file evidence. Answers must be exactly 'Yes' or 'No'. When a question lists Sub-Questions, generate only the listed sub_question driver(s) that apply to the audit finding; do not generate non-applicable drivers. Do not include an answer field on sub_questions; including a sub_question means it applies. For a No answer with listed Sub-Questions, include at least one applicable sub_question with reasoning and citations. For a Yes answer with listed Sub-Questions, omit sub_questions or set it to null/[]. Keep question-level comments/citations null unless extra general context is needed. When a question does not list Sub-Questions, omit sub_questions or set it to null/[], and put the question-level reasoning in comments and the supporting evidence references in citations.",
   ];
 
   for (const question of form.questions) {
     const helpText = question.help_text ? ` (help_text: ${question.help_text})` : "";
+    const subQuestions = question.sub_questions ?? [];
     lines.push("", `${question.id}: ${question.text}${helpText}`);
-    if (question.sub_questions.length) {
+    if (subQuestions.length) {
       lines.push("Sub-Questions:");
-      for (const subQuestion of question.sub_questions) {
+      for (const subQuestion of subQuestions) {
         const subHelpText = subQuestion.help_text ? ` (help_text: ${subQuestion.help_text})` : "";
         lines.push(`  ${subQuestion.id}: ${subQuestion.text}${subHelpText}`);
       }
+    } else {
+      lines.push("No Sub-Questions: put reasoning in question.comments and evidence in question.citations.");
     }
   }
 
@@ -290,6 +306,8 @@ function definitionToState(
   const questions = canonical?.questions?.length
     ? canonical.questions.map((question) => ({
         ...question,
+        comments: question.comments ?? "",
+        citations: question.citations ?? "",
         help_text: question.help_text ?? "",
         sub_questions: (question.sub_questions ?? []).map((subQuestion) => ({
           ...subQuestion,
@@ -455,7 +473,8 @@ function FormCatalogRow({
 
 function QuestionPreview({ question }: { question: FormQuestion }) {
   const [expanded, setExpanded] = useState(true);
-  const hasDrivers = question.sub_questions.length > 0;
+  const subQuestions = question.sub_questions ?? [];
+  const hasDrivers = subQuestions.length > 0;
 
   return (
     <div className="rounded-lg border bg-background">
@@ -479,7 +498,7 @@ function QuestionPreview({ question }: { question: FormQuestion }) {
       </button>
       {expanded ? (
         <div className="divide-y border-t bg-secondary/25">
-          {question.sub_questions.map((subQuestion) => (
+          {subQuestions.map((subQuestion) => (
             <div key={subQuestion.id} className="flex items-start gap-3 px-4 py-3">
               <span className="mt-0.5 shrink-0 rounded border bg-background px-1.5 py-0.5 font-mono text-[10px] font-bold text-muted-foreground">
                 {subQuestion.id}
@@ -1081,7 +1100,7 @@ function FormRegistrationDialog({
         currentQuestionIndex === questionIndex
           ? {
               ...question,
-              sub_questions: question.sub_questions.map((subQuestion, currentSubIndex) =>
+              sub_questions: (question.sub_questions ?? []).map((subQuestion, currentSubIndex) =>
                 currentSubIndex === subQuestionIndex
                   ? { ...subQuestion, ...patch }
                   : subQuestion,
@@ -1100,8 +1119,11 @@ function FormRegistrationDialog({
           ? {
               ...question,
               sub_questions: [
-                ...question.sub_questions,
-                emptySubQuestion(question.id || `Q${questionIndex + 1}`, question.sub_questions.length + 1),
+                ...(question.sub_questions ?? []),
+                emptySubQuestion(
+                  question.id || `Q${questionIndex + 1}`,
+                  (question.sub_questions ?? []).length + 1,
+                ),
               ],
             }
           : question,
@@ -1116,7 +1138,7 @@ function FormRegistrationDialog({
         index === questionIndex
           ? {
               ...question,
-              sub_questions: question.sub_questions.filter((_, subIndex) => subIndex !== subQuestionIndex),
+              sub_questions: (question.sub_questions ?? []).filter((_, subIndex) => subIndex !== subQuestionIndex),
             }
           : question,
       ),
@@ -1339,10 +1361,15 @@ function FormRegistrationDialog({
               <div className="divide-y">
                 {state.questions.map((question, questionIndex) => {
                   const expanded = expandedQuestions.has(questionIndex);
-                  const hasDriverWarning =
-                    question.answer === "No" &&
-                    (!question.sub_questions.length ||
-                      !question.sub_questions.some((subQuestion) => subQuestion.answer));
+                  const subQuestions = question.sub_questions ?? [];
+                  const hasDriverWarning = subQuestions.some(
+                    (subQuestion) =>
+                      subQuestion.answer &&
+                      (!subQuestion.reasoning?.trim() || !subQuestion.citations?.trim()),
+                  );
+                  const needsQuestionEvidence =
+                    subQuestions.length === 0 &&
+                    (!question.comments?.trim() || !question.citations?.trim());
                   return (
                     <div key={`${question.id}-${questionIndex}`} className="p-4">
                       <div className="flex items-start gap-3">
@@ -1414,103 +1441,152 @@ function FormRegistrationDialog({
                             />
                           </div>
 
-                          {question.answer === "Yes" ? (
-                            <div className="flex items-start gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
-                              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-                              <span>Drivers are omitted from saved Yes-answer questions.</span>
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <div className="grid gap-2">
+                              <FieldLabel htmlFor={`question-comments-${questionIndex}`} label="Question Comments" optional />
+                              <Textarea
+                                id={`question-comments-${questionIndex}`}
+                                value={question.comments ?? ""}
+                                onChange={(event) =>
+                                  setQuestion(questionIndex, { comments: event.target.value })
+                                }
+                                disabled={saving}
+                                className="min-h-[76px]"
+                                placeholder="Question-level reasoning"
+                              />
                             </div>
-                          ) : (
-                            <div className="rounded-lg border bg-card">
-                              <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
-                                <div>
-                                  <p className="text-sm font-medium">Drivers</p>
-                                  {hasDriverWarning ? (
-                                    <p className="text-xs text-amber-700 dark:text-amber-300">
-                                      Mark at least one driver as applicable.
-                                    </p>
-                                  ) : null}
-                                </div>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="gap-1.5"
-                                  onClick={() => addSubQuestion(questionIndex)}
-                                  disabled={saving}
-                                >
-                                  <Plus className="h-3.5 w-3.5" />
-                                  Driver
-                                </Button>
+                            <div className="grid gap-2">
+                              <FieldLabel htmlFor={`question-citations-${questionIndex}`} label="Question Citations" optional />
+                              <Textarea
+                                id={`question-citations-${questionIndex}`}
+                                value={question.citations ?? ""}
+                                onChange={(event) =>
+                                  setQuestion(questionIndex, { citations: event.target.value })
+                                }
+                                disabled={saving}
+                                className="min-h-[76px]"
+                                placeholder="Question-level evidence citations"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="rounded-lg border bg-card">
+                            <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
+                              <div>
+                                <p className="text-sm font-medium">Drivers</p>
+                                {hasDriverWarning ? (
+                                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                                    Applicable drivers need reasoning and citations.
+                                  </p>
+                                ) : null}
+                                {needsQuestionEvidence ? (
+                                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                                    Add question comments and citations for questions without drivers.
+                                  </p>
+                                ) : null}
                               </div>
-                              <div className="divide-y">
-                                {question.sub_questions.map((subQuestion, subQuestionIndex) => (
-                                  <div
-                                    key={`${subQuestion.id}-${subQuestionIndex}`}
-                                    className="grid gap-3 p-3 xl:grid-cols-[110px_minmax(0,1fr)_120px_40px]"
-                                  >
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="gap-1.5"
+                                onClick={() => addSubQuestion(questionIndex)}
+                                disabled={saving}
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                                Driver
+                              </Button>
+                            </div>
+                            <div className="divide-y">
+                              {subQuestions.map((subQuestion, subQuestionIndex) => (
+                                <div
+                                  key={`${subQuestion.id}-${subQuestionIndex}`}
+                                  className="grid gap-3 p-3 xl:grid-cols-[110px_minmax(0,1fr)_120px_40px]"
+                                >
+                                  <Input
+                                    value={subQuestion.id}
+                                    onChange={(event) =>
+                                      setSubQuestion(questionIndex, subQuestionIndex, {
+                                        id: event.target.value,
+                                      })
+                                    }
+                                    disabled={saving}
+                                    className="font-mono"
+                                    placeholder={`${question.id}.1`}
+                                  />
+                                  <div className="grid gap-2">
                                     <Input
-                                      value={subQuestion.id}
+                                      value={subQuestion.text}
                                       onChange={(event) =>
                                         setSubQuestion(questionIndex, subQuestionIndex, {
-                                          id: event.target.value,
+                                          text: event.target.value,
                                         })
                                       }
                                       disabled={saving}
-                                      className="font-mono"
-                                      placeholder={`${question.id}.1`}
+                                      placeholder="Driver text"
                                     />
-                                    <div className="grid gap-2">
-                                      <Input
-                                        value={subQuestion.text}
-                                        onChange={(event) =>
-                                          setSubQuestion(questionIndex, subQuestionIndex, {
-                                            text: event.target.value,
-                                          })
-                                        }
-                                        disabled={saving}
-                                        placeholder="Driver text"
-                                      />
-                                      <Input
-                                        value={subQuestion.help_text ?? ""}
-                                        onChange={(event) =>
-                                          setSubQuestion(questionIndex, subQuestionIndex, {
-                                            help_text: event.target.value,
-                                          })
-                                        }
-                                        disabled={saving}
-                                        placeholder="Optional driver help text"
-                                      />
-                                    </div>
-                                    <label className="flex h-10 items-center gap-2 rounded-md border bg-background px-3 text-sm" title="Used to keep the canonical template valid for the backend.">
-                                      <input
-                                        type="checkbox"
-                                        checked={subQuestion.answer}
-                                        onChange={(event) =>
-                                          setSubQuestion(questionIndex, subQuestionIndex, {
-                                            answer: event.target.checked,
-                                          })
-                                        }
-                                        disabled={saving}
-                                      />
-                                      Applicable
-                                    </label>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-10 w-10"
-                                      onClick={() => removeSubQuestion(questionIndex, subQuestionIndex)}
+                                    <Input
+                                      value={subQuestion.help_text ?? ""}
+                                      onChange={(event) =>
+                                        setSubQuestion(questionIndex, subQuestionIndex, {
+                                          help_text: event.target.value,
+                                        })
+                                      }
                                       disabled={saving}
-                                      aria-label="Remove driver"
-                                      title="Remove driver"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
+                                      placeholder="Optional driver help text"
+                                    />
+                                    <Textarea
+                                      value={subQuestion.reasoning ?? ""}
+                                      onChange={(event) =>
+                                        setSubQuestion(questionIndex, subQuestionIndex, {
+                                          reasoning: event.target.value,
+                                        })
+                                      }
+                                      disabled={saving}
+                                      className="min-h-[72px]"
+                                      placeholder="Driver reasoning"
+                                    />
+                                    <Textarea
+                                      value={subQuestion.citations ?? ""}
+                                      onChange={(event) =>
+                                        setSubQuestion(questionIndex, subQuestionIndex, {
+                                          citations: event.target.value,
+                                        })
+                                      }
+                                      disabled={saving}
+                                      className="min-h-[72px]"
+                                      placeholder="Driver citations"
+                                    />
                                   </div>
-                                ))}
-                              </div>
+                                  <label className="flex h-10 items-center gap-2 rounded-md border bg-background px-3 text-sm" title="Optional sample applicability for template preview and smoke data.">
+                                    <input
+                                      type="checkbox"
+                                      checked={subQuestion.answer}
+                                      onChange={(event) =>
+                                        setSubQuestion(questionIndex, subQuestionIndex, {
+                                          answer: event.target.checked,
+                                        })
+                                      }
+                                      disabled={saving}
+                                    />
+                                    Applicable
+                                  </label>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-10 w-10"
+                                    onClick={() => removeSubQuestion(questionIndex, subQuestionIndex)}
+                                    disabled={saving}
+                                    aria-label="Remove driver"
+                                    title="Remove driver"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ))}
                             </div>
-                          )}
+                          </div>
                         </div>
                       ) : null}
                     </div>

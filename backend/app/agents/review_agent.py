@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+import logging
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from pydantic_ai import Agent, RunContext
@@ -8,6 +9,7 @@ from app.models.audit import AuditFormResult
 from app.schemas.forms import AuditFormDefinition
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -18,6 +20,14 @@ class FileReviewAgentDeps:
     instructions: str = ""
     audit_scope: str = ""
     tool_instructions: str = ""
+    form_path: Path = field(init=False)
+    form_definition: AuditFormDefinition = field(init=False)
+    canonical: AuditFormResult = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.form_path = Path(self.path_to_questionnaire or settings.default_questionnaire_path)
+        self.form_definition = load_form_definition(self.form_path)
+        self.canonical = self.form_definition.canonical
 
 
 def load_canonical_form(path: str | Path) -> AuditFormResult:
@@ -50,6 +60,7 @@ def build_file_review_agent() -> Agent[FileReviewAgentDeps, AuditFormResult]:
         settings.audit_model,
         output_type=AuditFormResult,
         deps_type=FileReviewAgentDeps,
+        validation_context=lambda ctx: ctx.deps,
         retries=3,
         output_retries=3,
         system_prompt=(
@@ -58,19 +69,18 @@ def build_file_review_agent() -> Agent[FileReviewAgentDeps, AuditFormResult]:
             "below. Use it to guide your focus and output.\n"
             "If user requests an example audit, create a fictitious result as a demonstration.\n"
             "Output must validate exactly as AuditFormResult. Use only Yes or No for question "
-            "answers. If a question answer is Yes, return no sub_questions for that question. "
-            "If a question answer is No, include at least one listed sub-question with "
-            "answer=true, reasoning, and citations."
+            "answers. If the canonical question lists sub_questions, return only the listed "
+            "sub_question driver(s) that apply, with reasoning and citations on each one. "
+            "Do not include sub_question answer fields; including the sub_question means it "
+            "applies. If none apply and the answer is Yes, omit sub_questions or set it to "
+            "null/[]. If the canonical question does not list sub_questions, put "
+            "question-level reasoning in comments and supporting references in citations."
         ),
     )
 
     @agent.system_prompt
     def add_tfr_template(ctx: RunContext[FileReviewAgentDeps]) -> str:
-        if not ctx.deps.path_to_questionnaire:
-            form_path = settings.default_questionnaire_path
-        else:
-            form_path = ctx.deps.path_to_questionnaire
-        definition = load_form_definition(form_path)
+        definition = ctx.deps.form_definition
         sections = [definition.canonical.as_questionnaire_string()]
         audit_scope = ctx.deps.audit_scope or definition.audit_scope
         tool_instructions = ctx.deps.tool_instructions or definition.tool_instructions
@@ -93,6 +103,51 @@ def build_file_review_agent() -> Agent[FileReviewAgentDeps, AuditFormResult]:
         return "\n".join(sections)
 
     return agent
+
+
+def _exception_chain(exc: BaseException) -> list[str]:
+    chain: list[str] = []
+    current: BaseException | None = exc
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        chain.append(f"{type(current).__name__}: {current}")
+        current = current.__cause__ or current.__context__
+    return chain
+
+
+def _model_label(model: object) -> str:
+    if isinstance(model, str):
+        return model
+    model_name = getattr(model, "model_name", None)
+    if isinstance(model_name, str) and model_name:
+        return f"{type(model).__name__}({model_name})"
+    return type(model).__name__
+
+
+def _truncate(value: object, limit: int = 1200) -> str:
+    text = str(value)
+    if len(text) <= limit:
+        return text
+    return text[: limit - 3] + "..."
+
+
+def _agent_failure_message(
+    exc: Exception,
+    *,
+    deps: FileReviewAgentDeps,
+    prompt: str,
+) -> str:
+    lines = [
+        "File review agent failed.",
+        f"Model: {_model_label(settings.audit_model)}",
+        f"Questionnaire: {deps.form_definition.id}@{deps.form_definition.version}",
+        f"Questionnaire path: {deps.form_path}",
+        f"Prompt preview: {_truncate(prompt, 800)}",
+        "Exception chain:",
+    ]
+    lines.extend(f"- {_truncate(entry)}" for entry in _exception_chain(exc))
+    return "\n".join(lines)
 
 
 async def run_file_review_agent(
@@ -120,5 +175,13 @@ async def run_file_review_agent(
         prompt += f"\n\nEffective Date: {effective_date}"
     if instructions:
         prompt += f"\n\nAdditional Instructions: {instructions}"
-    result = await agent.run(user_prompt=prompt, deps=deps)
+    try:
+        result = await agent.run(user_prompt=prompt, deps=deps)
+    except Exception as exc:
+        logger.exception(
+            "File review agent failed for %s@%s",
+            deps.form_definition.id,
+            deps.form_definition.version,
+        )
+        raise RuntimeError(_agent_failure_message(exc, deps=deps, prompt=prompt)) from exc
     return result.output
