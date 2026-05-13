@@ -2,8 +2,19 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import JSON as SqlJSON
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, MetaData, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+NAMING_CONVENTION = {
+    "ix": "ix_%(column_0_label)s",
+    "uq": "uq_%(table_name)s_%(column_0_name)s",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
+    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    "pk": "pk_%(table_name)s",
+}
+
+PortableJSON = SqlJSON().with_variant(JSONB(), "postgresql")
 
 
 def utc_now() -> datetime:
@@ -11,7 +22,7 @@ def utc_now() -> datetime:
 
 
 class Base(DeclarativeBase):
-    pass
+    metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
 class AuditBatchORM(Base):
@@ -19,7 +30,7 @@ class AuditBatchORM(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     template_id: Mapped[str | None] = mapped_column(
-        ForeignKey("audit_batch_templates.id"),
+        ForeignKey("audit_batch_templates.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
@@ -28,7 +39,7 @@ class AuditBatchORM(Base):
     total_count: Mapped[int] = mapped_column(Integer, default=0)
     completed_count: Mapped[int] = mapped_column(Integer, default=0)
     failed_count: Mapped[int] = mapped_column(Integer, default=0)
-    input_json: Mapped[dict[str, Any] | None] = mapped_column(SqlJSON, nullable=True)
+    input_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -51,11 +62,15 @@ class AuditBatchTemplateORM(Base):
     description: Mapped[str] = mapped_column(Text, default="")
     form_id: Mapped[str] = mapped_column(String(128), index=True)
     form_version: Mapped[str] = mapped_column(String(64), index=True)
-    synthetic: Mapped[bool] = mapped_column(default=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     synthetic_count: Mapped[int] = mapped_column(Integer, default=0)
     input_mode: Mapped[str] = mapped_column(String(24), default="manual")
-    excel_column_map: Mapped[dict[str, Any] | None] = mapped_column(SqlJSON, nullable=True)
-    items_json: Mapped[list[dict[str, Any]]] = mapped_column(SqlJSON, default=list)
+    excel_column_map: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
+    items_json: Mapped[list[dict[str, Any]]] = mapped_column(
+        PortableJSON,
+        default=list,
+        nullable=False,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -71,7 +86,7 @@ class AuditReviewORM(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     batch_id: Mapped[str | None] = mapped_column(
-        ForeignKey("audit_batches.id"),
+        ForeignKey("audit_batches.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
@@ -79,7 +94,7 @@ class AuditReviewORM(Base):
     form_version: Mapped[str] = mapped_column(String(64), index=True)
     status: Mapped[str] = mapped_column(String(24), default="queued", index=True)
     source: Mapped[str] = mapped_column(String(32), default="api", index=True)
-    input_json: Mapped[dict[str, Any] | None] = mapped_column(SqlJSON, nullable=True)
+    input_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     original_result_version_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     current_user_result_version_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
@@ -101,10 +116,13 @@ class AuditResultVersionORM(Base):
     __tablename__ = "audit_result_versions"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    review_id: Mapped[str] = mapped_column(ForeignKey("audit_reviews.id"), index=True)
+    review_id: Mapped[str] = mapped_column(
+        ForeignKey("audit_reviews.id", ondelete="CASCADE"),
+        index=True,
+    )
     kind: Mapped[str] = mapped_column(String(16), index=True)
     revision: Mapped[int] = mapped_column(Integer, default=1)
-    payload_json: Mapped[dict[str, Any]] = mapped_column(SqlJSON)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(PortableJSON, nullable=False)
     payload_hash: Mapped[str] = mapped_column(String(64), index=True)
     created_by: Mapped[str] = mapped_column(String(64), default="agent")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
@@ -117,10 +135,13 @@ class AuditQuestionAnswerORM(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     result_version_id: Mapped[str] = mapped_column(
-        ForeignKey("audit_result_versions.id"),
+        ForeignKey("audit_result_versions.id", ondelete="CASCADE"),
         index=True,
     )
-    review_id: Mapped[str] = mapped_column(ForeignKey("audit_reviews.id"), index=True)
+    review_id: Mapped[str] = mapped_column(
+        ForeignKey("audit_reviews.id", ondelete="CASCADE"),
+        index=True,
+    )
     kind: Mapped[str] = mapped_column(String(16), index=True)
     question_id: Mapped[str] = mapped_column(String(64), index=True)
     question_text: Mapped[str] = mapped_column(Text)
@@ -133,15 +154,18 @@ class AuditSubQuestionAnswerORM(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     result_version_id: Mapped[str] = mapped_column(
-        ForeignKey("audit_result_versions.id"),
+        ForeignKey("audit_result_versions.id", ondelete="CASCADE"),
         index=True,
     )
-    review_id: Mapped[str] = mapped_column(ForeignKey("audit_reviews.id"), index=True)
+    review_id: Mapped[str] = mapped_column(
+        ForeignKey("audit_reviews.id", ondelete="CASCADE"),
+        index=True,
+    )
     kind: Mapped[str] = mapped_column(String(16), index=True)
     question_id: Mapped[str] = mapped_column(String(64), index=True)
     subquestion_id: Mapped[str] = mapped_column(String(64), index=True)
     subquestion_text: Mapped[str] = mapped_column(Text)
-    answer: Mapped[bool] = mapped_column(default=False)
+    answer: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     reasoning: Mapped[str] = mapped_column(Text, default="")
     citations: Mapped[str] = mapped_column(Text, default="")
     position: Mapped[int] = mapped_column(Integer)
@@ -151,7 +175,10 @@ class FeedbackORM(Base):
     __tablename__ = "review_feedback"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    review_id: Mapped[str] = mapped_column(ForeignKey("audit_reviews.id"), index=True)
+    review_id: Mapped[str] = mapped_column(
+        ForeignKey("audit_reviews.id", ondelete="CASCADE"),
+        index=True,
+    )
     rating: Mapped[int] = mapped_column(Integer)
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
@@ -161,11 +188,14 @@ class EvaluationORM(Base):
     __tablename__ = "review_evaluations"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    review_id: Mapped[str] = mapped_column(ForeignKey("audit_reviews.id"), index=True)
+    review_id: Mapped[str] = mapped_column(
+        ForeignKey("audit_reviews.id", ondelete="CASCADE"),
+        index=True,
+    )
     evaluator: Mapped[str] = mapped_column(String(64), default="user")
-    score: Mapped[float | None] = mapped_column(nullable=True)
+    score: Mapped[float | None] = mapped_column(Float, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    payload_json: Mapped[dict[str, Any] | None] = mapped_column(SqlJSON, nullable=True)
+    payload_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
@@ -178,7 +208,10 @@ class EvalDatasetORM(Base):
     form_id: Mapped[str] = mapped_column(String(128), index=True)
     form_version: Mapped[str] = mapped_column(String(64), index=True)
     source_kind: Mapped[str] = mapped_column(String(32), default="manual")
-    source_metadata_json: Mapped[dict[str, Any] | None] = mapped_column(SqlJSON, nullable=True)
+    source_metadata_json: Mapped[dict[str, Any] | None] = mapped_column(
+        PortableJSON,
+        nullable=True,
+    )
     dataset_hash: Mapped[str] = mapped_column(String(64), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
@@ -202,7 +235,7 @@ class EvalCaseORM(Base):
     claim_number: Mapped[str] = mapped_column(String(128), index=True)
     effective_date: Mapped[str | None] = mapped_column(String(64), nullable=True)
     instructions: Mapped[str] = mapped_column(Text, default="")
-    input_json: Mapped[dict[str, Any] | None] = mapped_column(SqlJSON, nullable=True)
+    input_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -224,9 +257,12 @@ class EvalGroundTruthORM(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     case_id: Mapped[str] = mapped_column(ForeignKey("eval_cases.id"), index=True)
     reference_kind: Mapped[str] = mapped_column(String(16), index=True)
-    payload_json: Mapped[dict[str, Any]] = mapped_column(SqlJSON)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(PortableJSON, nullable=False)
     reviewer: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    source_metadata_json: Mapped[dict[str, Any] | None] = mapped_column(SqlJSON, nullable=True)
+    source_metadata_json: Mapped[dict[str, Any] | None] = mapped_column(
+        PortableJSON,
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     case: Mapped[EvalCaseORM] = relationship(back_populates="ground_truths")
@@ -247,12 +283,12 @@ class EvalRunORM(Base):
     reference_policy: Mapped[str] = mapped_column(String(32), default="prefer_r2")
     concurrency: Mapped[int] = mapped_column(Integer, default=1)
     retry_limit: Mapped[int] = mapped_column(Integer, default=0)
-    enable_mlflow: Mapped[bool] = mapped_column(Boolean, default=False)
+    enable_mlflow: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     mlflow_run_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     total_count: Mapped[int] = mapped_column(Integer, default=0)
     completed_count: Mapped[int] = mapped_column(Integer, default=0)
     failed_count: Mapped[int] = mapped_column(Integer, default=0)
-    input_json: Mapped[dict[str, Any] | None] = mapped_column(SqlJSON, nullable=True)
+    input_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -277,7 +313,7 @@ class EvalRunItemORM(Base):
     run_id: Mapped[str] = mapped_column(ForeignKey("eval_runs.id"), index=True)
     case_id: Mapped[str] = mapped_column(ForeignKey("eval_cases.id"), index=True)
     generated_review_id: Mapped[str | None] = mapped_column(
-        ForeignKey("audit_reviews.id"),
+        ForeignKey("audit_reviews.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
@@ -311,7 +347,7 @@ class EvalComparisonORM(Base):
     ground_truth_id: Mapped[str] = mapped_column(ForeignKey("eval_ground_truths.id"), index=True)
     reference_kind: Mapped[str] = mapped_column(String(16), index=True)
     score: Mapped[float | None] = mapped_column(Float, nullable=True)
-    metrics_json: Mapped[dict[str, Any]] = mapped_column(SqlJSON)
+    metrics_json: Mapped[dict[str, Any]] = mapped_column(PortableJSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     run_item: Mapped[EvalRunItemORM] = relationship(back_populates="comparisons")

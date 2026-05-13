@@ -5,7 +5,7 @@ from pydantic_ai.models.test import TestModel
 
 from app.core.config import Settings, get_settings
 from app.db.session import AsyncSessionLocal
-from app.models.chat_state import TFRChatState, log_activity
+from app.models.chat_state import TFRChatState
 from app.schemas.reviews import ReviewGenerateRequest
 from app.services.audit_generation import ChatReviewGenerationService
 from app.services.status_reporter import ChatStateStatusReporter
@@ -50,33 +50,6 @@ def build_chat_agent(settings: Settings | None = None) -> Agent[StateDeps[TFRCha
 
 
 chat_agent = build_chat_agent()
-
-
-@chat_agent.tool
-async def get_workspace_context(ctx: RunContext[StateDeps[TFRChatState]]) -> ToolReturn:
-    """Summarize the currently synced TFR workspace state."""
-
-    state = ctx.deps.state
-    state.status = "using_tools"
-    state.current_step = "Reading synced TFR workspace state..."
-    state.progress = max(state.progress, 20)
-    log_activity(state, state.current_step, "in_progress", "workspace_context")
-
-    summary = (
-        f"Active route: {state.active_route or '/'}\n"
-        f"Active review ID: {state.active_review_id or 'none'}\n"
-        f"Selected forms: {len(state.selected_form_ids)}\n"
-        f"Documents in context: {len(state.documents)}"
-    )
-
-    state.status = "complete"
-    state.current_step = "Workspace context synced."
-    state.progress = 100
-    log_activity(state, state.current_step, "completed", "workspace_context")
-    return ToolReturn(
-        return_value=summary,
-        metadata=[StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=state)],
-    )
 
 
 @chat_agent.tool
