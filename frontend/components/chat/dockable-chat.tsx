@@ -31,7 +31,7 @@ import remarkGfm from "remark-gfm";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { ChatPanelMode } from "@/components/app-shell/app-shell";
+import type { ChatPanelMode } from "@/components/app-shell/chat-panel-mode-context";
 import { apiBaseUrl } from "@/lib/api";
 import type { TFRChatState, ToolStep } from "@/lib/types";
 import { cn } from "@/lib/utils";
