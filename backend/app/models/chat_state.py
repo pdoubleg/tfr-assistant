@@ -5,12 +5,58 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from app.models.a2ui import A2UIComponent
+
 
 class ActivityLogEntry(BaseModel):
     id: str
     message: str
     timestamp: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
     status: Literal["in_progress", "completed", "error"] = "in_progress"
+
+
+class SelectedHomeRowContext(BaseModel):
+    row_id: str
+    review_id: str
+    result_version: str = "current"
+    form_id: str = ""
+    form_version: str = ""
+    form_key: str = ""
+    claim_number: str = ""
+    batch_id: str = ""
+    run_name: str = ""
+    source: str = ""
+    outcome: str = ""
+    title: str = ""
+    created_at: str = ""
+    updated_at: str = ""
+    question_count: int = 0
+    no_count: int = 0
+    driver_count: int = 0
+    edited: bool = False
+
+
+class HomeTableFilters(BaseModel):
+    search: str = ""
+    column_filters: dict[str, str] = Field(default_factory=dict)
+    sorting: list[dict[str, Any]] = Field(default_factory=list)
+    page_index: int = 0
+    page_size: int = 25
+    density: str = "normal"
+
+
+class HomeTableContext(BaseModel):
+    selected_rows: list[SelectedHomeRowContext] = Field(default_factory=list)
+    visible_row_count: int = 0
+    total_row_count: int = 0
+    filters: HomeTableFilters = Field(default_factory=HomeTableFilters)
+
+
+class ChatRunContext(BaseModel):
+    active_route: str = "/"
+    selected_home_rows: list[SelectedHomeRowContext] = Field(default_factory=list)
+    home_table: HomeTableContext = Field(default_factory=HomeTableContext)
+    captured_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
 class TFRChatState(BaseModel):
@@ -20,6 +66,8 @@ class TFRChatState(BaseModel):
     active_review_id: str | None = None
     selected_form_ids: list[str] = Field(default_factory=list)
     documents: list[dict[str, Any]] = Field(default_factory=list)
+    components: list[A2UIComponent] = Field(default_factory=list)
+    run_context: ChatRunContext | None = None
     status: Literal["idle", "thinking", "using_tools", "complete", "error"] = "idle"
     progress: int = 0
     current_step: str = ""
@@ -33,6 +81,12 @@ def log_activity(
     status: Literal["in_progress", "completed", "error"],
     source: str,
 ) -> None:
+    if status in {"completed", "error"}:
+        source_prefix = f"{source}-"
+        for entry in state.activity_log:
+            if entry.id.startswith(source_prefix) and entry.status == "in_progress":
+                entry.status = status
+
     state.activity_log.append(
         ActivityLogEntry(
             id=f"{source}-{len(state.activity_log) + 1}",

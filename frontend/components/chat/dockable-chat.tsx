@@ -1,5 +1,6 @@
 "use client";
 
+import type { Message } from "@ag-ui/client";
 import {
   AlertCircle,
   Bot,
@@ -16,13 +17,8 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import type {
-  Dispatch,
-  FormEvent,
-  ReactNode,
-  SetStateAction,
-} from "react";
-import { Children, isValidElement, useEffect, useMemo, useRef, useState } from "react";
+import type { FormEvent, ReactNode } from "react";
+import { Children, isValidElement, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -31,11 +27,12 @@ import remarkGfm from "remark-gfm";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { A2UIRendererList } from "@/components/a2ui/a2ui-renderer";
 import type { ChatPanelMode } from "@/components/app-shell/chat-panel-mode-context";
-import { apiBaseUrl } from "@/lib/api";
-import type { TFRChatState, ToolStep } from "@/lib/types";
+import { isChatComponent } from "@/lib/a2ui-catalog";
+import type { A2UIComponent, ToolStep } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { initialTfrChatState, useTfrAgent } from "@/hooks/use-tfr-agent";
+import { useTfrAgent } from "@/hooks/use-tfr-agent";
 
 type ChatRole = "user" | "assistant";
 
@@ -53,7 +50,14 @@ interface ToolStatusMessage {
   steps: ToolStep[];
 }
 
+interface ComponentListMessage {
+  id: string;
+  role: "components";
+  components: A2UIComponent[];
+}
+
 type ChatMessage = UserAssistantMessage | ToolStatusMessage;
+type TranscriptItem = ChatMessage | ComponentListMessage;
 
 const starterMessages: ChatMessage[] = [
   {
@@ -64,7 +68,6 @@ const starterMessages: ChatMessage[] = [
   },
 ];
 
-const RESPONSE_STARTED_STEP_ID = "assistant-response-started";
 const MIN_PANEL_WIDTH = 460;
 const MIN_PANEL_HEIGHT = 520;
 const HEADER_OFFSET = 72;
@@ -80,11 +83,17 @@ export function DockableChat({
   mode: ChatPanelMode;
   onModeChange: (mode: ChatPanelMode) => void;
 }) {
-  const [messages, setMessages] = useState<ChatMessage[]>(starterMessages);
   const [input, setInput] = useState("");
-  const [isStreaming, setIsStreaming] = useState(false);
-  const { state: sharedState, setState: setSharedState } = useTfrAgent();
+  const {
+    agent,
+    homeTableContext,
+    isRunning,
+    runChatMessage,
+    state: sharedState,
+  } = useTfrAgent();
   const [collapsedToolMessages, setCollapsedToolMessages] = useState<Set<string>>(new Set());
+  const autoCollapsedToolMessagesRef = useRef<Set<string>>(new Set());
+  const shouldStickToBottomRef = useRef(true);
   const [panelRect, setPanelRect] = useState({
     left: 24,
     top: QUEUE_CONTEXT_TOP_OFFSET,
@@ -96,11 +105,47 @@ export function DockableChat({
   const [isDarkTheme, setIsDarkTheme] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const threadId = useMemo(() => makeId("thread"), []);
   const lastVisibleModeRef = useRef<Exclude<ChatPanelMode, "hidden">>("small");
   const previousModeRef = useRef<ChatPanelMode>(mode);
   const hasVisiblePanelSnapshotRef = useRef(false);
   const restorePreviousRectOnShowRef = useRef(false);
+  const messages = useMemo<ChatMessage[]>(
+    () => [
+      ...starterMessages,
+      ...agent.messages
+        .map((message) => agentMessageToChatMessage(message, agent.messages, agent.isRunning))
+        .filter((message): message is ChatMessage => Boolean(message)),
+    ],
+    [agent.isRunning, agent.messages],
+  );
+  const chatComponents = useMemo(
+    () => sharedState.components.filter(isChatComponent),
+    [sharedState.components],
+  );
+  const transcriptItems = useMemo<TranscriptItem[]>(
+    () =>
+      insertComponentsBeforeRunResponse(
+        messages,
+        chatComponents,
+        sharedState.run_context?.captured_at ?? "latest",
+      ),
+    [chatComponents, messages, sharedState.run_context?.captured_at],
+  );
+  const transcriptScrollKey = useMemo(
+    () =>
+      transcriptItems
+        .map((item) => {
+          if (item.role === "components") {
+            return `${item.id}:${item.components.map((component) => component.id).join(",")}`;
+          }
+          if (item.role === "tool_status") {
+            return `${item.id}:${item.isLive}:${item.steps.map((step) => step.status).join(",")}`;
+          }
+          return `${item.id}:${item.content.length}:${item.streaming ? "streaming" : "done"}`;
+        })
+        .join("|"),
+    [transcriptItems],
+  );
 
   useEffect(() => {
     const syncTheme = () => setIsDarkTheme(document.documentElement.classList.contains("dark"));
@@ -118,22 +163,42 @@ export function DockableChat({
   }, [input]);
 
   useEffect(() => {
+    if (!shouldStickToBottomRef.current) return;
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, sharedState.current_step]);
+  }, [sharedState.current_step, transcriptScrollKey]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setCollapsedToolMessages((current) => {
       const next = new Set(current);
       let changed = false;
       for (const message of messages) {
-        if (message.role === "tool_status" && !message.isLive && !next.has(message.id)) {
-          next.add(message.id);
+        if (message.role !== "tool_status") continue;
+        if (message.isLive && next.has(message.id)) {
+          next.delete(message.id);
           changed = true;
+        }
+        if (message.isLive) {
+          autoCollapsedToolMessagesRef.current.delete(message.id);
+          continue;
+        }
+        if (!autoCollapsedToolMessagesRef.current.has(message.id)) {
+          autoCollapsedToolMessagesRef.current.add(message.id);
+          if (!next.has(message.id)) {
+            next.add(message.id);
+            changed = true;
+          }
         }
       }
       return changed ? next : current;
     });
   }, [messages]);
+
+  const handleScroll = () => {
+    const container = scrollRef.current;
+    if (!container) return;
+    shouldStickToBottomRef.current =
+      container.scrollHeight - container.scrollTop - container.clientHeight < 80;
+  };
 
   useEffect(() => {
     if (mode !== "hidden") {
@@ -273,78 +338,34 @@ export function DockableChat({
     onModeChange(mode === "large" ? "small" : "large");
   };
 
+  const toggleToolMessage = (messageId: string) => {
+    const container = scrollRef.current;
+    const previousScrollTop = container?.scrollTop ?? null;
+    shouldStickToBottomRef.current = false;
+    setCollapsedToolMessages((current) => {
+      const next = new Set(current);
+      if (next.has(messageId)) next.delete(messageId);
+      else next.add(messageId);
+      return next;
+    });
+    if (container && previousScrollTop !== null) {
+      window.requestAnimationFrame(() => {
+        container.scrollTop = previousScrollTop;
+      });
+    }
+  };
+
   const sendMessage = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
     const content = input.trim();
-    if (!content || isStreaming) return;
+    if (!content || isRunning) return;
 
-    const userMessage: UserAssistantMessage = { id: makeId("user"), role: "user", content };
-    const toolStatusId = makeId("tools");
-    const assistantId = makeId("assistant");
+    shouldStickToBottomRef.current = true;
     setInput("");
-    setSharedState((current) => ({
-      ...current,
-      active_route: window.location.pathname,
-      status: "thinking",
-      progress: 0,
-      current_step: "Starting assistant run...",
-      activity_log: [],
-      error_message: null,
-    }));
-    setMessages((current) => [
-      ...current,
-      userMessage,
-      { id: toolStatusId, role: "tool_status", steps: [], isLive: true },
-      { id: assistantId, role: "assistant", content: "", streaming: true },
-    ]);
-    setIsStreaming(true);
-
     try {
-      await streamAgUiResponse(
-        [...messages, userMessage].filter((message): message is UserAssistantMessage => message.role !== "tool_status"),
-        assistantId,
-        toolStatusId,
-        threadId,
-        {
-          ...sharedState,
-          active_route: window.location.pathname,
-          status: "thinking",
-          progress: 0,
-          current_step: "Starting assistant run...",
-          activity_log: [],
-          error_message: null,
-        },
-        setMessages,
-        setSharedState,
-      );
+      await runChatMessage(content);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown chat error.";
-      setMessages((current) =>
-        current.map((message) =>
-          message.id === assistantId
-            ? {
-                ...message,
-                streaming: false,
-                content: `I could not reach the chat agent yet.\n\n\`${errorMessage}\``,
-              }
-            : message.id === toolStatusId
-              ? message.role === "tool_status" ? {
-                  ...message,
-                  isLive: false,
-                  steps: [
-                    ...message.steps,
-                    {
-                      id: makeId("error"),
-                      message: "Chat agent request failed.",
-                      status: "error",
-                    },
-                  ],
-                } : message
-              : message,
-        ),
-      );
-    } finally {
-      setIsStreaming(false);
+      console.error(error);
     }
   };
 
@@ -400,27 +421,31 @@ export function DockableChat({
         </div>
       </div>
 
-      <div ref={scrollRef} className="chat-scrollbar flex-1 overflow-auto px-4 py-4">
+      <div
+        ref={scrollRef}
+        className="chat-scrollbar flex-1 overflow-auto px-4 py-4"
+        onScroll={handleScroll}
+      >
         <div className="space-y-5">
-          {messages.map((message) =>
-            message.role === "tool_status" ? (
+          {transcriptItems.map((message) =>
+            message.role === "components" ? (
+              <A2UIRendererList key={message.id} components={message.components} />
+            ) : message.role === "tool_status" ? (
               <ToolStatusView
                 key={message.id}
                 message={message}
                 collapsed={!message.isLive && collapsedToolMessages.has(message.id)}
-                onToggle={() =>
-                  setCollapsedToolMessages((current) => {
-                    const next = new Set(current);
-                    if (next.has(message.id)) next.delete(message.id);
-                    else next.add(message.id);
-                    return next;
-                  })
-                }
+                onToggle={() => toggleToolMessage(message.id)}
               />
             ) : (
               <MessageView key={message.id} message={message} isDarkTheme={isDarkTheme} />
             ),
           )}
+          {sharedState.error_message ? (
+            <div className="rounded-lg border border-destructive/35 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {sharedState.error_message}
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -440,15 +465,170 @@ export function DockableChat({
             }}
           />
           <div className="flex items-center justify-between gap-2 px-1 pb-1">
-            <span className="text-xs text-muted-foreground">Enter to send · Shift Enter for a new line</span>
-            <Button size="icon" disabled={!input.trim() || isStreaming} aria-label="Send message" title="Send message">
-              {isStreaming ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            <span className="text-xs text-muted-foreground">
+              {homeTableContext.selected_rows.length
+                ? `${homeTableContext.selected_rows.length} selected in home table`
+                : "Enter to send · Shift Enter for a new line"}
+            </span>
+            <Button size="icon" disabled={!input.trim() || isRunning} aria-label="Send message" title="Send message">
+              {isRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
           </div>
         </div>
       </form>
     </aside>
   );
+}
+
+function agentMessageToChatMessage(
+  message: Message,
+  allMessages: Message[],
+  isRunning: boolean,
+): ChatMessage | null {
+  if (message.role !== "user" && message.role !== "assistant") return null;
+  const toolCalls = getMessageToolCalls(message);
+  if (message.role === "assistant" && toolCalls.length) {
+    const completedToolCallIds = new Set(
+      allMessages
+        .map(getToolResultCallId)
+        .filter((toolCallId): toolCallId is string => Boolean(toolCallId)),
+    );
+    const steps = toolCalls.map((toolCall) => {
+      const completed = completedToolCallIds.has(toolCall.id);
+      return {
+        id: toolCall.id,
+        message: `${formatToolName(toolCall.function.name)} ${completed ? "completed" : "running"}.`,
+        status: completed || !isRunning ? "completed" : "in_progress",
+      } satisfies ToolStep;
+    });
+    return {
+      id: `tools-${message.id}`,
+      role: "tool_status",
+      isLive: steps.some((step) => step.status === "in_progress"),
+      steps,
+    };
+  }
+
+  const content = messageContentToString(message.content);
+  if (!content && message.role === "assistant") {
+    if (!isRunning) return null;
+    return {
+      id: message.id,
+      role: "assistant",
+      content: "",
+      streaming: isRunning,
+    };
+  }
+  return {
+    id: message.id,
+    role: message.role,
+    content,
+    streaming: false,
+  };
+}
+
+function insertComponentsBeforeRunResponse(
+  messages: ChatMessage[],
+  components: A2UIComponent[],
+  runKey: string,
+): TranscriptItem[] {
+  if (!components.length) return messages;
+
+  const items: TranscriptItem[] = [...messages];
+  const componentMessage: ComponentListMessage = {
+    id: `components-${runKey}`,
+    role: "components",
+    components,
+  };
+  const lastUserIndex = findLastIndex(items, (item) => item.role === "user");
+  const currentRunStart = lastUserIndex === -1 ? items.length : lastUserIndex + 1;
+  const firstAssistantResponseIndex = items.findIndex(
+    (item, index) =>
+      index >= currentRunStart &&
+      item.role === "assistant" &&
+      item.content.trim().length > 0,
+  );
+
+  if (firstAssistantResponseIndex !== -1) {
+    items.splice(firstAssistantResponseIndex, 0, componentMessage);
+    return items;
+  }
+
+  const lastToolStatusIndex = findLastIndex(
+    items,
+    (item, index) => index >= currentRunStart && item.role === "tool_status",
+  );
+  items.splice(lastToolStatusIndex === -1 ? items.length : lastToolStatusIndex + 1, 0, componentMessage);
+  return items;
+}
+
+function findLastIndex<T>(items: T[], predicate: (item: T, index: number) => boolean) {
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    if (predicate(items[index], index)) return index;
+  }
+  return -1;
+}
+
+type ToolCallLike = {
+  id: string;
+  function: {
+    name: string;
+    arguments?: string;
+  };
+};
+
+function getMessageToolCalls(message: Message): ToolCallLike[] {
+  if (!("toolCalls" in message) || !Array.isArray(message.toolCalls)) return [];
+  return message.toolCalls
+    .map((toolCall) => {
+      if (
+        !toolCall ||
+        typeof toolCall !== "object" ||
+        !("id" in toolCall) ||
+        typeof toolCall.id !== "string" ||
+        !("function" in toolCall) ||
+        !toolCall.function ||
+        typeof toolCall.function !== "object" ||
+        !("name" in toolCall.function) ||
+        typeof toolCall.function.name !== "string"
+      ) {
+        return null;
+      }
+      return toolCall as ToolCallLike;
+    })
+    .filter((toolCall): toolCall is ToolCallLike => Boolean(toolCall));
+}
+
+function getToolResultCallId(message: Message) {
+  if (message.role !== "tool") return null;
+  const record = message as Message & {
+    toolCallId?: unknown;
+    tool_call_id?: unknown;
+  };
+  if (typeof record.toolCallId === "string") return record.toolCallId;
+  if (typeof record.tool_call_id === "string") return record.tool_call_id;
+  return null;
+}
+
+function formatToolName(name: string) {
+  return name
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function messageContentToString(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((part) => {
+      if (typeof part === "string") return part;
+      if (part && typeof part === "object" && "text" in part) {
+        const text = (part as { text?: unknown }).text;
+        return typeof text === "string" ? text : "";
+      }
+      return "";
+    })
+    .join("");
 }
 
 function ToolStatusView({
@@ -460,15 +640,22 @@ function ToolStatusView({
   collapsed: boolean;
   onToggle: () => void;
 }) {
-  const running = message.steps.filter((step) => step.status === "in_progress").length;
-  const completed = message.steps.filter((step) => step.status === "completed").length;
-  const errors = message.steps.filter((step) => step.status === "error").length;
+  const steps = message.steps.map((step) => ({
+    ...step,
+    status:
+      !message.isLive && step.status === "in_progress"
+        ? "completed"
+        : step.status,
+  })) satisfies ToolStep[];
+  const running = steps.filter((step) => step.status === "in_progress").length;
+  const completed = steps.filter((step) => step.status === "completed").length;
+  const errors = steps.filter((step) => step.status === "error").length;
   const summary =
-    message.steps.length === 0
+    steps.length === 0
       ? message.isLive
         ? "Preparing agent run"
         : "Agent response started"
-      : `${message.steps.length} step${message.steps.length === 1 ? "" : "s"} · ${
+      : `${steps.length} step${steps.length === 1 ? "" : "s"} · ${
           running > 0 ? `${running} running` : `${completed} complete`
         }${errors ? ` · ${errors} error` : ""}`;
 
@@ -494,7 +681,7 @@ function ToolStatusView({
 
       {!collapsed ? (
         <div className="mt-3 space-y-2">
-          {message.steps.length === 0 ? (
+          {steps.length === 0 ? (
             <div className="flex items-center gap-2 text-muted-foreground">
               {message.isLive ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
@@ -504,7 +691,7 @@ function ToolStatusView({
               {message.isLive ? "Waiting for agent events..." : "Assistant response started."}
             </div>
           ) : (
-            message.steps.map((step) => (
+            steps.map((step) => (
               <div key={step.id} className="flex items-start gap-2">
                 {step.status === "in_progress" ? (
                   <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-primary" />
@@ -557,229 +744,6 @@ function MessageView({
       {message.streaming ? <span className="mt-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-primary align-middle" /> : null}
     </div>
   );
-}
-
-async function streamAgUiResponse(
-  history: UserAssistantMessage[],
-  assistantId: string,
-  toolStatusId: string,
-  threadId: string,
-  sharedState: TFRChatState,
-  setMessages: Dispatch<SetStateAction<ChatMessage[]>>,
-  setSharedState: Dispatch<SetStateAction<TFRChatState>>,
-) {
-  const response = await fetch(`${apiBaseUrl}/api/chat/ag-ui`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "text/event-stream",
-    },
-    body: JSON.stringify({
-      threadId,
-      runId: makeId("run"),
-      state: sharedState,
-      messages: history.map((message) => ({
-        id: message.id,
-        role: message.role,
-        content: message.content,
-      })),
-      tools: [],
-      context: [
-        {
-          description: "Application",
-          value: "Targeted File Review assistant scaffold with original and user-edited audit forms.",
-        },
-      ],
-      forwardedProps: {},
-    }),
-  });
-
-  if (!response.ok || !response.body) {
-    throw new Error(`Chat endpoint returned ${response.status}`);
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const events = buffer.split("\n\n");
-    buffer = events.pop() ?? "";
-
-    for (const rawEvent of events) {
-      const dataLines = rawEvent
-        .split("\n")
-        .filter((line) => line.startsWith("data:"))
-        .map((line) => line.slice(5).trim());
-
-      for (const data of dataLines) {
-        if (!data || data === "[DONE]") continue;
-        applyAgUiEvent(data, assistantId, toolStatusId, setMessages, setSharedState);
-      }
-    }
-  }
-
-  setMessages((current) =>
-    current.map((message) =>
-      message.id === assistantId
-        ? { ...message, streaming: false }
-        : message.id === toolStatusId
-          ? message.role === "tool_status" ? { ...message, isLive: false } : message
-          : message,
-    ),
-  );
-}
-
-function applyAgUiEvent(
-  rawData: string,
-  assistantId: string,
-  toolStatusId: string,
-  setMessages: Dispatch<SetStateAction<ChatMessage[]>>,
-  setSharedState: Dispatch<SetStateAction<TFRChatState>>,
-) {
-  let event: {
-    type?: string;
-    delta?: string;
-    message?: string;
-    toolCallId?: string;
-    toolCallName?: string;
-    snapshot?: Partial<TFRChatState>;
-  };
-  try {
-    event = JSON.parse(rawData);
-  } catch {
-    return;
-  }
-
-  if (event.type === "TEXT_MESSAGE_CONTENT" || event.type === "TEXT_MESSAGE_CHUNK") {
-    const delta = event.delta ?? "";
-    completeToolStatusForTextStart(setMessages, toolStatusId);
-    setMessages((current) =>
-      current.map((message) =>
-        message.id === assistantId && message.role === "assistant"
-          ? { ...message, content: `${message.content}${delta}` }
-          : message,
-      ),
-    );
-  }
-
-  if (event.type === "TOOL_CALL_START") {
-    upsertToolStep(setMessages, toolStatusId, {
-      id: event.toolCallId ?? makeId("tool"),
-      message: formatToolName(event.toolCallName ?? "tool_call"),
-      status: "in_progress",
-    });
-  }
-
-  if (event.type === "TOOL_CALL_END" && event.toolCallId) {
-    setMessages((current) =>
-      current.map((message) =>
-        message.id === toolStatusId && message.role === "tool_status"
-          ? {
-              ...message,
-              steps: message.steps.map((step) =>
-                step.id === event.toolCallId ? { ...step, status: "completed" } : step,
-              ),
-            }
-          : message,
-      ),
-    );
-  }
-
-  if (event.type === "STATE_SNAPSHOT" && event.snapshot) {
-    const nextState = normalizeStateSnapshot(event.snapshot);
-    setSharedState(nextState);
-    for (const entry of nextState.activity_log) {
-      upsertToolStep(setMessages, toolStatusId, entry);
-    }
-  }
-
-  if (event.type === "RUN_FINISHED") {
-    setSharedState((current) => ({
-      ...current,
-      status: current.status === "error" ? "error" : "complete",
-      progress: current.status === "error" ? current.progress : 100,
-      current_step: current.status === "error" ? current.current_step : "Assistant run complete.",
-    }));
-  }
-
-  if (event.type === "RUN_ERROR") {
-    const message = event.message ?? "Unknown agent error.";
-    setSharedState((current) => ({
-      ...current,
-      status: "error",
-      error_message: message,
-      current_step: message,
-    }));
-    upsertToolStep(setMessages, toolStatusId, {
-      id: makeId("run-error"),
-      message,
-      status: "error",
-    });
-    setMessages((current) =>
-      current.map((chatMessage) =>
-        chatMessage.id === assistantId
-          ? { ...chatMessage, content: `The agent returned an error: ${message}`, streaming: false }
-          : chatMessage,
-      ),
-    );
-  }
-}
-
-function completeToolStatusForTextStart(
-  setMessages: Dispatch<SetStateAction<ChatMessage[]>>,
-  toolStatusId: string,
-) {
-  setMessages((current) =>
-    current.map((message) => {
-      if (message.id !== toolStatusId || message.role !== "tool_status") return message;
-      const steps =
-        message.steps.length === 0
-          ? [
-              {
-                id: RESPONSE_STARTED_STEP_ID,
-                message: "Assistant response started.",
-                status: "completed" as const,
-              },
-            ]
-          : message.steps.map((step) =>
-              step.status === "in_progress" ? { ...step, status: "completed" as const } : step,
-            );
-      return { ...message, isLive: false, steps };
-    }),
-  );
-}
-
-function upsertToolStep(
-  setMessages: Dispatch<SetStateAction<ChatMessage[]>>,
-  toolStatusId: string,
-  nextStep: ToolStep,
-) {
-  setMessages((current) =>
-    current.map((message) => {
-      if (message.id !== toolStatusId || message.role !== "tool_status") return message;
-      const existingIndex = message.steps.findIndex((step) => step.id === nextStep.id);
-      if (existingIndex === -1) {
-        return { ...message, steps: [...message.steps, nextStep] };
-      }
-      const steps = [...message.steps];
-      steps[existingIndex] = { ...steps[existingIndex], ...nextStep };
-      return { ...message, steps };
-    }),
-  );
-}
-
-function normalizeStateSnapshot(snapshot: Partial<TFRChatState>): TFRChatState {
-    return {
-    ...initialTfrChatState,
-    ...snapshot,
-    selected_form_ids: snapshot.selected_form_ids ?? [],
-    documents: snapshot.documents ?? [],
-    activity_log: snapshot.activity_log ?? [],
-  };
 }
 
 function buildMarkdownComponents(isDarkTheme: boolean): Components {
@@ -1131,14 +1095,6 @@ function toCodeString(children: ReactNode): string {
       .replace(/\n$/, "");
   }
   return "";
-}
-
-function formatToolName(name: string) {
-  return name.replaceAll("_", " ").replace(/\b\w/g, (match) => match.toUpperCase());
-}
-
-function makeId(prefix: string) {
-  return `${prefix}-${crypto.randomUUID()}`;
 }
 
 function clamp(value: number, min: number, max: number) {

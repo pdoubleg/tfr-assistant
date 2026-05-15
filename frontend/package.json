@@ -10,6 +10,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@ag-ui/client": "^0.0.53",
+    "@copilotkit/react-core": "^1.57.1",
     "@radix-ui/react-slot": "^1.1.0",
     "@tanstack/react-table": "^8.21.3",
     "class-variance-authority": "^0.7.1",

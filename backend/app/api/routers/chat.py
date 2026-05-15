@@ -1,5 +1,6 @@
 from fastapi import APIRouter
-from pydantic_ai.ag_ui import StateDeps, handle_ag_ui_request
+from pydantic_ai.ag_ui import StateDeps
+from pydantic_ai.ui.ag_ui import AGUIAdapter
 from starlette.requests import Request
 from starlette.responses import Response
 
@@ -25,8 +26,8 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
 @router.post("/ag-ui")
 async def chat_ag_ui(request: Request) -> Response:
-    return await handle_ag_ui_request(
-        chat_agent,
+    return await AGUIAdapter.dispatch_request(
         request,
+        agent=chat_agent,
         deps=StateDeps(TFRChatState()),
     )

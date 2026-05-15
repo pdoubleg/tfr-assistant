@@ -50,7 +50,7 @@ import {
   type DashboardReviewRow,
 } from "@/lib/dashboard-data";
 import { buildCsv, buildTsv, downloadText, downloadWorkbook, type ExportColumn } from "@/lib/table-export";
-import type { AuditFormResult } from "@/lib/types";
+import type { AuditFormResult, HomeTableContext, SelectedHomeRowContext } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useTfrAgent } from "@/hooks/use-tfr-agent";
 
@@ -192,6 +192,29 @@ function auditRowId(row: DashboardReviewRow): string {
   return `${row.reviewId}:${row.resultVersion}`;
 }
 
+function selectedHomeRowFromDashboardRow(row: DashboardReviewRow): SelectedHomeRowContext {
+  return {
+    row_id: auditRowId(row),
+    review_id: row.reviewId,
+    result_version: row.resultVersion,
+    form_id: row.formId,
+    form_version: row.formVersion,
+    form_key: row.formKey,
+    claim_number: row.claimNumber,
+    batch_id: row.batchId,
+    run_name: row.runName,
+    source: row.source,
+    outcome: row.outcome,
+    title: row.title,
+    created_at: row.createdAt,
+    updated_at: row.updatedAt,
+    question_count: row.questionCount,
+    no_count: row.noCount,
+    driver_count: row.driverCount,
+    edited: row.edited,
+  };
+}
+
 function AuditEditSheet({
   row,
   onClose,
@@ -266,7 +289,7 @@ export function AuditDataTable({
   onRefresh: () => void;
   onSaveForm: (reviewId: string, form: AuditFormResult) => Promise<void>;
 }) {
-  const { setState: setAgentState } = useTfrAgent();
+  const { setHomeTableContext, setState: setAgentState } = useTfrAgent();
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [sorting, setSorting] = useState<SortingState>(defaultSorting);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -688,6 +711,37 @@ export function AuditDataTable({
   const dnmCount = tableRows.filter((row) => row.outcome === "Does Not Meet").length;
   const editedCount = tableRows.filter((row) => row.edited).length;
   const driverCount = tableRows.reduce((sum, row) => sum + row.driverCount, 0);
+
+  useEffect(() => {
+    const columnFilterEntries = columnFilters.map((filter) => [
+      filter.id,
+      String(filter.value ?? ""),
+    ]);
+    setHomeTableContext({
+      selected_rows: selectedRows.map(selectedHomeRowFromDashboardRow),
+      visible_row_count: tableRows.length,
+      total_row_count: totalCount,
+      filters: {
+        search: globalFilter,
+        column_filters: Object.fromEntries(columnFilterEntries),
+        sorting: sorting.map((sort) => ({ id: sort.id, desc: sort.desc })),
+        page_index: pagination.pageIndex,
+        page_size: pagination.pageSize,
+        density,
+      },
+    } satisfies HomeTableContext);
+  }, [
+    columnFilters,
+    density,
+    globalFilter,
+    pagination.pageIndex,
+    pagination.pageSize,
+    selectedRows,
+    setHomeTableContext,
+    sorting,
+    tableRows.length,
+    totalCount,
+  ]);
 
   useEffect(() => {
     const pageCount = table.getPageCount();

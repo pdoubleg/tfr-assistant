@@ -287,11 +287,76 @@ export interface ToolStep {
   timestamp?: string;
 }
 
+export type A2UICellValue = string | number | boolean | null;
+
+export interface A2UIComponent {
+  id: string;
+  type: string;
+  props: Record<string, unknown>;
+  children?: A2UIComponent[];
+  layout?: {
+    width?: string;
+    height?: string;
+    position?: "relative" | "absolute" | "fixed" | "sticky";
+    className?: string;
+  } | null;
+  styling?: {
+    variant?: string;
+    theme?: string;
+    className?: string;
+  } | null;
+  zone?: "chat" | string | null;
+}
+
+export interface SelectedHomeRowContext {
+  row_id: string;
+  review_id: string;
+  result_version: "current" | "original" | string;
+  form_id: string;
+  form_version: string;
+  form_key: string;
+  claim_number: string;
+  batch_id: string;
+  run_name: string;
+  source: string;
+  outcome: OverallOutcome | string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  question_count: number;
+  no_count: number;
+  driver_count: number;
+  edited: boolean;
+}
+
+export interface HomeTableContext {
+  selected_rows: SelectedHomeRowContext[];
+  visible_row_count: number;
+  total_row_count: number;
+  filters: {
+    search: string;
+    column_filters: Record<string, string>;
+    sorting: Array<{ id: string; desc: boolean }>;
+    page_index: number;
+    page_size: number;
+    density: string;
+  };
+}
+
+export interface ChatRunContext {
+  active_route: string;
+  selected_home_rows: SelectedHomeRowContext[];
+  home_table: HomeTableContext;
+  captured_at: string;
+}
+
 export interface TFRChatState {
   active_route: string;
   active_review_id: string | null;
   selected_form_ids: string[];
   documents: Array<Record<string, unknown>>;
+  components: A2UIComponent[];
+  run_context: ChatRunContext | null;
   status: "idle" | "thinking" | "using_tools" | "complete" | "error";
   progress: number;
   current_step: string;
