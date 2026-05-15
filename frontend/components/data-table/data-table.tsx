@@ -11,6 +11,7 @@ declare module "@tanstack/react-table" {
   interface ColumnMeta<TData extends RowData, TValue> {
     label?: string;
     align?: "left" | "center" | "right";
+    fitContent?: boolean;
     headerClassName?: string;
     cellClassName?: string;
     description?: string;
@@ -81,6 +82,10 @@ export function DataTable<TData>({
   }, [table, density]);
 
   const selectedRowCount = Object.values(table.getState().rowSelection).filter(Boolean).length;
+  const renderedTableWidth = Math.max(
+    1180,
+    table.getVisibleLeafColumns().reduce((width, column) => width + column.getSize(), 0),
+  );
 
   return (
     <section className={cn("flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card shadow-sm", className)}>
@@ -89,29 +94,35 @@ export function DataTable<TData>({
       <div ref={scrollRef} className="chat-scrollbar min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
         <table
           ref={tableRef}
-          className={cn("w-full min-w-[1180px] caption-bottom text-sm", density === "compact" && "text-xs")}
+          className={cn("w-max min-w-full caption-bottom text-sm", density === "compact" && "text-xs")}
+          style={{ minWidth: renderedTableWidth }}
         >
           <TableHeader className="bg-secondary">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id} className="hover:bg-transparent">
-                {headerGroup.headers.map((header) => (
-                  <TableHead
-                    key={header.id}
-                    colSpan={header.colSpan}
-                    className={cn(
-                      "group/header sticky top-0 z-30 whitespace-nowrap border-r bg-secondary shadow-[0_1px_0_hsl(var(--border))] last:border-r-0",
-                      density === "compact" && "h-9 px-2",
-                      header.column.columnDef.meta?.align === "center" && "text-center",
-                      header.column.columnDef.meta?.align === "right" && "text-right",
-                      header.column.columnDef.meta?.headerClassName,
-                    )}
-                    style={{ width: header.getSize() }}
-                  >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
+                {headerGroup.headers.map((header) => {
+                  const meta = header.column.columnDef.meta;
+
+                  return (
+                    <TableHead
+                      key={header.id}
+                      colSpan={header.colSpan}
+                      className={cn(
+                        "group/header sticky top-0 z-30 whitespace-nowrap border-r bg-secondary shadow-[0_1px_0_hsl(var(--border))] last:border-r-0",
+                        density === "compact" && "h-9 px-2",
+                        meta?.fitContent && "whitespace-nowrap",
+                        meta?.align === "center" && "text-center",
+                        meta?.align === "right" && "text-right",
+                        meta?.headerClassName,
+                      )}
+                      style={{ width: header.getSize() }}
+                    >
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(header.column.columnDef.header, header.getContext())}
+                    </TableHead>
+                  );
+                })}
               </TableRow>
             ))}
           </TableHeader>
@@ -119,21 +130,26 @@ export function DataTable<TData>({
             {table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow key={row.id} data-state={row.getIsSelected() ? "selected" : undefined}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      className={cn(
-                        "border-r last:border-r-0",
-                        density === "compact" ? "px-2 py-1.5" : "p-3",
-                        cell.column.columnDef.meta?.align === "center" && "text-center",
-                        cell.column.columnDef.meta?.align === "right" && "text-right",
-                        cell.column.columnDef.meta?.cellClassName,
-                      )}
-                      style={{ width: cell.column.getSize() }}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
+                  {row.getVisibleCells().map((cell) => {
+                    const meta = cell.column.columnDef.meta;
+
+                    return (
+                      <TableCell
+                        key={cell.id}
+                        className={cn(
+                          "border-r last:border-r-0",
+                          density === "compact" ? "px-2 py-1.5" : "p-3",
+                          meta?.fitContent && "whitespace-nowrap",
+                          meta?.align === "center" && "text-center",
+                          meta?.align === "right" && "text-right",
+                          meta?.cellClassName,
+                        )}
+                        style={{ width: cell.column.getSize() }}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    );
+                  })}
                 </TableRow>
               ))
             ) : (

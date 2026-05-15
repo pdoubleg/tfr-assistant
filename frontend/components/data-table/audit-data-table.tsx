@@ -77,6 +77,9 @@ const defaultColumnVisibility: VisibilityState = {
   evalRole: false,
 };
 
+const defaultColumnSize = 112;
+const idColumnSize = 260;
+
 const exportColumns: ExportColumn<DashboardReviewRow>[] = [
   { header: "Review ID", value: (row) => row.reviewId },
   { header: "Created", value: (row) => formatDateTime(row.createdAt) },
@@ -418,6 +421,7 @@ export function AuditDataTable({
       },
       {
         accessorKey: "createdAt",
+        size: 132,
         header: ({ column }) => <DataTableColumnHeader column={column} title="Created" />,
         cell: ({ row }) => <span className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(row.original.createdAt)}</span>,
         meta: { label: "Created" },
@@ -425,49 +429,43 @@ export function AuditDataTable({
       {
         id: "claimNumber",
         accessorFn: (row) => row.claimNumber || row.reviewId.slice(0, 8),
+        size: 160,
         header: ({ column }) => <DataTableColumnHeader column={column} title="Claim" />,
         cell: ({ row }) => {
           const claim = row.original.claimNumber || row.original.reviewId.slice(0, 8);
           if (density === "compact") {
             return (
-              <div className="flex max-w-[220px] items-center gap-2 whitespace-nowrap">
-                <span className="shrink-0 font-medium">{claim}</span>
-                {row.original.runName ? (
-                  <span className="min-w-0 truncate text-muted-foreground">{row.original.runName}</span>
-                ) : null}
-              </div>
+              <span className="block w-full min-w-0 max-w-full truncate font-medium" title={claim}>
+                {claim}
+              </span>
             );
           }
 
           return (
-            <div>
-              <div className="font-medium">{claim}</div>
+            <div className="w-full min-w-0 max-w-full">
+              <div className="truncate font-medium">{claim}</div>
               {row.original.runName ? (
-                <div className="mt-0.5 max-w-[180px] truncate text-xs text-muted-foreground">{row.original.runName}</div>
+                <div className="mt-0.5 truncate text-xs text-muted-foreground">{row.original.runName}</div>
               ) : null}
             </div>
           );
         },
-        meta: { label: "Claim", cellClassName: "min-w-[150px]" },
+        meta: { label: "Claim", cellClassName: "min-w-[150px] max-w-[180px]" },
       },
       {
         accessorKey: "title",
+        size: density === "compact" ? 440 : 360,
         header: ({ column }) => <DataTableColumnHeader column={column} title="Review" />,
         cell: ({ row }) => {
           if (density === "compact") {
             return (
               <button
                 type="button"
-                className="flex max-w-[440px] items-center gap-2 text-left"
+                className="block w-full min-w-0 max-w-full truncate text-left font-medium text-foreground hover:text-primary"
                 onClick={() => openView(row.original)}
                 title={`${row.original.title}${row.original.description ? ` - ${row.original.description}` : ""}`}
               >
-                <span className="min-w-0 truncate font-medium text-foreground hover:text-primary">
-                  {row.original.title}
-                </span>
-                {row.original.description ? (
-                  <span className="min-w-0 truncate text-muted-foreground">{row.original.description}</span>
-                ) : null}
+                {row.original.title}
               </button>
             );
           }
@@ -475,7 +473,7 @@ export function AuditDataTable({
           return (
             <button
               type="button"
-              className="max-w-[360px] text-left"
+              className="block w-full min-w-0 max-w-full text-left"
               onClick={() => openView(row.original)}
               title="Open form"
             >
@@ -484,42 +482,62 @@ export function AuditDataTable({
             </button>
           );
         },
-        meta: { label: "Review", cellClassName: "min-w-[300px]" },
+        meta: { label: "Review", cellClassName: "min-w-[300px] max-w-[440px]" },
       },
       {
         id: "formKey",
         accessorFn: (row) => row.formKey,
         filterFn: "equalsString",
+        size: density === "compact" ? 136 : 152,
         header: ({ column }) => <DataTableColumnHeader column={column} title="Form" />,
         cell: ({ row }) => (
-          <Badge variant="outline" className="font-mono text-[10px]">
-            {row.original.formKey}
-          </Badge>
+          <div className="mx-auto flex min-w-0 max-w-full justify-center overflow-hidden">
+            <Badge
+              variant="outline"
+              className="max-w-full whitespace-nowrap font-mono text-[10px]"
+              title={row.original.formKey}
+            >
+              <span className="min-w-0 truncate">{row.original.formKey}</span>
+            </Badge>
+          </div>
         ),
-        meta: { label: "Form" },
+        meta: { label: "Form", align: "center", cellClassName: "min-w-0 max-w-[180px] overflow-hidden" },
       },
       {
         accessorKey: "outcome",
         filterFn: "equalsString",
+        size: 96,
         header: ({ column }) => <DataTableColumnHeader column={column} title="Outcome" />,
         cell: ({ row }) => (
-          <Badge variant={row.original.outcome === "Meets" ? "success" : "danger"} title={row.original.outcome}>
+          <Badge
+            variant={row.original.outcome === "Meets" ? "success" : "danger"}
+            className="whitespace-nowrap"
+            title={row.original.outcome}
+          >
             {outcomeLabel(row.original.outcome)}
           </Badge>
         ),
-        meta: { label: "Outcome" },
+        meta: { label: "Outcome", align: "center" },
       },
       {
         accessorKey: "source",
         filterFn: "equalsString",
+        size: 92,
         header: ({ column }) => <DataTableColumnHeader column={column} title="Source" />,
-        cell: ({ row }) => <Badge variant="secondary">{row.original.source || "api"}</Badge>,
-        meta: { label: "Source" },
+        cell: ({ row }) => (
+          <div className="mx-auto flex min-w-0 max-w-full justify-center overflow-hidden">
+            <Badge variant="secondary" className="max-w-full whitespace-nowrap" title={row.original.source || "api"}>
+              <span className="min-w-0 truncate">{row.original.source || "api"}</span>
+            </Badge>
+          </div>
+        ),
+        meta: { label: "Source", align: "center", cellClassName: "min-w-0 max-w-[120px] overflow-hidden" },
       },
       {
         id: "evalRole",
         accessorFn: (row) => evalRoleLabel(row.evalResultRole, row.evalReferenceKind),
         filterFn: "equalsString",
+        size: 112,
         header: ({ column }) => <DataTableColumnHeader column={column} title="Eval Role" />,
         cell: ({ row }) =>
           row.original.source === "eval" || row.original.evalResultRole ? (
@@ -527,56 +545,63 @@ export function AuditDataTable({
           ) : (
             <span className="text-xs text-muted-foreground">Non-eval</span>
           ),
-        meta: { label: "Eval Role" },
+        meta: { label: "Eval Role", align: "center" },
       },
       {
         accessorKey: "questionCount",
+        size: 104,
         header: ({ column }) => <DataTableColumnHeader column={column} title="Questions" />,
         cell: ({ row }) => <span className="tabular-nums">{row.original.questionCount}</span>,
-        meta: { label: "Questions", align: "center" },
+        meta: { label: "Questions", align: "center", fitContent: true },
       },
       {
         accessorKey: "noCount",
+        size: 64,
         header: ({ column }) => <DataTableColumnHeader column={column} title="No" />,
         cell: ({ row }) => (
           <span className="tabular-nums text-rose-700 dark:text-rose-300">{row.original.noCount}</span>
         ),
-        meta: { label: "No", align: "center" },
+        meta: { label: "No", align: "center", fitContent: true },
       },
       {
         accessorKey: "driverCount",
+        size: 88,
         header: ({ column }) => <DataTableColumnHeader column={column} title="Drivers" />,
         cell: ({ row }) => (
           <span className="tabular-nums text-amber-700 dark:text-amber-300">{row.original.driverCount}</span>
         ),
-        meta: { label: "Drivers", align: "center" },
+        meta: { label: "Drivers", align: "center", fitContent: true },
       },
       {
         id: "edited",
         accessorFn: (row) => (row.edited ? "edited" : "unedited"),
         filterFn: "equalsString",
+        size: 88,
         header: ({ column }) => <DataTableColumnHeader column={column} title="Edited" />,
         cell: ({ row }) => (
           <Badge variant={row.original.edited ? "warning" : "outline"}>
             {row.original.edited ? "Yes" : "No"}
           </Badge>
         ),
-        meta: { label: "Edited", align: "center" },
+        meta: { label: "Edited", align: "center", fitContent: true },
       },
       {
         accessorKey: "updatedAt",
+        size: 132,
         header: ({ column }) => <DataTableColumnHeader column={column} title="Updated" />,
         cell: ({ row }) => <span className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(row.original.updatedAt)}</span>,
         meta: { label: "Updated" },
       },
       {
         accessorKey: "reviewId",
+        size: idColumnSize,
         header: ({ column }) => <DataTableColumnHeader column={column} title="Review ID" />,
         cell: ({ row }) => <span className="font-mono text-xs">{row.original.reviewId}</span>,
         meta: { label: "Review ID", cellClassName: "min-w-[260px]" },
       },
       {
         accessorKey: "batchId",
+        size: 240,
         header: ({ column }) => <DataTableColumnHeader column={column} title="Batch ID" />,
         cell: ({ row }) => <span className="font-mono text-xs">{row.original.batchId || "-"}</span>,
         meta: { label: "Batch ID", cellClassName: "min-w-[240px]" },
@@ -598,6 +623,11 @@ export function AuditDataTable({
     },
     enableRowSelection: true,
     getRowId: auditRowId,
+    defaultColumn: {
+      size: defaultColumnSize,
+      minSize: 72,
+      maxSize: idColumnSize,
+    },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,

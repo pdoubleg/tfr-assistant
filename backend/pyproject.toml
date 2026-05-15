@@ -17,6 +17,7 @@ dependencies = [
     "python-multipart>=0.0.12",
     "sqlalchemy>=2.0.36",
     "uvicorn[standard]>=0.32.0",
+    "gepadantic",
 ]
 
 [dependency-groups]
@@ -28,6 +29,9 @@ dev = [
 
 [tool.uv]
 package = false
+
+[tool.uv.sources]
+gepadantic = { git = "https://github.com/pdoubleg/gepadantic.git" }
 
 [tool.ruff]
 line-length = 100
