@@ -23,6 +23,8 @@ frontend/next-dev*.log
 !.env.example
 backend/data/*.db
 backend/data/*.db-*
+backend/data/generated_images/
+backend/data/chat_artifacts/
 
 # OS / editor
 .DS_Store

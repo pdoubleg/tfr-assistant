@@ -521,8 +521,10 @@ function agentMessageToChatMessage(
         .map(getToolResultCallId)
         .filter((toolCallId): toolCallId is string => Boolean(toolCallId)),
     );
+    const toolResultContentById = getToolResultContentById(allMessages);
     const steps = toolCalls.map((toolCall) => {
       const completed = completedToolCallIds.has(toolCall.id) || responseStarted;
+      const toolResultContent = toolResultContentById.get(toolCall.id);
       return {
         id: toolCall.id,
         message: formatToolStatusMessage(
@@ -531,7 +533,12 @@ function agentMessageToChatMessage(
           toolCall.function.arguments,
         ),
         status: completed || !isRunning ? "completed" : "in_progress",
-        code: toolCallCodePreview(toolCall.function.name, toolCall.function.arguments),
+        code:
+          toolResultCodePreview(
+            toolCall.function.name,
+            toolCall.function.arguments,
+            toolResultContent,
+          ) ?? toolCallCodePreview(toolCall.function.name, toolCall.function.arguments),
       } satisfies ToolStep;
     });
     return [
@@ -653,6 +660,16 @@ function getToolResultCallId(message: Message) {
   return null;
 }
 
+function getToolResultContentById(messages: Message[]) {
+  const results = new Map<string, string>();
+  for (const message of messages) {
+    const toolCallId = getToolResultCallId(message);
+    if (!toolCallId) continue;
+    results.set(toolCallId, messageContentToString(message.content));
+  }
+  return results;
+}
+
 function formatToolName(name: string) {
   return name
     .replace(/_/g, " ")
@@ -663,7 +680,21 @@ function formatToolStatusMessage(name: string, completed: boolean, args: string 
   const parsed = parseToolArgs(args);
   const tableName = getStringArg(parsed, "table_name");
   const scope = getStringArg(parsed, "scope");
+  const code = getStringArg(parsed, "code");
+  const helpTarget = getStringArg(parsed, "name").trim();
 
+  if (isHelpToolName(name)) {
+    const target = helpTarget || "overview";
+    return completed
+      ? `Sandbox help loaded: ${target}.`
+      : `Loading sandbox help: ${target}...`;
+  }
+
+  if (isExecuteToolName(name)) {
+    if (code.trim()) {
+      return completed ? "Python sandbox completed." : "Running Python sandbox...";
+    }
+  }
   if (name === "execute") {
     const scopeSuffix = scope ? ` (${scope} scope)` : "";
     return completed
@@ -712,8 +743,18 @@ function toolCallCodePreview(
   name: string,
   args: string | undefined,
 ): ToolCodePreview | undefined {
-  if (name !== "execute" || !args) return undefined;
+  if (!isExecuteToolName(name) || !args) return undefined;
   const parsed = parseToolArgs(args);
+  const code = getStringArg(parsed, "code");
+  if (code.trim()) {
+    return {
+      code,
+      language: "python",
+      title: "Python",
+      caption: "Monty sandbox",
+      defaultOpen: false,
+    };
+  }
   const sql = getStringArg(parsed, "sql") || getStringArg(parsed, "sql_query") || getStringArg(parsed, "query");
   if (!sql.trim()) return undefined;
   const scope = getStringArg(parsed, "scope");
@@ -729,6 +770,31 @@ function toolCallCodePreview(
     caption,
     defaultOpen: false,
   };
+}
+
+function toolResultCodePreview(
+  name: string,
+  args: string | undefined,
+  result: string | undefined,
+): ToolCodePreview | undefined {
+  if (!isHelpToolName(name) || !result?.trim()) return undefined;
+  const parsed = parseToolArgs(args);
+  const target = getStringArg(parsed, "name").trim() || "overview";
+  return {
+    code: result,
+    language: "markdown",
+    title: "Help",
+    caption: `Sandbox help: ${target}`,
+    defaultOpen: false,
+  };
+}
+
+function isExecuteToolName(name: string): boolean {
+  return name === "execute" || name.endsWith("_execute");
+}
+
+function isHelpToolName(name: string): boolean {
+  return name === "help" || name.endsWith("_help");
 }
 
 function formatSqlForDisplay(sql: string): string {
@@ -889,6 +955,16 @@ function getStringArg(args: Record<string, unknown>, key: string): string {
   const value = args[key];
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (typeof item === "number" || typeof item === "boolean") return String(item);
+        return "";
+      })
+      .filter(Boolean)
+      .join(", ");
+  }
   return "";
 }
 

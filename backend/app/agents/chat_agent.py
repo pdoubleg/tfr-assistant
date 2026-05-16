@@ -1,13 +1,24 @@
+import json
+
 from ag_ui.core import EventType, StateSnapshotEvent
 from pydantic_ai import Agent, RunContext, ToolReturn
 from pydantic_ai.models.test import TestModel
 
 from app.capabilities.deps import TFRChatDeps
+from app.capabilities.monty import MontyPythonCapability
 from app.capabilities.sql import SQLDatabaseCapability
 from app.core.config import Settings, get_settings
 from app.db.session import AsyncSessionLocal
+from app.presenters.a2ui import generate_image_card
 from app.schemas.reviews import ReviewGenerateRequest
 from app.services.audit_generation import ChatReviewGenerationService
+from app.services.image_generation import (
+    ImageBackground,
+    ImageFormat,
+    ImageGenerationError,
+    ImageGenerationService,
+    ImageQuality,
+)
 from app.services.status_reporter import ChatStateStatusReporter
 
 
@@ -47,10 +58,18 @@ def build_chat_agent(settings: Settings | None = None) -> Agent[TFRChatDeps, str
             "for analytics, selected homepage rows, table/schema inspection, and query-backed "
             "answers. Generated analytics UI should be emitted as A2UI components in chat "
             "state with zone='chat'; do not target a separate output pane. When the user asks "
+            "for analysis that needs a chart or Python dataframe preparation, use SQL execute "
+            "with persist_result=true to create a dataset handle, then use the Python sandbox "
+            "tools to transform the handle and emit Plotly charts or tables. "
+            "Do not execute SQL inside the Python sandbox. When the user asks "
+            "for an image, illustration, visual concept, mockup, or other generated picture, "
+            "call generate_image and let the tool persist and render the image in chat. "
+            "Do not respond with an external image URL instead of using the tool. "
+            "When the user asks "
             "you to create, generate, run, or smoke-test an audit form review, call "
             "generate_audit_form_review so the result is persisted and rendered for review."
         ),
-        capabilities=[SQLDatabaseCapability()],
+        capabilities=[SQLDatabaseCapability(), MontyPythonCapability()],
     )
 
 
@@ -109,5 +128,71 @@ async def generate_audit_form_review(
     )
     return ToolReturn(
         return_value=output,
+        metadata=[StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=state)],
+    )
+
+
+@chat_agent.tool
+async def generate_image(
+    ctx: RunContext[TFRChatDeps],
+    prompt: str,
+    size: str = "1536x864",
+    quality: ImageQuality = "high",
+    n: int = 1,
+    output_format: ImageFormat = "png",
+    background: ImageBackground = "auto",
+) -> ToolReturn:
+    """Generate image artifacts and render them in the chat UI.
+
+    Use this whenever the user asks for an image, illustration, mockup, scene,
+    or other AI-generated visual. The tool saves generated files in the backend
+    data directory and emits chat components that the frontend can render.
+    """
+
+    state = ctx.deps.state
+    reporter = ChatStateStatusReporter(state, source_name="image_generation")
+    reporter.in_progress("Generating image with OpenAI...", progress=20)
+
+    try:
+        images = await ImageGenerationService(ctx.deps.settings).generate(
+            prompt=prompt,
+            size=size,
+            quality=quality,
+            n=n,
+            output_format=output_format,
+            background=background,
+        )
+    except ImageGenerationError as exc:
+        reporter.error(f"Image generation failed: {exc}", progress=100)
+        return ToolReturn(
+            return_value=f"Unable to generate image: {exc}",
+            metadata=[StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=state)],
+        )
+
+    for image in images:
+        state.components.append(generate_image_card(image))
+
+    reporter.completed(
+        f"Generated {len(images)} image{'s' if len(images) != 1 else ''}.",
+        progress=100,
+    )
+    state.status = "complete"
+
+    payload = [
+        {
+            "url": image.url,
+            "filename": image.filename,
+            "model": image.model,
+            "size": image.size,
+            "quality": image.quality,
+            "mime_type": image.mime_type,
+        }
+        for image in images
+    ]
+    return ToolReturn(
+        return_value=(
+            "Generated image artifact(s) saved and emitted to the chat UI.\n"
+            + json.dumps(payload, ensure_ascii=False, indent=2)
+        ),
         metadata=[StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=state)],
     )

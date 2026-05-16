@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
 
 from app.agents.chat_agent import chat_agent
 from app.capabilities.deps import TFRChatDeps
@@ -26,6 +26,20 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
 @router.post("/ag-ui")
 async def chat_ag_ui(request: Request) -> Response:
+    body = await request.body()
+    if not body.strip():
+        return JSONResponse(
+            status_code=400,
+            content={
+                "detail": "AG-UI endpoint requires a JSON RunAgentInput request body.",
+                "hint": (
+                    "Use the AG-UI HttpAgent client or POST a RunAgentInput JSON "
+                    "object with threadId, runId, state, messages, tools, context, "
+                    "and forwardedProps."
+                ),
+            },
+        )
+
     return await AGUIAdapter.dispatch_request(
         request,
         agent=chat_agent,

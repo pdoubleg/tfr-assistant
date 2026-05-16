@@ -294,6 +294,17 @@ export interface ToolStep {
   };
 }
 
+export interface ChatHandleMetadata {
+  handle: string;
+  kind: "dataset" | "plotly_chart";
+  label?: string;
+  row_count?: number | null;
+  column_count?: number | null;
+  columns?: string[];
+  source?: string;
+  created_at?: string;
+}
+
 export type A2UICellValue = string | number | boolean | null;
 
 export interface A2UIComponent {
@@ -362,6 +373,8 @@ export interface TFRChatState {
   active_review_id: string | null;
   selected_form_ids: string[];
   documents: Array<Record<string, unknown>>;
+  artifact_session_id: string;
+  handles: ChatHandleMetadata[];
   components: A2UIComponent[];
   run_context: ChatRunContext | null;
   status: "idle" | "thinking" | "using_tools" | "complete" | "error";

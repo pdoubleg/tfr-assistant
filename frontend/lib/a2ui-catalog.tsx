@@ -4,6 +4,8 @@ import type { ComponentProps, ReactElement, ReactNode } from "react";
 
 import { CodeDisclosure } from "@/components/a2ui/code-disclosure";
 import { DataTable } from "@/components/a2ui/data-table";
+import { GeneratedImage } from "@/components/a2ui/generated-image";
+import { PlotlyChart } from "@/components/a2ui/plotly-chart";
 import type { A2UIComponent } from "@/lib/types";
 
 export type ComponentRenderer = (
@@ -14,6 +16,8 @@ export type ComponentRenderer = (
 const a2uiCatalog: Record<string, ComponentRenderer> = {
   "a2ui.CodeDisclosure": (props) => <CodeDisclosure {...(props as unknown as ComponentProps<typeof CodeDisclosure>)} />,
   "a2ui.DataTable": (props) => <DataTable {...(props as unknown as ComponentProps<typeof DataTable>)} />,
+  "a2ui.GeneratedImage": (props) => <GeneratedImage {...(props as unknown as ComponentProps<typeof GeneratedImage>)} />,
+  "a2ui.PlotlyChart": (props) => <PlotlyChart {...(props as unknown as ComponentProps<typeof PlotlyChart>)} />,
 };
 
 export function getComponentRenderer(type: string): ComponentRenderer | undefined {

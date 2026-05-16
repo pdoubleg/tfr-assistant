@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     form_catalog_dir: Path = Path("data/form_catalog")
     default_questionnaire_path: Path = Path("data/form_catalog/tfr_default__v0.1.json")
     batch_concurrency: int = 2
+    image_model: str = "gpt-image-2"
+    generated_images_dir: Path = Path("data/generated_images")
+    chat_artifacts_dir: Path = Path("data/chat_artifacts")
 
     model_config = SettingsConfigDict(extra="allow")
 

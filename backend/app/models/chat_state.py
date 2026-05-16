@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 from typing import Any, Literal
+from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
@@ -13,6 +14,17 @@ class ActivityLogEntry(BaseModel):
     message: str
     timestamp: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
     status: Literal["in_progress", "completed", "error"] = "in_progress"
+
+
+class ChatHandleMetadata(BaseModel):
+    handle: str
+    kind: Literal["dataset", "plotly_chart"]
+    label: str = ""
+    row_count: int | None = None
+    column_count: int | None = None
+    columns: list[str] = Field(default_factory=list)
+    source: str = ""
+    created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
 class SelectedHomeRowContext(BaseModel):
@@ -66,6 +78,8 @@ class TFRChatState(BaseModel):
     active_review_id: str | None = None
     selected_form_ids: list[str] = Field(default_factory=list)
     documents: list[dict[str, Any]] = Field(default_factory=list)
+    artifact_session_id: str = Field(default_factory=lambda: str(uuid4()))
+    handles: list[ChatHandleMetadata] = Field(default_factory=list)
     components: list[A2UIComponent] = Field(default_factory=list)
     run_context: ChatRunContext | None = None
     status: Literal["idle", "thinking", "using_tools", "complete", "error"] = "idle"

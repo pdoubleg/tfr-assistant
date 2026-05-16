@@ -17,6 +17,7 @@ from app.capabilities.sql.types import ForeignKeyInfo, QueryResult, SchemaInfo, 
 from app.db.session import engine
 from app.models.chat_state import SelectedHomeRowContext, TFRChatState
 from app.presenters.a2ui import generate_data_table
+from app.services.chat_artifacts import ChatArtifactStore
 from app.services.status_reporter import ChatStateStatusReporter
 
 SQLScope = Literal["full", "selected"]
@@ -47,7 +48,10 @@ class SQLDatabaseCapability(AbstractCapability[TFRChatDeps]):
                 "for intermediate analysis and ordinary reasoning. Set render_table=true "
                 "only when the user asks to see rows or a table, or when a rendered table "
                 "is obviously the clean final answer. Otherwise answer from the preview "
-                "and ask whether the user wants the result table shown. "
+                "and ask whether the user wants the result table shown. execute has "
+                "persist_result=false by default. Set persist_result=true only when a "
+                "downstream table, chart, or Python sandbox step needs a durable dataset "
+                "handle for the full result. "
                 f"{database.prompt_instructions}"
             )
 
@@ -235,6 +239,7 @@ class SQLDatabaseCapability(AbstractCapability[TFRChatDeps]):
             limit: int = self.default_agent_limit,
             scope: SQLScope = "full",
             render_table: bool = False,
+            persist_result: bool = False,
         ) -> ToolReturn:
             """Execute a safe read-only SQL query.
 
@@ -255,11 +260,15 @@ class SQLDatabaseCapability(AbstractCapability[TFRChatDeps]):
                     the chat UI. Defaults to false. Prefer false for intermediate
                     analysis and normal answers; set true only when the user asks
                     to see rows/a table or the table is clearly the final answer.
+                persist_result: Whether to save the full displayed query result as
+                    a dataset handle for downstream Python sandbox transforms or
+                    Plotly charts. Defaults to false for exploratory queries.
 
             Returns:
                 A JSON preview of the result columns and up to limit rows for
                 reasoning. When render_table is true, also emits a chat table
-                component containing the rendered result rows.
+                component containing the rendered result rows. When persist_result
+                is true, returns a dataset_handle for the persisted result.
             """
 
             reporter = _reporter(ctx, "sql_execute")
@@ -277,11 +286,32 @@ class SQLDatabaseCapability(AbstractCapability[TFRChatDeps]):
 
             if render_table:
                 _append_query_components(ctx.deps.state, result)
-            reporter.completed(_result_status(result, table_rendered=render_table), progress=100)
+            dataset_handle = None
+            if persist_result:
+                artifact = ChatArtifactStore(ctx.deps.settings).save_dataset(
+                    ctx.deps.state,
+                    columns=result.columns,
+                    rows=result.rows,
+                    label=_result_caption(result),
+                    source="sql",
+                )
+                dataset_handle = artifact.handle
+            reporter.completed(
+                _result_status(
+                    result,
+                    table_rendered=render_table,
+                    dataset_handle=dataset_handle,
+                ),
+                progress=100,
+            )
             _mark_complete(ctx.deps.state)
             return _tool_return(
                 ctx.deps.state,
-                _format_query_result_for_agent(result, table_rendered=render_table),
+                _format_query_result_for_agent(
+                    result,
+                    table_rendered=render_table,
+                    dataset_handle=dataset_handle,
+                ),
             )
 
         return toolset
@@ -503,21 +533,34 @@ def _result_caption(result: QueryResult) -> str:
     return f"SQL result: {result.row_count} row(s){suffix}"
 
 
-def _result_status(result: QueryResult, *, table_rendered: bool) -> str:
+def _result_status(
+    result: QueryResult,
+    *,
+    table_rendered: bool,
+    dataset_handle: str | None = None,
+) -> str:
+    handle_suffix = f"; saved dataset handle {dataset_handle}" if dataset_handle else ""
     if table_rendered:
         if result.truncated:
-            return f"SQL query complete; rendered first {result.row_count} row(s)."
-        return f"SQL query complete; rendered {result.row_count} row(s)."
-    return f"SQL query complete; previewed {result.returned_row_count} row(s)."
+            return f"SQL query complete; rendered first {result.row_count} row(s){handle_suffix}."
+        return f"SQL query complete; rendered {result.row_count} row(s){handle_suffix}."
+    return f"SQL query complete; previewed {result.returned_row_count} row(s){handle_suffix}."
 
 
-def _format_query_result_for_agent(result: QueryResult, *, table_rendered: bool) -> str:
+def _format_query_result_for_agent(
+    result: QueryResult,
+    *,
+    table_rendered: bool,
+    dataset_handle: str | None = None,
+) -> str:
     payload = {
         "columns": result.columns,
         "preview_rows": result.agent_rows,
         "preview_row_count": result.returned_row_count,
         "rendered_row_count": result.row_count,
         "table_rendered": table_rendered,
+        "persisted": dataset_handle is not None,
+        "dataset_handle": dataset_handle,
         "truncated": result.truncated,
         "scope": result.scope,
     }

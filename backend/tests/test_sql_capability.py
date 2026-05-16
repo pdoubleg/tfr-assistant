@@ -1,9 +1,15 @@
 import pytest
+from pydantic_ai import RunContext
+from pydantic_ai.models.test import TestModel
+from pydantic_ai.usage import RunUsage
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from app.capabilities.deps import TFRChatDeps
+from app.capabilities.sql import capability as sql_capability_module
 from app.capabilities.sql.backend import SQLDatabaseError, SQLiteDatabase, create_sql_database
 from app.capabilities.sql.capability import (
+    SQLDatabaseCapability,
     _effective_sql_for_scope,
     _format_query_result_for_agent,
     _format_selected_rows_info,
@@ -11,6 +17,7 @@ from app.capabilities.sql.capability import (
 )
 from app.capabilities.sql.safety import SQLSafetyError, validate_readonly_query
 from app.capabilities.sql.types import QueryResult
+from app.core.config import Settings
 from app.models.chat_state import ChatRunContext, SelectedHomeRowContext, TFRChatState
 
 
@@ -106,6 +113,50 @@ async def test_database_factory_selects_sqlite_backend() -> None:
         await local_engine.dispose()
 
 
+@pytest.mark.anyio
+async def test_sql_execute_does_not_create_handle_by_default(tmp_path, monkeypatch) -> None:
+    state = TFRChatState(artifact_session_id="sql-session")
+    settings = Settings(
+        data_dir=tmp_path / "data",
+        chat_artifacts_dir=tmp_path / "data" / "chat_artifacts",
+    )
+
+    monkeypatch.setattr(sql_capability_module, "_database", lambda **_: FakeSQLDatabase())
+
+    result = await _call_sql_execute(
+        state,
+        settings,
+        {"sql": "select 1 as value", "persist_result": False},
+    )
+
+    assert state.handles == []
+    assert '"persisted": false' in result.return_value
+    assert '"dataset_handle": null' in result.return_value
+
+
+@pytest.mark.anyio
+async def test_sql_execute_persists_dataset_handle_when_requested(tmp_path, monkeypatch) -> None:
+    state = TFRChatState(artifact_session_id="sql-session")
+    settings = Settings(
+        data_dir=tmp_path / "data",
+        chat_artifacts_dir=tmp_path / "data" / "chat_artifacts",
+    )
+
+    monkeypatch.setattr(sql_capability_module, "_database", lambda **_: FakeSQLDatabase())
+
+    result = await _call_sql_execute(
+        state,
+        settings,
+        {"sql": "select 1 as value", "persist_result": True},
+    )
+
+    assert len(state.handles) == 1
+    assert state.handles[0].kind == "dataset"
+    assert state.handles[0].row_count == 1
+    assert '"persisted": true' in result.return_value
+    assert state.handles[0].handle in result.return_value
+
+
 def test_query_result_message_mentions_when_table_is_not_rendered() -> None:
     result = QueryResult(
         sql="select 1 as value",
@@ -161,3 +212,39 @@ def test_selected_rows_info_explains_join_recipe() -> None:
     assert "selected_home_rows.review_id = audit_reviews.id" in info
     assert "FROM selected_home_rows shr" in info
     assert "review_id=review-1" in info
+
+
+class FakeSQLDatabase:
+    async def execute(
+        self,
+        sql: str,
+        *,
+        agent_limit: int,
+        scope: str,
+    ) -> QueryResult:
+        return QueryResult(
+            sql=sql,
+            columns=["value"],
+            rows=[[1]],
+            agent_rows=[{"value": 1}],
+            row_count=1,
+            returned_row_count=1,
+            truncated=False,
+            agent_limit=agent_limit,
+            scope=scope,
+        )
+
+
+async def _call_sql_execute(
+    state: TFRChatState,
+    settings: Settings,
+    args: dict[str, object],
+):
+    ctx = RunContext(
+        deps=TFRChatDeps(state, settings=settings),
+        model=TestModel(),
+        usage=RunUsage(),
+    )
+    toolset = SQLDatabaseCapability().get_toolset()
+    tools = await toolset.get_tools(ctx)
+    return await toolset.call_tool("execute", args, ctx, tools["execute"])
