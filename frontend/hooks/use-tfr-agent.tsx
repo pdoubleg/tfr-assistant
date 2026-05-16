@@ -121,7 +121,7 @@ export function TfrAgentProvider({ children }: { children: ReactNode }) {
         active_route: runContext.active_route,
         active_review_id: runContext.selected_home_rows[0]?.review_id ?? null,
         selected_form_ids: selectedFormIds,
-        components: [],
+        components: normalizeTfrChatState(agent.state as Partial<TFRChatState>).components,
         run_context: runContext,
         status: "thinking",
         progress: 0,

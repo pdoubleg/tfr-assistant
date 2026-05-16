@@ -7,9 +7,13 @@ import {
   Code2,
   Copy,
 } from "lucide-react";
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import type { Components } from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
+import remarkGfm from "remark-gfm";
 
 import { cn } from "@/lib/utils";
 
@@ -40,6 +44,8 @@ export function CodeDisclosure({
   const [copied, setCopied] = useState(false);
   const [isDarkTheme, setIsDarkTheme] = useState(false);
   const compact = density === "compact";
+  const normalizedLanguage = language.toLowerCase();
+  const rendersMarkdown = normalizedLanguage === "markdown" || normalizedLanguage === "md";
 
   useEffect(() => {
     const syncTheme = () => setIsDarkTheme(document.documentElement.classList.contains("dark"));
@@ -131,27 +137,89 @@ export function CodeDisclosure({
       ) : null}
       {open ? (
         <div className={cn("chat-scrollbar overflow-auto", compact ? "max-h-[260px]" : "max-h-[360px]")}>
-          <SyntaxHighlighter
-            language={language}
-            style={isDarkTheme ? oneDark : oneLight}
-            PreTag="pre"
-            customStyle={{
-              margin: 0,
-              background: "transparent",
-              padding: compact ? "0.65rem 0.75rem" : "0.85rem 1rem",
-            }}
-            codeTagProps={{
-              style: {
-                fontFamily:
-                  "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                fontSize: compact ? "0.76rem" : "0.82rem",
-              },
-            }}
-          >
-            {code}
-          </SyntaxHighlighter>
+          {rendersMarkdown ? (
+            <div className={cn("chat-markdown", compact ? "px-3 py-2" : "px-4 py-3")}>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={buildDisclosureMarkdownComponents(isDarkTheme, compact)}
+              >
+                {code}
+              </ReactMarkdown>
+            </div>
+          ) : (
+            <SyntaxHighlighter
+              language={language}
+              style={isDarkTheme ? oneDark : oneLight}
+              PreTag="pre"
+              customStyle={{
+                margin: 0,
+                background: "transparent",
+                padding: compact ? "0.65rem 0.75rem" : "0.85rem 1rem",
+              }}
+              codeTagProps={{
+                style: {
+                  fontFamily:
+                    "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                  fontSize: compact ? "0.76rem" : "0.82rem",
+                },
+              }}
+            >
+              {code}
+            </SyntaxHighlighter>
+          )}
         </div>
       ) : null}
     </div>
   );
+}
+
+function buildDisclosureMarkdownComponents(isDarkTheme: boolean, compact: boolean): Components {
+  return {
+    table({ children }) {
+      return (
+        <div className="chat-markdown-table-wrap">
+          <table>{children}</table>
+        </div>
+      );
+    },
+    code({ className, children }) {
+      const codeString = toCodeString(children);
+      const languageMatch = /language-(\w+)/.exec(className ?? "");
+      const nestedLanguage = languageMatch?.[1]?.toLowerCase();
+      const isInlineCode = !nestedLanguage && !codeString.includes("\n");
+
+      if (isInlineCode) {
+        return <code className={className}>{children}</code>;
+      }
+
+      return (
+        <SyntaxHighlighter
+          language={nestedLanguage ?? "text"}
+          style={isDarkTheme ? oneDark : oneLight}
+          PreTag="pre"
+          customStyle={{
+            margin: "0.45rem 0",
+            background: "transparent",
+            padding: 0,
+          }}
+          codeTagProps={{
+            style: {
+              fontFamily:
+                "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+              fontSize: compact ? "0.76rem" : "0.82rem",
+            },
+          }}
+        >
+          {codeString}
+        </SyntaxHighlighter>
+      );
+    },
+  };
+}
+
+function toCodeString(children: ReactNode): string {
+  if (Array.isArray(children)) {
+    return children.map((child) => (typeof child === "string" ? child : "")).join("");
+  }
+  return typeof children === "string" ? children : "";
 }

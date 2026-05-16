@@ -51,10 +51,13 @@ class SQLDatabaseCapability(AbstractCapability[TFRChatDeps]):
                 "and ask whether the user wants the result table shown. execute has "
                 "persist_result=false by default. Set persist_result=true only when a "
                 "downstream table, chart, or Python sandbox step needs a durable dataset "
-                "handle for the full result. Python sandbox variables and handles created "
-                "inside python_sandbox_execute are not database tables and are not visible "
-                "to SQL; SQL can only query the configured application database plus the "
-                "selected_home_rows CTE when scope='selected'. "
+                "handle for the full result. Copy the returned dataset_handle string, "
+                "for example ds_1, into python_sandbox_execute and pass it directly to "
+                "Monty helpers; Monty does not need a separate get/load step. Python "
+                "sandbox variables and handles created inside python_sandbox_execute are "
+                "not database tables and are not visible to SQL; SQL can only query the "
+                "configured application database plus the selected_home_rows CTE when "
+                "scope='selected'. "
                 f"{database.prompt_instructions}"
             )
 
@@ -269,13 +272,16 @@ class SQLDatabaseCapability(AbstractCapability[TFRChatDeps]):
                     to see rows/a table or the table is clearly the final answer.
                 persist_result: Whether to save the full displayed query result as
                     a dataset handle for downstream Python sandbox transforms or
-                    Plotly charts. Defaults to false for exploratory queries.
+                    Plotly charts. Defaults to false for exploratory queries. When
+                    true, copy the returned dataset_handle string into Monty and
+                    pass it directly to helpers such as describe_dataset(),
+                    group_by(), value_counts(), and create_bar_chart().
 
             Returns:
                 A JSON preview of the result columns and up to limit rows for
                 reasoning. When render_table is true, also emits a chat table
                 component containing the rendered result rows. When persist_result
-                is true, returns a dataset_handle for the persisted result.
+                is true, returns a dataset_handle string for the persisted result.
             """
 
             reporter = _reporter(ctx, "sql_execute")
@@ -576,9 +582,21 @@ def _format_query_result_for_agent(
         if table_rendered
         else "No result table was emitted; ask the user if they want the table shown."
     )
+    if dataset_handle:
+        handle_note = (
+            f" Persisted dataset handle for Monty: {dataset_handle}. In "
+            "python_sandbox_execute, pass this handle string directly to helpers such as "
+            "describe_dataset(), group_by(), value_counts(), and create_bar_chart()."
+        )
+    else:
+        handle_note = (
+            " No dataset handle was created. If a downstream Monty transform or chart needs "
+            "these rows, rerun execute with persist_result=true."
+        )
     return (
         "SQL query executed successfully. "
         + table_note
+        + handle_note
         + "\nPreview for reasoning:\n"
         + json.dumps(payload, ensure_ascii=False, indent=2)
     )

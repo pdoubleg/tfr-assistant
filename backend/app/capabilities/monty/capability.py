@@ -47,12 +47,15 @@ class MontyPythonCapability(AbstractCapability[TFRChatDeps]):
                 "calls in the same artifact session; set restart=True to reset "
                 "that REPL state. Async helpers such as llm_query() and "
                 "llm_query_batched() must be awaited. Sandbox variables are not "
-                "visible to SQL database tools. get_dataset() and "
-                "preview_dataset() return preview metadata dictionaries, not "
-                "dataframes or complete datasets; do not build charts from "
-                "preview_rows. Use dataframe helpers such as group_by(), "
-                "melt_columns(), and stack_metric_columns() to create new "
-                "dataset handles for visualization. If execution returns "
+                "visible to SQL database tools. Prefer string-returning helpers "
+                "such as describe_handles(), describe_handle(), and "
+                "describe_dataset() for inspection. preview_dataset() is a "
+                "low-level structured helper for code that needs columns, "
+                "row_count, or preview_rows; it does not return a dataframe or "
+                "complete dataset, so do not build charts from preview_rows. Use "
+                "dataframe helpers such as group_by(), melt_columns(), and "
+                "stack_metric_columns() to create new dataset handles for "
+                "visualization. If execution returns "
                 "status='error', inspect the concise error/model_guidance fields, "
                 "fix the code, and run the sandbox again; do not assume requested "
                 "charts or tables rendered from a failed execution."
@@ -95,7 +98,7 @@ class MontyPythonCapability(AbstractCapability[TFRChatDeps]):
             Use this after SQL has created a dataset handle with
             persist_result=true, or after a previous sandbox step created a
             handle. The code can call registered helper functions such as
-            list_handles(), get_dataset(), group_by(), value_counts(),
+            describe_handles(), describe_dataset(), group_by(), value_counts(),
             create_bar_chart(), and emit_plotly_chart(). It may compose multiple
             helper calls in one execution and can use print() for diagnostics.
             Helpers are already present in the sandbox namespace, so call them
@@ -112,8 +115,8 @@ class MontyPythonCapability(AbstractCapability[TFRChatDeps]):
             cannot see Python sandbox variables. If the returned status is
             "error", use the concise error and model_guidance fields to correct
             the code and run the sandbox again before claiming the requested
-            chart or table was rendered. get_dataset() and preview_dataset()
-            return preview metadata only; use dataframe helpers such as
+            chart or table was rendered. Use preview_dataset() only when code
+            needs a structured preview dict; use dataframe helpers such as
             group_by(), melt_columns(), and stack_metric_columns() to create
             transformed dataset handles from the full stored data.
 

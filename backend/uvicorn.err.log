@@ -1,6 +1,24 @@
 INFO:     Will watch for changes in these directories: ['C:\\Users\\pdoub\\my-projects\\tfr-assistant\\backend']
 INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
-INFO:     Started reloader process [6920] using WatchFiles
-INFO:     Started server process [6860]
+INFO:     Started reloader process [15116] using WatchFiles
+INFO:     Started server process [8304]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app\capabilities\monty\registry.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for connections to close. (CTRL+C to force quit)
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [8304]
+WARNING:  WatchFiles detected changes in 'tests\test_monty_capability.py'. Reloading...
+INFO:     Started server process [10828]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [10828]
+INFO:     Started server process [19644]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app\capabilities\monty\collections.py'. Reloading...

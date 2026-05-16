@@ -162,6 +162,8 @@ async def test_sql_execute_persists_dataset_handle_when_requested(tmp_path, monk
     assert state.handles[0].row_count == 1
     assert '"persisted": true' in result.return_value
     assert state.handles[0].handle in result.return_value
+    assert "Persisted dataset handle for Monty" in result.return_value
+    assert "pass this handle string directly" in result.return_value
 
 
 def test_query_result_message_mentions_when_table_is_not_rendered() -> None:
@@ -180,6 +182,8 @@ def test_query_result_message_mentions_when_table_is_not_rendered() -> None:
     message = _format_query_result_for_agent(result, table_rendered=False)
 
     assert "No result table was emitted" in message
+    assert "No dataset handle was created" in message
+    assert "persist_result=true" in message
     assert '"table_rendered": false' in message
 
 

@@ -57,6 +57,12 @@ interface ComponentListMessage {
   components: A2UIComponent[];
 }
 
+interface ComponentRunGroup {
+  id: string;
+  anchorUserId: string;
+  components: A2UIComponent[];
+}
+
 interface ToolCodePreview {
   code: string;
   language: string;
@@ -121,6 +127,7 @@ export function DockableChat({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const promptDraftRef = useRef("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const componentAnchorByIdRef = useRef<Map<string, string>>(new Map());
   const lastVisibleModeRef = useRef<Exclude<ChatPanelMode, "hidden">>("small");
   const previousModeRef = useRef<ChatPanelMode>(mode);
   const hasVisiblePanelSnapshotRef = useRef(false);
@@ -139,14 +146,17 @@ export function DockableChat({
     () => sharedState.components.filter(isChatComponent),
     [sharedState.components],
   );
+  const chatComponentGroups = useMemo(
+    () => groupComponentsByFirstSeenUser(chatComponents, messages, componentAnchorByIdRef.current),
+    [chatComponents, messages],
+  );
   const transcriptItems = useMemo<TranscriptItem[]>(
     () =>
-      insertComponentsBeforeRunResponse(
+      insertComponentGroupsBeforeRunResponses(
         messages,
-        chatComponents,
-        sharedState.run_context?.captured_at ?? "latest",
+        chatComponentGroups,
       ),
-    [chatComponents, messages, sharedState.run_context?.captured_at],
+    [chatComponentGroups, messages],
   );
   const transcriptScrollKey = useMemo(
     () =>
@@ -658,38 +668,81 @@ function hasAssistantTextAfter(message: Message, allMessages: Message[]) {
     .some((candidate) => candidate.role === "assistant" && messageContentToString(candidate.content).trim());
 }
 
-function insertComponentsBeforeRunResponse(
-  messages: ChatMessage[],
+function groupComponentsByFirstSeenUser(
   components: A2UIComponent[],
-  runKey: string,
-): TranscriptItem[] {
-  if (!components.length) return messages;
+  messages: ChatMessage[],
+  anchorByComponentId: Map<string, string>,
+): ComponentRunGroup[] {
+  const fallbackAnchor = "welcome";
+  const latestUserId =
+    [...messages].reverse().find((message) => message.role === "user")?.id ?? fallbackAnchor;
+  const currentComponentIds = new Set(components.map((component) => component.id));
 
-  const items: TranscriptItem[] = [...messages];
-  const componentMessage: ComponentListMessage = {
-    id: `components-${runKey}`,
-    role: "components",
-    components,
-  };
-  const lastUserIndex = findLastIndex(items, (item) => item.role === "user");
-  const currentRunStart = lastUserIndex === -1 ? items.length : lastUserIndex + 1;
-  const firstAssistantResponseIndex = items.findIndex(
-    (item, index) =>
-      index >= currentRunStart &&
-      item.role === "assistant" &&
-      item.content.trim().length > 0,
-  );
-
-  if (firstAssistantResponseIndex !== -1) {
-    items.splice(firstAssistantResponseIndex, 0, componentMessage);
-    return items;
+  for (const componentId of Array.from(anchorByComponentId.keys())) {
+    if (!currentComponentIds.has(componentId)) {
+      anchorByComponentId.delete(componentId);
+    }
   }
 
-  const lastToolStatusIndex = findLastIndex(
-    items,
-    (item, index) => index >= currentRunStart && item.role === "tool_status",
-  );
-  items.splice(lastToolStatusIndex === -1 ? items.length : lastToolStatusIndex + 1, 0, componentMessage);
+  const groups = new Map<string, A2UIComponent[]>();
+  for (const component of components) {
+    if (!anchorByComponentId.has(component.id)) {
+      anchorByComponentId.set(component.id, latestUserId);
+    }
+    const anchorUserId = anchorByComponentId.get(component.id) ?? fallbackAnchor;
+    groups.set(anchorUserId, [...(groups.get(anchorUserId) ?? []), component]);
+  }
+
+  return Array.from(groups.entries()).map(([anchorUserId, groupComponents]) => ({
+    id: `components-${anchorUserId}`,
+    anchorUserId,
+    components: groupComponents,
+  }));
+}
+
+function insertComponentGroupsBeforeRunResponses(
+  messages: ChatMessage[],
+  componentGroups: ComponentRunGroup[],
+): TranscriptItem[] {
+  const items: TranscriptItem[] = [...messages];
+  if (!componentGroups.length) return items;
+
+  for (const group of componentGroups) {
+    const componentMessage: ComponentListMessage = {
+      id: group.id,
+      role: "components",
+      components: group.components,
+    };
+    const anchorIndex = items.findIndex(
+      (item) => item.role === "user" && item.id === group.anchorUserId,
+    );
+    const runStart = anchorIndex === -1 ? items.length : anchorIndex + 1;
+    const nextUserIndex = items.findIndex(
+      (item, index) => index >= runStart && item.role === "user",
+    );
+    const runEnd = nextUserIndex === -1 ? items.length : nextUserIndex;
+    const firstAssistantResponseIndex = items.findIndex(
+      (item, index) =>
+        index >= runStart &&
+        index < runEnd &&
+        item.role === "assistant" &&
+        item.content.trim().length > 0,
+    );
+
+    if (firstAssistantResponseIndex !== -1) {
+      items.splice(firstAssistantResponseIndex, 0, componentMessage);
+      continue;
+    }
+
+    const lastToolStatusIndex = findLastIndex(
+      items,
+      (item, index) =>
+        index >= runStart &&
+        index < runEnd &&
+        item.role === "tool_status",
+    );
+    items.splice(lastToolStatusIndex === -1 ? runEnd : lastToolStatusIndex + 1, 0, componentMessage);
+  }
   return items;
 }
 

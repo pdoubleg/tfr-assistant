@@ -97,6 +97,85 @@ def _require_output_columns(
         )
 
 
+def _handle_from_preview(value: Any, *, argument_name: str, expected_prefix: str) -> str:
+    if isinstance(value, str) and value:
+        return value
+    if isinstance(value, dict):
+        handle = value.get("handle")
+        if isinstance(handle, str) and handle.startswith(expected_prefix):
+            return handle
+        raise TypeError(
+            f"{argument_name} must be a handle string like {expected_prefix!r}. "
+            "Preview dictionaries must include a valid 'handle' field."
+        )
+    raise TypeError(
+        f"{argument_name} must be a handle string like {expected_prefix!r}. "
+        "preview_dataset() returns a preview dictionary; prefer passing the original "
+        "handle string directly to transform and chart helpers."
+    )
+
+
+def _dataset_handle(value: Any, *, argument_name: str = "dataset_handle") -> str:
+    return _handle_from_preview(value, argument_name=argument_name, expected_prefix="ds_")
+
+
+def _chart_handle(value: Any, *, argument_name: str = "chart_handle") -> str:
+    return _handle_from_preview(value, argument_name=argument_name, expected_prefix="fig_")
+
+
+def _merge_plotly_kwargs(
+    plotly_kwargs: dict[str, Any] | None,
+    extra_plotly_kwargs: dict[str, Any],
+) -> dict[str, Any] | None:
+    merged = dict(plotly_kwargs or {})
+    overlap = sorted(set(merged) & set(extra_plotly_kwargs))
+    if overlap:
+        raise ValueError(
+            "Plotly option(s) were supplied both directly and in plotly_kwargs: "
+            + ", ".join(overlap)
+        )
+    merged.update(extra_plotly_kwargs)
+    return merged or None
+
+
+def _format_handle_description(metadata: dict[str, Any]) -> str:
+    handle = str(metadata.get("handle") or "")
+    kind = str(metadata.get("kind") or "artifact")
+    parts = [f"{handle}: {kind}"] if handle else [kind]
+    label = str(metadata.get("label") or "")
+    if label:
+        parts.append(f"label={label!r}")
+    row_count = metadata.get("row_count")
+    column_count = metadata.get("column_count")
+    if row_count is not None and column_count is not None:
+        parts.append(f"shape={row_count}x{column_count}")
+    source = str(metadata.get("source") or "")
+    if source:
+        parts.append(f"source={source}")
+    columns = metadata.get("columns")
+    if isinstance(columns, list) and columns:
+        parts.append("columns=" + ", ".join(str(column) for column in columns))
+    return "; ".join(parts)
+
+
+def _format_dataset_description(dataset: Any, *, limit: int) -> str:
+    preview = dataframe_preview(dataset, limit=limit)
+    label = f"\nLabel: {dataset.label}" if dataset.label else ""
+    rows = [
+        "- " + json.dumps(row, ensure_ascii=False, sort_keys=True)
+        for row in preview["preview_rows"]
+    ]
+    row_text = "\n".join(rows) if rows else "- No preview rows"
+    return (
+        f"Dataset handle: {dataset.handle}"
+        f"{label}\n"
+        f"Shape: {dataset.row_count} row(s) x {dataset.column_count} column(s)\n"
+        f"Columns: {', '.join(dataset.columns)}\n"
+        f"Preview rows (first {len(preview['preview_rows'])} of {dataset.row_count}):\n"
+        f"{row_text}"
+    )
+
+
 @dataclass(slots=True)
 class MontyRuntimeContext:
     state: TFRChatState
@@ -143,71 +222,195 @@ class HandlesCollection(ToolCollection):
 
     name = "handles"
     description = (
-        "Inspect dataset/chart handles, preview dataset metadata, and emit handled "
-        "artifacts into the chat UI. Preview helpers do not return dataframes."
+        "List and describe dataset/chart handles, preview dataset metadata only when code "
+        "needs a dict, and emit handled artifacts into the chat UI. Monty helpers consume "
+        "handle strings; they do not load SQL tables or dataframe objects into variables."
     )
 
     def __init__(self, context: MontyRuntimeContext) -> None:
         self.context = context
 
     @tool
+    def describe_handles(self) -> str:
+        """Return a compact text inventory of available dataset and chart handles.
+
+        Prefer this over list_handles() when the next step is deciding which
+        handle string to pass into dataframe or visualization helpers. Dataset
+        handles usually come from SQL execute(..., persist_result=True) or from
+        Monty transforms such as group_by(), value_counts(), and put_dataset().
+
+        Returns:
+            str: Human-readable handle inventory.
+
+        Examples:
+            ```python
+            summary = describe_handles()
+            print(summary)
+            # Prints
+            # ds_1: dataset; label='Claim notes'; shape=125x3; source=sql
+            # columns=claim_id, status, amount
+            # fig_1: plotly_chart; label='Claims by status'
+            ```
+        """
+        if not self.context.state.handles:
+            return (
+                "No dataset or chart handles are available. Use SQL execute with "
+                "persist_result=true to create a dataset handle from database rows, or "
+                "create one in Monty with put_dataset()."
+            )
+        return "\n".join(
+            _format_handle_description(handle.model_dump()) for handle in self.context.state.handles
+        )
+
+    @tool
     def list_handles(self) -> list[dict[str, Any]]:
         """List dataset and chart handles available in this chat session.
+
+        This is a low-level structured helper. Prefer describe_handles() when a
+        string summary is enough. Pass dataset handle strings such as "ds_1"
+        directly to dataframe and chart helpers.
 
         Returns:
             list[dict[str, Any]]: Handle metadata including kind, label, row count,
             column count, and source where available.
+
+        Examples:
+            ```python
+            handles = list_handles()
+            print(handles)
+            # Prints a list similar to:
+            # [
+            #     {"handle": "ds_1", "kind": "dataset", "label": "Claim notes"},
+            #     {"handle": "fig_1", "kind": "plotly_chart", "label": "Counts"},
+            # ]
+            ```
         """
         return [handle.model_dump() for handle in self.context.state.handles]
 
     @tool
+    def describe_handle(self, handle: str) -> str:
+        """Return a compact text summary for one dataset or chart handle.
+
+        Prefer this over inspect_handle() when a string summary is enough.
+
+        Args:
+            handle: Dataset or chart handle to describe.
+
+        Returns:
+            str: Human-readable handle summary.
+
+        Examples:
+            ```python
+            summary = describe_handle("ds_1")
+            print(summary)
+            # Prints
+            # ds_1: dataset; label='Claims'; shape=125x3; source=sql
+            # columns=claim_id, status, amount
+            ```
+        """
+        metadata = self.context.store.inspect_handle(self.context.state, handle)
+        return _format_handle_description(metadata)
+
+    @tool
     def inspect_handle(self, handle: str) -> dict[str, Any]:
         """Inspect one stored dataset or chart handle.
+
+        This is a low-level structured helper. Prefer describe_handle() when a
+        string summary is enough.
 
         Args:
             handle: The dataset or chart handle to inspect.
 
         Returns:
             dict[str, Any]: Metadata for the requested handle.
+
+        Examples:
+            ```python
+            details = inspect_handle("ds_1")
+            print(details["kind"])
+            print(details["columns"])
+            # Prints
+            # dataset
+            # ["claim_id", "status", "amount"]
+            ```
         """
         return self.context.store.inspect_handle(self.context.state, handle)
 
-    @tool
     def get_dataset(self, dataset_handle: str, *, limit: int = 10) -> dict[str, Any]:
-        """Preview metadata for a dataset handle.
+        """Deprecated non-tool alias for preview_dataset()."""
 
-        This returns a small preview dictionary, not a dataframe and not a new
-        dataset handle. Use it to inspect columns and a few sample records only.
-        Do not build charts or transformed datasets from preview_rows because
-        preview_rows may omit most of the dataset. For real transforms, pass the
-        original handle to helpers such as select_columns(), group_by(),
-        melt_columns(), stack_metric_columns(), or create_bar_chart().
-
-        Args:
-            dataset_handle: Handle pointing to a stored dataset artifact.
-            limit: Maximum preview row count.
-
-        Returns:
-            dict[str, Any]: Dataset columns, row count, and preview records only.
-        """
         return self.preview_dataset(dataset_handle, limit=limit)
 
     @tool
-    def preview_dataset(self, dataset_handle: str, *, limit: int = 10) -> dict[str, Any]:
-        """Preview metadata for a dataset handle.
+    def describe_dataset(self, dataset_handle: str, *, limit: int = 5) -> str:
+        """Return a text description and tiny preview for a dataset handle.
 
-        Prefer this clearer helper name over get_dataset() when inspecting a
-        handle. It returns columns, row_count, and preview_rows only; it is not
-        a dataframe and is not a complete copy of the dataset.
+        Prefer this for inspection. It returns a string and keeps the durable
+        dataset behind its handle. To source database rows for Monty, first call
+        the SQL execute tool with persist_result=True, then pass the returned
+        dataset_handle string directly to Monty helpers.
 
         Args:
-            dataset_handle: Handle pointing to a stored dataset artifact.
+            dataset_handle: Handle string such as "ds_1".
+            limit: Maximum preview row count to include in the text summary.
+
+        Returns:
+            str: Human-readable dataset shape, columns, and preview rows.
+
+        Examples:
+            ```python
+            dataset_handle = "ds_1"
+            summary = describe_dataset(dataset_handle, limit=2)
+            print(summary)
+            # Prints
+            # Dataset handle: ds_1
+            # Shape: 125 row(s) x 3 column(s)
+            # Columns: claim_id, status, amount
+            # Preview rows (first 2 of 125):
+            # - {"amount": 1200, "claim_id": "A1", "status": "open"}
+
+            chart = create_bar_chart(dataset_handle, "status", "amount")
+            ```
+        """
+        handle = _dataset_handle(dataset_handle)
+        dataset = self.context.store.load_dataset(self.context.state, handle)
+        return _format_dataset_description(dataset, limit=limit)
+
+    @tool
+    def preview_dataset(self, dataset_handle: str, *, limit: int = 10) -> dict[str, Any]:
+        """Return structured preview metadata for a dataset handle.
+
+        This is a low-level dict helper for code that must inspect columns,
+        row_count, or preview_rows programmatically. Prefer describe_dataset()
+        when a string summary is enough. This does not return a dataframe,
+        complete dataset, or new handle. Do not build charts or transformed
+        datasets from preview_rows because preview_rows may omit most of the
+        dataset. For real transforms, pass the original handle string to helpers
+        such as select_columns(), group_by(), melt_columns(), stack_metric_columns(),
+        or create_bar_chart().
+
+        Args:
+            dataset_handle: Handle string such as "ds_1".
             limit: Maximum preview row count.
 
         Returns:
             dict[str, Any]: Dataset columns, row count, and preview records only.
+
+        Examples:
+            ```python
+            dataset_handle = "ds_1"
+            preview = preview_dataset(dataset_handle, limit=2)
+            print(preview["columns"])
+            print(preview["preview_rows"])
+            # Prints
+            # ["claim_id", "status", "amount"]
+            # [{"claim_id": "A1", "status": "open", "amount": 1200}, ...]
+
+            chart = create_bar_chart(dataset_handle, "status", "amount")
+            ```
         """
-        dataset = self.context.store.load_dataset(self.context.state, dataset_handle)
+        handle = _dataset_handle(dataset_handle)
+        dataset = self.context.store.load_dataset(self.context.state, handle)
         return dataframe_preview(dataset, limit=limit)
 
     @tool
@@ -219,12 +422,29 @@ class HandlesCollection(ToolCollection):
     ) -> str:
         """Persist row dictionaries as a new dataset handle.
 
+        Use this only for small datasets created inside Monty. For database
+        rows, use the SQL execute tool with persist_result=True before entering
+        Monty, then pass the returned dataset handle string directly to Monty
+        helpers.
+
         Args:
             rows: Row records to persist. Keys become dataset columns.
             label: Optional human-readable label.
 
         Returns:
             str: New dataset handle.
+
+        Examples:
+            ```python
+            rows = [
+                {"status": "open", "count": 12},
+                {"status": "closed", "count": 8},
+            ]
+            summary_handle = put_dataset(rows, label="Status counts")
+            print(summary_handle)
+            # Prints
+            # ds_2
+            ```
         """
         dataframe = pd.DataFrame(rows)
         artifact = self.context.store.save_dataframe(
@@ -252,20 +472,32 @@ class HandlesCollection(ToolCollection):
 
         Returns:
             dict[str, Any]: Emitted table metadata.
+
+        Examples:
+            ```python
+            selected = select_columns("ds_1", ["claim_id", "status", "amount"])
+            emitted = emit_table(selected, caption="Selected claim fields", max_rows=50)
+            print(emitted["component"])
+            print(emitted["rendered_rows"])
+            # Prints
+            # a2ui.DataTable
+            # 50
+            ```
         """
-        dataset = self.context.store.load_dataset(self.context.state, dataset_handle)
+        handle = _dataset_handle(dataset_handle)
+        dataset = self.context.store.load_dataset(self.context.state, handle)
         rows = dataset.rows[:max_rows]
         self.context.state.components.append(
             generate_data_table(
                 headers=dataset.columns,
                 rows=rows,
-                caption=caption or dataset.label or f"Dataset {dataset_handle}",
+                caption=caption or dataset.label or f"Dataset {handle}",
                 sortable=True,
             )
         )
         return {
             "component": "a2ui.DataTable",
-            "dataset_handle": dataset_handle,
+            "dataset_handle": handle,
             "rendered_rows": len(rows),
             "row_count": dataset.row_count,
         }
@@ -276,15 +508,16 @@ class DataframeOperationsCollection(ToolCollection):
 
     name = "dataframe_operations"
     description = (
-        "Transform full stored datasets into new dataset handles for EDA and "
-        "visualization prep, including long-form and stacked-metric reshaping."
+        "Transform full stored datasets referenced by handle strings into new dataset handles "
+        "for EDA and visualization prep, including long-form and stacked-metric reshaping."
     )
 
     def __init__(self, context: MontyRuntimeContext) -> None:
         self.context = context
 
     def _load(self, dataset_handle: str) -> pd.DataFrame:
-        return self.context.store.load_dataset(self.context.state, dataset_handle).to_dataframe()
+        handle = _dataset_handle(dataset_handle)
+        return self.context.store.load_dataset(self.context.state, handle).to_dataframe()
 
     def _save(self, dataframe: pd.DataFrame, *, label: str, source: str) -> str:
         return self.context.store.save_dataframe(
@@ -304,6 +537,17 @@ class DataframeOperationsCollection(ToolCollection):
 
         Returns:
             str: New dataset handle.
+
+        Examples:
+            ```python
+            selected = select_columns("ds_1", ["claim_id", "status", "amount"])
+            preview = preview_dataset(selected, limit=1)
+            print(selected)
+            print(preview["columns"])
+            # Prints
+            # ds_2
+            # ["claim_id", "status", "amount"]
+            ```
         """
         dataframe = self._load(dataset_handle)
         return self._save(
@@ -330,6 +574,17 @@ class DataframeOperationsCollection(ToolCollection):
 
         Returns:
             str: New dataset handle.
+
+        Examples:
+            ```python
+            open_claims = filter_rows("ds_1", "status", "==", "open")
+            preview = preview_dataset(open_claims, limit=2)
+            print(open_claims)
+            print(preview["row_count"])
+            # Prints
+            # ds_2
+            # 42
+            ```
         """
         dataframe = self._load(dataset_handle)
         series = dataframe[column]
@@ -378,6 +633,17 @@ class DataframeOperationsCollection(ToolCollection):
 
         Returns:
             str: New dataset handle.
+
+        Examples:
+            ```python
+            sorted_claims = sort_values("ds_1", "amount", ascending=False)
+            preview = preview_dataset(sorted_claims, limit=1)
+            print(sorted_claims)
+            print(preview["preview_rows"][0]["amount"])
+            # Prints
+            # ds_2
+            # 9800
+            ```
         """
         sort_columns = [columns] if isinstance(columns, str) else columns
         dataframe = self._load(dataset_handle).sort_values(sort_columns, ascending=ascending)
@@ -404,6 +670,17 @@ class DataframeOperationsCollection(ToolCollection):
 
         Returns:
             str: New aggregated dataset handle.
+
+        Examples:
+            ```python
+            by_status = group_by("ds_1", "status", {"amount": "sum", "claim_id": "count"})
+            preview = preview_dataset(by_status, limit=5)
+            print(by_status)
+            print(preview["columns"])
+            # Prints
+            # ds_2
+            # ["status", "amount", "claim_id"]
+            ```
         """
         group_columns = [by] if isinstance(by, str) else by
         dataframe = self._load(dataset_handle)
@@ -429,7 +706,7 @@ class DataframeOperationsCollection(ToolCollection):
         Use this for multi-series or stacked bar preparation when several
         numeric metric columns should become rows with a metric label and value.
         This operates on the full stored dataset behind the handle; it does not
-        use get_dataset().preview_rows.
+        use preview_dataset().preview_rows.
 
         Args:
             dataset_handle: Input dataset handle.
@@ -440,6 +717,21 @@ class DataframeOperationsCollection(ToolCollection):
 
         Returns:
             str: New long-form dataset handle.
+
+        Examples:
+            ```python
+            long_metrics = melt_columns(
+                "ds_1",
+                "reference_policy",
+                ["items_completed", "items_other"],
+            )
+            preview = preview_dataset(long_metrics, limit=2)
+            print(long_metrics)
+            print(preview["columns"])
+            # Prints
+            # ds_2
+            # ["reference_policy", "metric", "value"]
+            ```
         """
         dataframe = self._load(dataset_handle)
         id_columns = _as_column_list(id_vars, argument_name="id_vars")
@@ -488,6 +780,27 @@ class DataframeOperationsCollection(ToolCollection):
         Returns:
             str: New aggregated long-form dataset handle with category columns,
             metric_name, and value_name columns.
+
+        Examples:
+            ```python
+            stacked = stack_metric_columns(
+                "ds_1",
+                "reference_policy",
+                ["items_completed", "items_other"],
+            )
+            chart = create_bar_chart(
+                stacked,
+                "reference_policy",
+                "value",
+                color="metric",
+                title="Completed vs other by policy",
+                plotly_kwargs={"barmode": "stack", "text_auto": True},
+            )
+            emitted = emit_plotly_chart(chart)
+            print(emitted["component"])
+            # Prints
+            # a2ui.PlotlyChart
+            ```
         """
         dataframe = self._load(dataset_handle)
         category_list = _as_column_list(category_columns, argument_name="category_columns")
@@ -539,6 +852,18 @@ class DataframeOperationsCollection(ToolCollection):
 
         Returns:
             str: New dataset handle with value and count columns.
+
+        Examples:
+            ```python
+            counts = value_counts("ds_1", "status", top_n=10)
+            chart = create_bar_chart(counts, "status", "count", title="Claims by status")
+            emitted = emit_plotly_chart(chart)
+            print(counts)
+            print(emitted["component"])
+            # Prints
+            # ds_2
+            # a2ui.PlotlyChart
+            ```
         """
         counts = (
             self._load(dataset_handle)[column]
@@ -570,6 +895,23 @@ class DataframeOperationsCollection(ToolCollection):
 
         Returns:
             str: New dataset handle.
+
+        Examples:
+            ```python
+            pivoted = pivot_table(
+                "ds_1",
+                index="region",
+                columns="status",
+                values="claim_id",
+                aggfunc="count",
+            )
+            preview = preview_dataset(pivoted, limit=3)
+            print(pivoted)
+            print(preview["columns"])
+            # Prints
+            # ds_2
+            # ["region", "closed", "open"]
+            ```
         """
         pivot = pd.pivot_table(
             self._load(dataset_handle),
@@ -603,6 +945,17 @@ class DataframeOperationsCollection(ToolCollection):
 
         Returns:
             str: New dataset handle.
+
+        Examples:
+            ```python
+            binned = bin_numeric("ds_1", "amount", bins=4, output_column="amount_band")
+            counts = value_counts(binned, "amount_band")
+            print(binned)
+            print(preview_dataset(counts, limit=1)["columns"])
+            # Prints
+            # ds_2
+            # ["amount_band", "count"]
+            ```
         """
         dataframe = self._load(dataset_handle).copy()
         output = output_column or f"{column}_bin"
@@ -618,7 +971,10 @@ class VisualizationsCollection(ToolCollection):
     """Create and emit Plotly charts from dataset handles."""
 
     name = "visualizations"
-    description = "Create interactive Plotly chart handles and emit them in chat."
+    description = (
+        "Create interactive Plotly chart handles from dataset handle strings and emit chart "
+        "handles in chat."
+    )
 
     def __init__(self, context: MontyRuntimeContext) -> None:
         self.context = context
@@ -656,6 +1012,9 @@ class VisualizationsCollection(ToolCollection):
         if argument.name == "plotly_kwargs":
             valid_keys = ", ".join(allowed_kwargs)
             description = f"{description} Valid plotly_kwargs keys for this helper: {valid_keys}."
+        elif argument.name == "extra_plotly_kwargs":
+            valid_keys = ", ".join(allowed_kwargs)
+            description = f"{description} Valid direct Plotly Express option keys: {valid_keys}."
         elif argument.name == "layout_kwargs":
             description = f"{description} {LAYOUT_KWARGS_HELP}"
         return ToolArgument(
@@ -667,7 +1026,8 @@ class VisualizationsCollection(ToolCollection):
         )
 
     def _load(self, dataset_handle: str) -> pd.DataFrame:
-        return self.context.store.load_dataset(self.context.state, dataset_handle).to_dataframe()
+        handle = _dataset_handle(dataset_handle)
+        return self.context.store.load_dataset(self.context.state, handle).to_dataframe()
 
     def _save_figure(
         self,
@@ -729,6 +1089,7 @@ class VisualizationsCollection(ToolCollection):
         title: str = "",
         plotly_kwargs: dict[str, Any] | None = None,
         layout_kwargs: dict[str, Any] | None = None,
+        **extra_plotly_kwargs: Any,
     ) -> str:
         """Create a Plotly bar chart from a dataset handle.
 
@@ -745,13 +1106,35 @@ class VisualizationsCollection(ToolCollection):
             layout_kwargs: Optional layout updates passed to Figure.update_layout
                 after the chart is created. Use this for custom axis titles,
                 legend placement, margins, hovermode, or template.
+            extra_plotly_kwargs: Optional direct Plotly Express options such as
+                barmode or text_auto. These are equivalent to putting the same
+                keys in plotly_kwargs.
 
         Returns:
             str: New Plotly chart handle.
+
+        Examples:
+            ```python
+            counts = value_counts("ds_1", "status")
+            chart = create_bar_chart(
+                counts,
+                "status",
+                "count",
+                title="Claims by status",
+                plotly_kwargs={"text_auto": True},
+                layout_kwargs={"xaxis_title": "Status", "yaxis_title": "Claims"},
+            )
+            emitted = emit_plotly_chart(chart)
+            print(chart)
+            print(emitted["component"])
+            # Prints
+            # fig_1
+            # a2ui.PlotlyChart
+            ```
         """
         kwargs = self._plotly_kwargs(
             px.bar,
-            plotly_kwargs,
+            _merge_plotly_kwargs(plotly_kwargs, extra_plotly_kwargs),
             protected_keys=BAR_PROTECTED_KEYS,
             defaults={
                 "color_discrete_sequence": PLOTLY_COLORWAY,
@@ -769,7 +1152,7 @@ class VisualizationsCollection(ToolCollection):
         return self._save_figure(
             figure,
             label=title or "Bar chart",
-            source=dataset_handle,
+            source=_dataset_handle(dataset_handle),
             layout_kwargs=layout_kwargs,
         )
 
@@ -784,6 +1167,7 @@ class VisualizationsCollection(ToolCollection):
         title: str = "",
         plotly_kwargs: dict[str, Any] | None = None,
         layout_kwargs: dict[str, Any] | None = None,
+        **extra_plotly_kwargs: Any,
     ) -> str:
         """Create a Plotly line chart from a dataset handle.
 
@@ -799,13 +1183,32 @@ class VisualizationsCollection(ToolCollection):
                 such as x, y, color, and title cannot be overridden here.
             layout_kwargs: Optional layout updates passed to Figure.update_layout
                 after the chart is created.
+            extra_plotly_kwargs: Optional direct Plotly Express options such as
+                markers or line_shape. These are equivalent to putting the same
+                keys in plotly_kwargs.
 
         Returns:
             str: New Plotly chart handle.
+
+        Examples:
+            ```python
+            daily = group_by("ds_1", "inspection_date", {"amount": "sum"})
+            chart = create_line_chart(
+                daily,
+                "inspection_date",
+                "amount",
+                title="Claim amount over time",
+                plotly_kwargs={"markers": True},
+            )
+            emitted = emit_plotly_chart(chart)
+            print(emitted["chart_handle"])
+            # Prints
+            # fig_1
+            ```
         """
         kwargs = self._plotly_kwargs(
             px.line,
-            plotly_kwargs,
+            _merge_plotly_kwargs(plotly_kwargs, extra_plotly_kwargs),
             protected_keys=LINE_PROTECTED_KEYS,
             defaults={
                 "color_discrete_sequence": PLOTLY_COLORWAY,
@@ -823,7 +1226,7 @@ class VisualizationsCollection(ToolCollection):
         return self._save_figure(
             figure,
             label=title or "Line chart",
-            source=dataset_handle,
+            source=_dataset_handle(dataset_handle),
             layout_kwargs=layout_kwargs,
         )
 
@@ -838,6 +1241,7 @@ class VisualizationsCollection(ToolCollection):
         title: str = "",
         plotly_kwargs: dict[str, Any] | None = None,
         layout_kwargs: dict[str, Any] | None = None,
+        **extra_plotly_kwargs: Any,
     ) -> str:
         """Create a Plotly scatter plot from a dataset handle.
 
@@ -853,13 +1257,32 @@ class VisualizationsCollection(ToolCollection):
                 arguments such as x, y, color, and title cannot be overridden here.
             layout_kwargs: Optional layout updates passed to Figure.update_layout
                 after the chart is created.
+            extra_plotly_kwargs: Optional direct Plotly Express options such as
+                text, size, symbol, or trendline. These are equivalent to putting
+                the same keys in plotly_kwargs.
 
         Returns:
             str: New Plotly chart handle.
+
+        Examples:
+            ```python
+            chart = create_scatter_plot(
+                "ds_1",
+                "estimated_amount",
+                "approved_amount",
+                color="status",
+                title="Estimated vs approved amount",
+                plotly_kwargs={"opacity": 0.75},
+            )
+            emitted = emit_plotly_chart(chart)
+            print(emitted["component"])
+            # Prints
+            # a2ui.PlotlyChart
+            ```
         """
         kwargs = self._plotly_kwargs(
             px.scatter,
-            plotly_kwargs,
+            _merge_plotly_kwargs(plotly_kwargs, extra_plotly_kwargs),
             protected_keys=SCATTER_PROTECTED_KEYS,
             defaults={
                 "color_discrete_sequence": PLOTLY_COLORWAY,
@@ -878,7 +1301,7 @@ class VisualizationsCollection(ToolCollection):
         return self._save_figure(
             figure,
             label=title or "Scatter plot",
-            source=dataset_handle,
+            source=_dataset_handle(dataset_handle),
             layout_kwargs=layout_kwargs,
         )
 
@@ -893,6 +1316,7 @@ class VisualizationsCollection(ToolCollection):
         nbins: int | None = None,
         plotly_kwargs: dict[str, Any] | None = None,
         layout_kwargs: dict[str, Any] | None = None,
+        **extra_plotly_kwargs: Any,
     ) -> str:
         """Create a Plotly histogram from a dataset column.
 
@@ -909,13 +1333,32 @@ class VisualizationsCollection(ToolCollection):
                 be overridden here.
             layout_kwargs: Optional layout updates passed to Figure.update_layout
                 after the chart is created.
+            extra_plotly_kwargs: Optional direct Plotly Express options such as
+                histnorm, histfunc, barmode, or marginal. These are equivalent
+                to putting the same keys in plotly_kwargs.
 
         Returns:
             str: New Plotly chart handle.
+
+        Examples:
+            ```python
+            chart = create_histogram(
+                "ds_1",
+                "amount",
+                color="status",
+                title="Claim amount distribution",
+                nbins=20,
+                plotly_kwargs={"barmode": "overlay", "opacity": 0.7},
+            )
+            emitted = emit_plotly_chart(chart)
+            print(chart)
+            # Prints
+            # fig_1
+            ```
         """
         kwargs = self._plotly_kwargs(
             px.histogram,
-            plotly_kwargs,
+            _merge_plotly_kwargs(plotly_kwargs, extra_plotly_kwargs),
             protected_keys=HISTOGRAM_PROTECTED_KEYS,
             defaults={
                 "color_discrete_sequence": PLOTLY_COLORWAY,
@@ -933,7 +1376,7 @@ class VisualizationsCollection(ToolCollection):
         return self._save_figure(
             figure,
             label=title or "Histogram",
-            source=dataset_handle,
+            source=_dataset_handle(dataset_handle),
             layout_kwargs=layout_kwargs,
         )
 
@@ -948,6 +1391,7 @@ class VisualizationsCollection(ToolCollection):
         title: str = "",
         plotly_kwargs: dict[str, Any] | None = None,
         layout_kwargs: dict[str, Any] | None = None,
+        **extra_plotly_kwargs: Any,
     ) -> str:
         """Create a Plotly box plot from a dataset handle.
 
@@ -963,13 +1407,32 @@ class VisualizationsCollection(ToolCollection):
                 as x, y, color, and title cannot be overridden here.
             layout_kwargs: Optional layout updates passed to Figure.update_layout
                 after the chart is created.
+            extra_plotly_kwargs: Optional direct Plotly Express options such as
+                points, boxmode, or notched. These are equivalent to putting the
+                same keys in plotly_kwargs.
 
         Returns:
             str: New Plotly chart handle.
+
+        Examples:
+            ```python
+            chart = create_box_plot(
+                "ds_1",
+                "region",
+                "amount",
+                color="status",
+                title="Claim amount by region",
+                plotly_kwargs={"points": "outliers"},
+            )
+            emitted = emit_plotly_chart(chart)
+            print(emitted["caption"])
+            # Prints
+            # Claim amount by region
+            ```
         """
         kwargs = self._plotly_kwargs(
             px.box,
-            plotly_kwargs,
+            _merge_plotly_kwargs(plotly_kwargs, extra_plotly_kwargs),
             protected_keys=BOX_PROTECTED_KEYS,
             defaults={
                 "color_discrete_sequence": PLOTLY_COLORWAY,
@@ -987,7 +1450,7 @@ class VisualizationsCollection(ToolCollection):
         return self._save_figure(
             figure,
             label=title or "Box plot",
-            source=dataset_handle,
+            source=_dataset_handle(dataset_handle),
             layout_kwargs=layout_kwargs,
         )
 
@@ -1001,6 +1464,7 @@ class VisualizationsCollection(ToolCollection):
         title: str = "",
         plotly_kwargs: dict[str, Any] | None = None,
         layout_kwargs: dict[str, Any] | None = None,
+        **extra_plotly_kwargs: Any,
     ) -> str:
         """Create a Plotly pie chart from a dataset handle.
 
@@ -1015,13 +1479,32 @@ class VisualizationsCollection(ToolCollection):
                 values, and title cannot be overridden here.
             layout_kwargs: Optional layout updates passed to Figure.update_layout
                 after the chart is created.
+            extra_plotly_kwargs: Optional direct Plotly Express options such as
+                color, hole, or labels. These are equivalent to putting the same
+                keys in plotly_kwargs.
 
         Returns:
             str: New Plotly chart handle.
+
+        Examples:
+            ```python
+            counts = value_counts("ds_1", "status")
+            chart = create_pie_chart(
+                counts,
+                names="status",
+                values="count",
+                title="Claim status share",
+                plotly_kwargs={"hole": 0.35},
+            )
+            emitted = emit_plotly_chart(chart)
+            print(emitted["component"])
+            # Prints
+            # a2ui.PlotlyChart
+            ```
         """
         kwargs = self._plotly_kwargs(
             px.pie,
-            plotly_kwargs,
+            _merge_plotly_kwargs(plotly_kwargs, extra_plotly_kwargs),
             protected_keys=PIE_PROTECTED_KEYS,
             defaults={
                 "color_discrete_sequence": PLOTLY_COLORWAY,
@@ -1038,7 +1521,7 @@ class VisualizationsCollection(ToolCollection):
         return self._save_figure(
             figure,
             label=title or "Pie chart",
-            source=dataset_handle,
+            source=_dataset_handle(dataset_handle),
             layout_kwargs=layout_kwargs,
         )
 
@@ -1057,7 +1540,21 @@ class VisualizationsCollection(ToolCollection):
 
         Returns:
             dict[str, Any]: Emitted chart metadata.
+
+        Examples:
+            ```python
+            chart = create_bar_chart("ds_2", "status", "count", title="Claims by status")
+            emitted = emit_plotly_chart(chart, caption="Claims by status")
+            print(emitted)
+            # Prints a dictionary similar to:
+            # {
+            #     "component": "a2ui.PlotlyChart",
+            #     "chart_handle": "fig_1",
+            #     "caption": "Claims by status",
+            # }
+            ```
         """
+        chart_handle = _chart_handle(chart_handle)
         chart = self.context.store.load_plotly_chart(self.context.state, chart_handle)
         self.context.state.components.append(
             generate_plotly_chart(
@@ -1087,7 +1584,8 @@ class RLMCollection(ToolCollection):
         self.context = context
 
     def _load(self, dataset_handle: str) -> pd.DataFrame:
-        return self.context.store.load_dataset(self.context.state, dataset_handle).to_dataframe()
+        handle = _dataset_handle(dataset_handle)
+        return self.context.store.load_dataset(self.context.state, handle).to_dataframe()
 
     @property
     def _model_name(self) -> str:
@@ -1159,6 +1657,16 @@ class RLMCollection(ToolCollection):
 
         Returns:
             list[str]: One text string per included dataset row for the selected column.
+
+        Examples:
+            ```python
+            notes = dataset_texts("ds_1", "adjuster_note", max_rows=100)
+            print(len(notes))
+            print(notes[0])
+            # Prints
+            # 100
+            # Roof shingles show wind damage near the ridge.
+            ```
         """
         if max_rows < 1:
             raise ValueError("max_rows must be at least 1.")
@@ -1187,6 +1695,17 @@ class RLMCollection(ToolCollection):
 
         Returns:
             str: The sub-LLM response text.
+
+        Examples:
+            ```python
+            answer = await llm_query(
+                "Classify this note as roof, window, or interior: "
+                + "Roof shingles show wind damage near the ridge."
+            )
+            print(answer)
+            # Prints
+            # roof
+            ```
         """
         prompt = prompt.strip()
         if not prompt:
@@ -1211,6 +1730,21 @@ class RLMCollection(ToolCollection):
 
         Returns:
             list[str]: Sub-LLM response text for each prompt, in input order.
+
+        Examples:
+            ```python
+            notes = dataset_texts("ds_1", "adjuster_note", max_rows=3)
+            prompts = [
+                "Classify this note as roof, window, or interior: " + note
+                for note in notes
+            ]
+            answers = await llm_query_batched(prompts)
+            print(len(answers))
+            print(answers[0])
+            # Prints
+            # 3
+            # roof
+            ```
         """
         if not prompts:
             return []

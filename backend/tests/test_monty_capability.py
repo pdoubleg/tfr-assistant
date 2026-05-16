@@ -129,18 +129,28 @@ def test_monty_help_accepts_multiple_targets(tmp_path) -> None:
     assert "\n\n---\n\n" in help_text
 
 
-def test_monty_get_dataset_help_warns_preview_only(tmp_path) -> None:
+def test_monty_help_explains_sql_handle_flow_and_preview_escape_hatch(tmp_path) -> None:
     settings = Settings(
         data_dir=tmp_path / "data",
         chat_artifacts_dir=tmp_path / "data" / "chat_artifacts",
     )
     runtime = MontyPythonRuntime(TFRChatState(), settings)
 
-    help_text = runtime.help("get_dataset")
+    overview = runtime.help()
+    describe_help = runtime.help("describe_dataset")
+    preview_help = runtime.help("preview_dataset")
 
-    assert "not a dataframe" in help_text
-    assert "Do not build charts" in help_text
-    assert "preview_rows" in help_text
+    assert runtime.registry.get("get_dataset") is None
+    assert "SQL execute with persist_result=true" in overview
+    assert "does not need a separate load/get step" in overview
+    assert "Prefer string-returning inspection helpers" in overview
+    assert "SQL execute tool with persist_result=True" in describe_help
+    assert "Return a text description" in describe_help
+    assert "low-level dict helper" in preview_help
+    assert "Prefer describe_dataset" in preview_help
+    assert "does not return a dataframe" in preview_help
+    assert "Do not build charts" in preview_help
+    assert "preview_rows" in preview_help
 
 
 def test_monty_rlm_help_lists_async_helpers(tmp_path) -> None:
@@ -174,6 +184,40 @@ def test_monty_visualization_help_lists_valid_plotly_kwargs(tmp_path) -> None:
     assert "color_continuous_scale" not in line_help
     assert "Any JSON-safe Figure.update_layout key is accepted" in line_help
     assert "color_continuous_scale" in bar_help
+
+
+def test_monty_registered_tools_include_usage_examples(tmp_path) -> None:
+    settings = Settings(
+        data_dir=tmp_path / "data",
+        chat_artifacts_dir=tmp_path / "data" / "chat_artifacts",
+    )
+    runtime = MontyPythonRuntime(TFRChatState(), settings)
+
+    missing = [
+        entry.name
+        for entry in runtime.registry.entries()
+        if not entry.usage_example
+        or "```python" not in entry.usage_example
+        or "# Prints" not in entry.usage_example
+    ]
+
+    assert missing == []
+
+
+def test_monty_usage_examples_emit_balanced_markdown_fences(tmp_path) -> None:
+    settings = Settings(
+        data_dir=tmp_path / "data",
+        chat_artifacts_dir=tmp_path / "data" / "chat_artifacts",
+    )
+    runtime = MontyPythonRuntime(TFRChatState(), settings)
+
+    help_text = runtime.help(["group_by", "create_bar_chart"])
+    fence_lines = [line for line in help_text.splitlines() if "```" in line]
+
+    assert len(fence_lines) == 4
+    assert fence_lines == ["```python", "```", "```python", "```"]
+    assert "\nby_status = group_by" in help_text
+    assert "\nchart = create_bar_chart" in help_text
 
 
 def test_monty_viridis_palette_is_green_first() -> None:
@@ -295,6 +339,41 @@ print(emitted["component"])
 
 
 @pytest.mark.anyio
+async def test_monty_describe_helpers_return_strings_for_handle_inspection(tmp_path) -> None:
+    settings = Settings(
+        data_dir=tmp_path / "data",
+        chat_artifacts_dir=tmp_path / "data" / "chat_artifacts",
+    )
+    state = TFRChatState()
+    store = ChatArtifactStore(settings)
+    dataset_handle = store.save_dataset(
+        state,
+        columns=["status", "amount"],
+        rows=[["open", 1200], ["closed", 500]],
+        label="Claims",
+        source="sql",
+    ).handle
+    runtime = MontyPythonRuntime(state, settings)
+
+    result = await runtime.execute(
+        f"""
+handles = describe_handles()
+handle_summary = describe_handle({dataset_handle!r})
+dataset_summary = describe_dataset({dataset_handle!r}, limit=1)
+print(handles)
+print(handle_summary)
+print(dataset_summary)
+"""
+    )
+
+    assert result["status"] == "success"
+    assert "ds_1: dataset; label='Claims'; shape=2x2; source=sql" in result["stdout"]
+    assert "Dataset handle: ds_1" in result["stdout"]
+    assert "Columns: status, amount" in result["stdout"]
+    assert '"amount": 1200' in result["stdout"]
+
+
+@pytest.mark.anyio
 async def test_monty_stack_metric_columns_prepares_stacked_bar_dataset(tmp_path) -> None:
     settings = Settings(
         data_dir=tmp_path / "data",
@@ -348,6 +427,89 @@ emit_plotly_chart(chart)
 
 
 @pytest.mark.anyio
+async def test_monty_charts_accept_preview_handles_and_direct_plotly_kwargs(tmp_path) -> None:
+    settings = Settings(
+        data_dir=tmp_path / "data",
+        chat_artifacts_dir=tmp_path / "data" / "chat_artifacts",
+    )
+    state = TFRChatState()
+    store = ChatArtifactStore(settings)
+    ds1 = store.save_dataset(
+        state,
+        columns=["status", "cnt"],
+        rows=[["complete", 8], ["pending", 2]],
+        label="Audit batch status counts",
+        source="test",
+    ).handle
+    ds2 = store.save_dataset(
+        state,
+        columns=["model_name", "status", "cnt"],
+        rows=[["gpt-5", "complete", 6], ["gpt-5", "failed", 1]],
+        label="Eval run status by model",
+        source="test",
+    ).handle
+    ds3 = store.save_dataset(
+        state,
+        columns=["reference_kind", "avg_score", "n", "min_score", "max_score"],
+        rows=[["r1", 0.72, 5, 0.2, 1.0], ["r2", 0.84, 7, 0.5, 1.0]],
+        label="Reference kind scores",
+        source="test",
+    ).handle
+    runtime = MontyPythonRuntime(state, settings)
+
+    result = await runtime.execute(
+        f"""
+ds1 = preview_dataset({ds1!r})
+ds2 = preview_dataset({ds2!r})
+ds3 = preview_dataset({ds3!r})
+
+chart1 = create_bar_chart(ds1, x="status", y="cnt", title="Audit batch status counts")
+emit_plotly_chart(chart1)
+
+chart2 = create_bar_chart(
+    ds2,
+    x="model_name",
+    y="cnt",
+    color="status",
+    barmode="group",
+    title="Eval runs: model_name x status",
+)
+emit_plotly_chart(chart2)
+
+chart3 = create_bar_chart(
+    ds3,
+    x="reference_kind",
+    y="avg_score",
+    title="Avg eval_comparisons score by reference kind",
+)
+emit_plotly_chart(chart3)
+
+chart4 = create_scatter_plot(
+    ds3,
+    x="min_score",
+    y="max_score",
+    title="Min vs Max score by reference kind",
+    text="reference_kind",
+)
+emit_plotly_chart(chart4)
+
+print("done")
+"""
+    )
+
+    assert result["status"] == "success"
+    assert result["stdout"] == "done\n"
+    emitted_charts = [
+        component for component in state.components if component.type == "a2ui.PlotlyChart"
+    ]
+    assert len(emitted_charts) == 4
+    assert store.load_plotly_chart(state, state.handles[-1].handle).figure["data"][0]["text"] == [
+        "r1",
+        "r2",
+    ]
+
+
+@pytest.mark.anyio
 async def test_monty_runtime_errors_are_concise_and_repl_recovers(tmp_path) -> None:
     settings = Settings(
         data_dir=tmp_path / "data",
@@ -380,7 +542,7 @@ emitted = emit_plotly_chart(chart)
     )
 
     assert failed["status"] == "error"
-    assert "unexpected keyword argument 'x_col'" in failed["error"]
+    assert "missing 1 required positional argument: 'x'" in failed["error"]
     assert "Traceback" not in failed["error"]
     assert failed["traceback"] is None
     assert failed["error_details"]["error_type"] == "TypeError"

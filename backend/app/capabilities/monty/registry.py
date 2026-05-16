@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 import re
+import textwrap
 from abc import ABC
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -25,9 +26,14 @@ class ToolArgument:
     description: str = ""
 
     def render_signature_fragment(self) -> str:
+        prefix = ""
+        if self.kind == "var_positional":
+            prefix = "*"
+        elif self.kind == "var_keyword":
+            prefix = "**"
         suffix = f": {self.annotation}" if self.annotation else ""
         default = f" = {self.default}" if self.default is not None else ""
-        return f"{self.name}{suffix}{default}"
+        return f"{prefix}{self.name}{suffix}{default}"
 
     def render_argument_help(self) -> str:
         annotation = f" ({self.annotation})" if self.annotation else ""
@@ -267,7 +273,7 @@ def _parse_docstring(doc: str) -> dict[str, Any]:
 
     sections["args"] = _parse_args_section(buffers["args"])
     sections["returns"] = "\n".join(line.strip() for line in buffers["returns"]).strip()
-    sections["examples"] = "\n".join(buffers["examples"]).strip()
+    sections["examples"] = textwrap.dedent("\n".join(buffers["examples"])).strip()
     return sections
 
 
