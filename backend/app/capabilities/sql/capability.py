@@ -51,7 +51,10 @@ class SQLDatabaseCapability(AbstractCapability[TFRChatDeps]):
                 "and ask whether the user wants the result table shown. execute has "
                 "persist_result=false by default. Set persist_result=true only when a "
                 "downstream table, chart, or Python sandbox step needs a durable dataset "
-                "handle for the full result. "
+                "handle for the full result. Python sandbox variables and handles created "
+                "inside python_sandbox_execute are not database tables and are not visible "
+                "to SQL; SQL can only query the configured application database plus the "
+                "selected_home_rows CTE when scope='selected'. "
                 f"{database.prompt_instructions}"
             )
 
@@ -62,7 +65,9 @@ class SQLDatabaseCapability(AbstractCapability[TFRChatDeps]):
             id="sql_database",
             instructions=(
                 "Use these read-only SQL tools for database discovery and analytics. "
-                "Never guess table relationships; inspect schema and foreign keys first."
+                "Never guess table relationships; inspect schema and foreign keys first. "
+                "Do not reference Python sandbox variables or Monty-created handles in SQL; "
+                "they are not present in the database."
             ),
         )
 
@@ -245,7 +250,9 @@ class SQLDatabaseCapability(AbstractCapability[TFRChatDeps]):
 
             Use this for SELECT or WITH queries after inspecting schema. The SQL
             should include its own WHERE/LIMIT clauses when needed for correctness
-            or performance.
+            or performance. Python sandbox variables and handles created by
+            python_sandbox_execute are not SQL tables and cannot be referenced
+            here.
 
             Args:
                 sql: A read-only SELECT or WITH query. Do not include write,

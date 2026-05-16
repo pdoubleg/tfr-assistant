@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     image_model: str = "gpt-image-2"
     generated_images_dir: Path = Path("data/generated_images")
     chat_artifacts_dir: Path = Path("data/chat_artifacts")
+    monty_rlm_model: str = "openai:gpt-5.4-nano"
+    monty_rlm_max_batch_size: int = 12
+    monty_rlm_max_prompt_chars: int = 200_000
+    monty_rlm_max_llm_calls: int = 50
 
     model_config = SettingsConfigDict(extra="allow")
 

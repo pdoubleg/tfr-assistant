@@ -21,6 +21,7 @@ export interface CodeDisclosureProps {
   defaultOpen?: boolean;
   copyable?: boolean;
   density?: "default" | "compact";
+  tone?: "default" | "error";
   className?: string;
 }
 
@@ -32,6 +33,7 @@ export function CodeDisclosure({
   defaultOpen = false,
   copyable = true,
   density = "default",
+  tone = "default",
   className,
 }: CodeDisclosureProps) {
   const [open, setOpen] = useState(defaultOpen);
@@ -61,6 +63,7 @@ export function CodeDisclosure({
     <div
       className={cn(
         "overflow-hidden rounded-md border bg-background",
+        tone === "error" && "border-destructive/35",
         compact ? "text-xs" : "text-sm",
         className,
       )}
@@ -68,7 +71,9 @@ export function CodeDisclosure({
       <div
         className={cn(
           "flex items-center gap-2 bg-secondary/45",
+          tone === "error" && "bg-destructive/10",
           open && "border-b",
+          open && tone === "error" && "border-destructive/30",
           compact ? "min-h-8 px-2 py-1.5" : "min-h-11 px-3 py-2",
         )}
       >
@@ -82,8 +87,19 @@ export function CodeDisclosure({
           ) : (
             <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
           )}
-          <Code2 className={cn("shrink-0 text-primary", compact ? "h-3.5 w-3.5" : "h-4 w-4")} />
-          <span className="min-w-0 shrink-0 truncate font-medium">
+          <Code2
+            className={cn(
+              "shrink-0",
+              tone === "error" ? "text-destructive" : "text-primary",
+              compact ? "h-3.5 w-3.5" : "h-4 w-4",
+            )}
+          />
+          <span
+            className={cn(
+              "min-w-0 shrink-0 truncate font-medium",
+              tone === "error" && "text-destructive",
+            )}
+          >
             {title || `${language.toUpperCase()} code`}
           </span>
           {compact && caption ? (

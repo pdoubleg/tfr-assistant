@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 import json
+import threading
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 import pandas as pd
 import plotly.express as px
 import plotly.io as pio
+from pydantic_ai import Agent
+from pydantic_ai.models.test import TestModel
 
 from app.core.config import Settings
 from app.models.chat_state import TFRChatState
@@ -18,9 +22,11 @@ from app.presenters.a2ui import generate_data_table, generate_plotly_chart
 from app.services.chat_artifacts import ChatArtifactStore, dataframe_preview
 
 from .registry import FunctionRegistry, ToolArgument, ToolCollection, ToolSpec, tool
+from .usage import UsageTracker
 
 FilterOperator = Literal["==", "!=", ">", ">=", "<", "<=", "contains", "in", "isna", "notna"]
-PLOTLY_COLORWAY = px.colors.sequential.Viridis
+PLOTLY_COLORWAY = list(reversed(px.colors.sequential.Viridis))
+PLOTLY_CONTINUOUS_SCALE = "Viridis_r"
 BAR_PROTECTED_KEYS = {"data_frame", "x", "y", "color", "title"}
 LINE_PROTECTED_KEYS = {"data_frame", "x", "y", "color", "title"}
 SCATTER_PROTECTED_KEYS = {"data_frame", "x", "y", "color", "title"}
@@ -32,6 +38,9 @@ LAYOUT_KWARGS_HELP = (
     "xaxis_title, yaxis_title, showlegend, legend, margin, hovermode, template, "
     "height, and width."
 )
+DEFAULT_RLM_BATCH_SIZE = 12
+DEFAULT_RLM_PROMPT_CHARS = 200_000
+DEFAULT_RLM_MAX_LLM_CALLS = 24
 
 
 def _allowed_plotly_kwargs(
@@ -53,21 +62,90 @@ PLOTLY_KWARGS_BY_TOOL: dict[str, tuple[str, ...]] = {
 }
 
 
+def _as_column_list(value: list[str] | str, *, argument_name: str) -> list[str]:
+    columns = [value] if isinstance(value, str) else list(value)
+    if not columns or any(not isinstance(column, str) or not column for column in columns):
+        raise ValueError(f"{argument_name} must be a non-empty column name or list of names.")
+    return columns
+
+
+def _require_columns(dataframe: pd.DataFrame, columns: list[str]) -> None:
+    missing = [column for column in columns if column not in dataframe.columns]
+    if missing:
+        raise ValueError(f"Unknown dataset column(s): {', '.join(missing)}")
+
+
+def _require_output_columns(
+    *,
+    existing_columns: pd.Index,
+    output_columns: list[str],
+    preserved_columns: list[str],
+) -> None:
+    if any(not column for column in output_columns):
+        raise ValueError("Output column names cannot be empty.")
+    conflicts = sorted(set(output_columns) & set(preserved_columns))
+    if conflicts:
+        raise ValueError(
+            "Output column name(s) conflict with preserved columns: " + ", ".join(conflicts)
+        )
+    existing_names = {str(column) for column in existing_columns}
+    existing_conflicts = sorted(set(output_columns) & existing_names)
+    if existing_conflicts:
+        raise ValueError(
+            "Output column name(s) already exist in the input dataset: "
+            + ", ".join(existing_conflicts)
+        )
+
+
 @dataclass(slots=True)
 class MontyRuntimeContext:
     state: TFRChatState
     settings: Settings
+    rlm_usage: UsageTracker = field(default_factory=UsageTracker)
+    rlm_call_count: int = 0
+    rlm_lock: threading.Lock = field(default_factory=threading.Lock)
 
     @property
     def store(self) -> ChatArtifactStore:
         return ChatArtifactStore(self.settings)
+
+    def reset_rlm_tracking(self) -> None:
+        with self.rlm_lock:
+            self.rlm_call_count = 0
+            self.rlm_usage.reset()
+
+    def reserve_rlm_calls(self, count: int, *, max_calls: int) -> None:
+        if count < 1:
+            return
+        with self.rlm_lock:
+            if self.rlm_call_count + count > max_calls:
+                raise RuntimeError(
+                    f"LLM call limit exceeded: {self.rlm_call_count} + {count} > "
+                    f"{max_calls}. Use Python code for aggregation or split work into "
+                    "fewer sub-LLM calls."
+                )
+            self.rlm_call_count += count
+
+    def rlm_tracking_payload(self) -> dict[str, Any]:
+        with self.rlm_lock:
+            call_count = self.rlm_call_count
+        return {
+            "call_count": call_count,
+            "max_llm_calls": int(
+                getattr(self.settings, "monty_rlm_max_llm_calls", DEFAULT_RLM_MAX_LLM_CALLS)
+            ),
+            "usage": self.rlm_usage.as_dict(),
+        }
 
 
 class HandlesCollection(ToolCollection):
     """Discover and emit file-backed chat handles."""
 
     name = "handles"
-    description = "Inspect dataset/chart handles and emit handled artifacts into the chat UI."
+    description = (
+        "Inspect dataset/chart handles, preview dataset metadata, and emit handled "
+        "artifacts into the chat UI. Preview helpers do not return dataframes."
+    )
 
     def __init__(self, context: MontyRuntimeContext) -> None:
         self.context = context
@@ -96,14 +174,38 @@ class HandlesCollection(ToolCollection):
 
     @tool
     def get_dataset(self, dataset_handle: str, *, limit: int = 10) -> dict[str, Any]:
-        """Preview rows and columns for a dataset handle.
+        """Preview metadata for a dataset handle.
+
+        This returns a small preview dictionary, not a dataframe and not a new
+        dataset handle. Use it to inspect columns and a few sample records only.
+        Do not build charts or transformed datasets from preview_rows because
+        preview_rows may omit most of the dataset. For real transforms, pass the
+        original handle to helpers such as select_columns(), group_by(),
+        melt_columns(), stack_metric_columns(), or create_bar_chart().
 
         Args:
             dataset_handle: Handle pointing to a stored dataset artifact.
             limit: Maximum preview row count.
 
         Returns:
-            dict[str, Any]: Dataset columns, row count, and preview records.
+            dict[str, Any]: Dataset columns, row count, and preview records only.
+        """
+        return self.preview_dataset(dataset_handle, limit=limit)
+
+    @tool
+    def preview_dataset(self, dataset_handle: str, *, limit: int = 10) -> dict[str, Any]:
+        """Preview metadata for a dataset handle.
+
+        Prefer this clearer helper name over get_dataset() when inspecting a
+        handle. It returns columns, row_count, and preview_rows only; it is not
+        a dataframe and is not a complete copy of the dataset.
+
+        Args:
+            dataset_handle: Handle pointing to a stored dataset artifact.
+            limit: Maximum preview row count.
+
+        Returns:
+            dict[str, Any]: Dataset columns, row count, and preview records only.
         """
         dataset = self.context.store.load_dataset(self.context.state, dataset_handle)
         return dataframe_preview(dataset, limit=limit)
@@ -173,7 +275,10 @@ class DataframeOperationsCollection(ToolCollection):
     """Create new dataset handles through common dataframe transforms."""
 
     name = "dataframe_operations"
-    description = "Transform stored datasets for EDA and visualization prep."
+    description = (
+        "Transform full stored datasets into new dataset handles for EDA and "
+        "visualization prep, including long-form and stacked-metric reshaping."
+    )
 
     def __init__(self, context: MontyRuntimeContext) -> None:
         self.context = context
@@ -308,6 +413,114 @@ class DataframeOperationsCollection(ToolCollection):
             for column in grouped.columns
         ]
         return self._save(grouped, label="Grouped dataset", source="monty.group_by")
+
+    @tool
+    def melt_columns(
+        self,
+        dataset_handle: str,
+        id_vars: list[str] | str,
+        value_vars: list[str],
+        *,
+        var_name: str = "metric",
+        value_name: str = "value",
+    ) -> str:
+        """Reshape full stored dataset columns from wide form to long form.
+
+        Use this for multi-series or stacked bar preparation when several
+        numeric metric columns should become rows with a metric label and value.
+        This operates on the full stored dataset behind the handle; it does not
+        use get_dataset().preview_rows.
+
+        Args:
+            dataset_handle: Input dataset handle.
+            id_vars: Column or columns to keep as identifiers, such as a category.
+            value_vars: Metric/value columns to unpivot into rows.
+            var_name: Name for the output metric-label column.
+            value_name: Name for the output metric-value column.
+
+        Returns:
+            str: New long-form dataset handle.
+        """
+        dataframe = self._load(dataset_handle)
+        id_columns = _as_column_list(id_vars, argument_name="id_vars")
+        value_columns = _as_column_list(value_vars, argument_name="value_vars")
+        _require_columns(dataframe, [*id_columns, *value_columns])
+        _require_output_columns(
+            existing_columns=dataframe.columns,
+            output_columns=[var_name, value_name],
+            preserved_columns=id_columns,
+        )
+        long = dataframe.melt(
+            id_vars=id_columns,
+            value_vars=value_columns,
+            var_name=var_name,
+            value_name=value_name,
+        )
+        return self._save(long, label="Long-form dataset", source="monty.melt_columns")
+
+    @tool
+    def stack_metric_columns(
+        self,
+        dataset_handle: str,
+        category_columns: list[str] | str,
+        metric_columns: list[str],
+        *,
+        metric_name: str = "metric",
+        value_name: str = "value",
+        aggfunc: Literal["sum", "mean", "count", "min", "max"] = "sum",
+    ) -> str:
+        """Prepare an aggregated long-form dataset for stacked bars.
+
+        Use this when a dataset has one row per observation and several numeric
+        metric columns, such as items_completed and items_other. The helper
+        melts the full dataset to metric/value rows and aggregates duplicate
+        category+metric pairs, so Plotly stacked bars render one segment per
+        metric instead of many preview-row stripes.
+
+        Args:
+            dataset_handle: Input dataset handle.
+            category_columns: Category column or columns for the bar x-axis.
+            metric_columns: Numeric columns to stack.
+            metric_name: Name for the output metric-label column.
+            value_name: Name for the output metric-value column.
+            aggfunc: Aggregation to apply for duplicate category+metric pairs.
+
+        Returns:
+            str: New aggregated long-form dataset handle with category columns,
+            metric_name, and value_name columns.
+        """
+        dataframe = self._load(dataset_handle)
+        category_list = _as_column_list(category_columns, argument_name="category_columns")
+        metric_list = _as_column_list(metric_columns, argument_name="metric_columns")
+        _require_columns(dataframe, [*category_list, *metric_list])
+        _require_output_columns(
+            existing_columns=dataframe.columns,
+            output_columns=[metric_name, value_name],
+            preserved_columns=category_list,
+        )
+
+        long = dataframe.melt(
+            id_vars=category_list,
+            value_vars=metric_list,
+            var_name=metric_name,
+            value_name=value_name,
+        )
+        original_non_null = long[value_name].notna()
+        numeric_values = pd.to_numeric(long[value_name], errors="coerce")
+        if numeric_values[original_non_null].isna().any():
+            raise ValueError("stack_metric_columns requires numeric metric columns.")
+        long[value_name] = numeric_values
+        grouped = (
+            long.groupby([*category_list, metric_name], dropna=False, as_index=False)[value_name]
+            .agg(aggfunc)
+            .sort_values([*category_list, metric_name])
+            .reset_index(drop=True)
+        )
+        return self._save(
+            grouped,
+            label="Stacked metric dataset",
+            source="monty.stack_metric_columns",
+        )
 
     @tool
     def value_counts(
@@ -542,7 +755,6 @@ class VisualizationsCollection(ToolCollection):
             protected_keys=BAR_PROTECTED_KEYS,
             defaults={
                 "color_discrete_sequence": PLOTLY_COLORWAY,
-                "color_continuous_scale": "Viridis",
                 "template": "plotly_white",
             },
         )
@@ -651,7 +863,7 @@ class VisualizationsCollection(ToolCollection):
             protected_keys=SCATTER_PROTECTED_KEYS,
             defaults={
                 "color_discrete_sequence": PLOTLY_COLORWAY,
-                "color_continuous_scale": "Viridis",
+                "color_continuous_scale": PLOTLY_CONTINUOUS_SCALE,
                 "template": "plotly_white",
             },
         )
@@ -861,9 +1073,183 @@ class VisualizationsCollection(ToolCollection):
         }
 
 
+class RLMCollection(ToolCollection):
+    """Prepare text rows and query sub-LLMs for semantic analysis."""
+
+    name = "rlm"
+    description = (
+        "Create text lists from dataset handles and query sub-LLMs for row-level or "
+        "chunk-level semantic analysis. Async helpers must be called with await, "
+        "and all sub-LLM calls share the configured call budget for this artifact session."
+    )
+
+    def __init__(self, context: MontyRuntimeContext) -> None:
+        self.context = context
+
+    def _load(self, dataset_handle: str) -> pd.DataFrame:
+        return self.context.store.load_dataset(self.context.state, dataset_handle).to_dataframe()
+
+    @property
+    def _model_name(self) -> str:
+        configured = getattr(self.context.settings, "monty_rlm_model", None)
+        return str(configured or self.context.settings.chat_model)
+
+    @property
+    def _max_batch_size(self) -> int:
+        return int(
+            getattr(self.context.settings, "monty_rlm_max_batch_size", DEFAULT_RLM_BATCH_SIZE)
+        )
+
+    @property
+    def _max_prompt_chars(self) -> int:
+        return int(
+            getattr(self.context.settings, "monty_rlm_max_prompt_chars", DEFAULT_RLM_PROMPT_CHARS)
+        )
+
+    @property
+    def _max_llm_calls(self) -> int:
+        return int(
+            getattr(self.context.settings, "monty_rlm_max_llm_calls", DEFAULT_RLM_MAX_LLM_CALLS)
+        )
+
+    def _build_agent(self) -> Agent[None, str]:
+        model = (
+            TestModel(custom_output_text="RLM test response")
+            if self._model_name == "test"
+            else self._model_name
+        )
+        return Agent(
+            model,
+            output_type=str,
+            instructions=(
+                "You are a focused sub-LLM for semantic analysis of text snippets. "
+                "Answer the caller's prompt directly and concisely. If the prompt asks "
+                "for extraction, preserve relevant evidence and avoid inventing facts."
+            ),
+        )
+
+    async def _query_async(self, agent: Agent[None, str], prompt: str) -> str:
+        result = await agent.run(prompt)
+        self.context.rlm_usage.incr(result.usage())
+        return result.output
+
+    @tool
+    def dataset_texts(
+        self,
+        dataset_handle: str,
+        column: str,
+        *,
+        max_rows: int = 1000,
+        skip_empty: bool = True,
+    ) -> list[str]:
+        """Convert one dataset column into one text string per row.
+
+        Use this before llm_query_batched() when a SQL result or transformed
+        dataset contains many rows of notes, descriptions, claim text, or other
+        free-form fields. Store the returned list in a REPL variable, then build
+        prompts from it without printing the whole list. For multiple text
+        columns, call this helper once per column and assign each list its own
+        variable name.
+
+        Args:
+            dataset_handle: Input dataset handle.
+            column: Single column name to convert.
+            max_rows: Maximum number of rows to convert.
+            skip_empty: Whether to omit rows where the selected value is empty.
+
+        Returns:
+            list[str]: One text string per included dataset row for the selected column.
+        """
+        if max_rows < 1:
+            raise ValueError("max_rows must be at least 1.")
+        if not isinstance(column, str) or not column:
+            raise ValueError("dataset_texts requires exactly one column name.")
+        dataframe = self._load(dataset_handle)
+        if column not in dataframe.columns:
+            raise ValueError(f"Unknown dataset column: {column}")
+
+        texts: list[str] = []
+        for value in dataframe[column].head(max_rows):
+            text = "" if value is None else str(value).strip()
+            if text or not skip_empty:
+                texts.append(text)
+        return texts
+
+    @tool
+    async def llm_query(self, prompt: str) -> str:
+        """Query a sub-LLM with one prompt string.
+
+        This is an async helper. In sandbox code, call it with await:
+        `answer = await llm_query(prompt)`.
+
+        Args:
+            prompt: Prompt to send to the sub-LLM.
+
+        Returns:
+            str: The sub-LLM response text.
+        """
+        prompt = prompt.strip()
+        if not prompt:
+            raise ValueError("prompt cannot be empty.")
+        if len(prompt) > self._max_prompt_chars:
+            raise ValueError(
+                f"prompt is too long: {len(prompt)} characters > {self._max_prompt_chars}"
+            )
+        self.context.reserve_rlm_calls(1, max_calls=self._max_llm_calls)
+        return await self._query_async(self._build_agent(), prompt)
+
+    @tool
+    async def llm_query_batched(self, prompts: list[str]) -> list[str]:
+        """Query a sub-LLM for multiple prompt strings concurrently.
+
+        Use this when rows or chunks can be analyzed independently. This helper
+        preserves result order. In sandbox code, call it with await:
+        `answers = await llm_query_batched(prompts)`.
+
+        Args:
+            prompts: Prompt strings to send concurrently.
+
+        Returns:
+            list[str]: Sub-LLM response text for each prompt, in input order.
+        """
+        if not prompts:
+            return []
+        if len(prompts) > self._max_batch_size:
+            raise ValueError(
+                f"Too many prompts for one batch: {len(prompts)} > {self._max_batch_size}. "
+                "Split the work into smaller batches."
+            )
+        normalized: list[str] = []
+        for index, prompt in enumerate(prompts):
+            text = str(prompt).strip()
+            if not text:
+                raise ValueError(f"Prompt at index {index} is empty.")
+            if len(text) > self._max_prompt_chars:
+                raise ValueError(
+                    f"Prompt at index {index} is too long: "
+                    f"{len(text)} characters > {self._max_prompt_chars}"
+                )
+            normalized.append(text)
+
+        self.context.reserve_rlm_calls(len(normalized), max_calls=self._max_llm_calls)
+        agent = self._build_agent()
+        results = await asyncio.gather(
+            *(self._query_async(agent, prompt) for prompt in normalized),
+            return_exceptions=True,
+        )
+        output: list[str] = []
+        for result in results:
+            if isinstance(result, BaseException):
+                output.append(f"[ERROR] {result}")
+            else:
+                output.append(result)
+        return output
+
+
 def build_monty_registry(context: MontyRuntimeContext) -> FunctionRegistry:
     registry = FunctionRegistry()
     registry.register_collection(HandlesCollection(context))
     registry.register_collection(DataframeOperationsCollection(context))
+    registry.register_collection(RLMCollection(context))
     registry.register_collection(VisualizationsCollection(context))
     return registry

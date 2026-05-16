@@ -292,6 +292,11 @@ export interface ToolStep {
     caption?: string;
     defaultOpen?: boolean;
   };
+  error?: {
+    message: string;
+    title?: string;
+    caption?: string;
+  };
 }
 
 export interface ChatHandleMetadata {

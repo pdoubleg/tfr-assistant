@@ -58,6 +58,8 @@ class ChatStateStatusReporter:
         self.state.current_step = message
         if status == "error":
             self.state.error_message = message
+        else:
+            self.state.error_message = None
         if progress is not None:
             self.state.progress = max(self.state.progress, progress)
         log_activity(self.state, message, status, self.source_name)

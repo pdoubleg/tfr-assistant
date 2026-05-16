@@ -3,18 +3,18 @@
 import { BarChart3 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-const VIRIDIS_COLORWAY = [
-  "#440154",
-  "#482878",
-  "#3e4989",
-  "#31688e",
-  "#26828e",
-  "#1f9e89",
-  "#35b779",
-  "#6ece58",
-  "#b5de2b",
+const VIRIDIS_CONTROL_COLORS = [
   "#fde725",
-];
+  "#b5de2b",
+  "#6ece58",
+  "#35b779",
+  "#1f9e89",
+  "#26828e",
+  "#31688e",
+  "#3e4989",
+  "#482878",
+  "#440154",
+] as const;
 
 export interface PlotlyChartProps {
   data: unknown[];
@@ -43,13 +43,18 @@ export function PlotlyChart({
     return () => observer.disconnect();
   }, []);
 
+  const resolvedData = useMemo(
+    () => (Array.isArray(data) ? cloneJson(data) : []),
+    [data],
+  );
+
   const resolvedLayout = useMemo(
     () => {
       const theme = plotlyTheme(isDarkTheme);
       return {
         ...cloneJson(layout ?? {}),
         autosize: true,
-        colorway: VIRIDIS_COLORWAY,
+        colorway: buildViridisColorway(resolvedData.length),
         margin: { l: 54, r: 24, t: caption ? 46 : 30, b: 50, ...(layout?.margin as object | undefined) },
         paper_bgcolor: theme.paper,
         plot_bgcolor: theme.plot,
@@ -86,7 +91,7 @@ export function PlotlyChart({
         },
       };
     },
-    [caption, isDarkTheme, layout],
+    [caption, isDarkTheme, layout, resolvedData.length],
   );
 
   const resolvedConfig = useMemo(
@@ -97,11 +102,6 @@ export function PlotlyChart({
       ...(config ?? {}),
     }),
     [config],
-  );
-
-  const resolvedData = useMemo(
-    () => (Array.isArray(data) ? cloneJson(data) : []),
-    [data],
   );
 
   useEffect(() => {
@@ -196,6 +196,76 @@ function plotlyTheme(isDarkTheme: boolean) {
     axis: color("--border", isDarkTheme ? "#374151" : "#d1d5db"),
     hover: color("--card", isDarkTheme ? "#1f2937" : "#ffffff"),
   };
+}
+
+/**
+ * Builds a Viridis-based categorical Plotly colorway for the current trace count.
+ *
+ * Plotly cycles `layout.colorway` when there are more traces than colors. Sampling
+ * the Viridis control colors lets larger charts keep distinct colors instead of
+ * wrapping back to the first series color.
+ *
+ * Args:
+ *   traceCount: The number of Plotly traces that may need automatic colors.
+ *
+ * Returns:
+ *   A green-first Viridis colorway sized for the supplied trace count.
+ *
+ * Example:
+ *   buildViridisColorway(12);
+ */
+function buildViridisColorway(traceCount: number): string[] {
+  const colorCount = Math.max(traceCount, VIRIDIS_CONTROL_COLORS.length);
+
+  if (colorCount === VIRIDIS_CONTROL_COLORS.length) {
+    return [...VIRIDIS_CONTROL_COLORS];
+  }
+
+  return Array.from({ length: colorCount }, (_, index) => (
+    interpolateViridisColor(index / (colorCount - 1))
+  ));
+}
+
+/**
+ * Samples the green-first Viridis control colors at a normalized position.
+ *
+ * Args:
+ *   position: A value between 0 and 1, where 0 is green/yellow and 1 is purple.
+ *
+ * Returns:
+ *   A hex color interpolated between the nearest Viridis control colors.
+ */
+function interpolateViridisColor(position: number): string {
+  const clampedPosition = Math.min(Math.max(position, 0), 1);
+  const scaledPosition = clampedPosition * (VIRIDIS_CONTROL_COLORS.length - 1);
+  const lowerIndex = Math.floor(scaledPosition);
+  const upperIndex = Math.ceil(scaledPosition);
+  const blendAmount = scaledPosition - lowerIndex;
+
+  return mixHexColors(
+    VIRIDIS_CONTROL_COLORS[lowerIndex],
+    VIRIDIS_CONTROL_COLORS[upperIndex],
+    blendAmount,
+  );
+}
+
+function mixHexColors(startHex: string, endHex: string, amount: number): string {
+  const startRgb = hexToRgb(startHex);
+  const endRgb = hexToRgb(endHex);
+  const mixedRgb = startRgb.map((channel, index) => (
+    Math.round(channel + (endRgb[index] - channel) * amount)
+  ));
+
+  return rgbToHex(mixedRgb);
+}
+
+function hexToRgb(hex: string): [number, number, number] {
+  const value = Number.parseInt(hex.slice(1), 16);
+  return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
+}
+
+function rgbToHex(rgb: number[]): string {
+  return `#${rgb.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
 }
 
 function cloneJson<T>(value: T): T {

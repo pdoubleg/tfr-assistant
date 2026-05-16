@@ -35,6 +35,13 @@ def test_validate_readonly_query_rejects_multi_statement_write() -> None:
         validate_readonly_query("select * from audit_reviews; drop table audit_reviews")
 
 
+def test_sql_instructions_explain_python_sandbox_is_separate() -> None:
+    instructions = SQLDatabaseCapability().get_instructions()(None)  # type: ignore[arg-type]
+
+    assert "Python sandbox variables and handles" in instructions
+    assert "not visible to SQL" in instructions
+
+
 def test_selected_scope_requires_selected_home_rows_reference() -> None:
     state = TFRChatState(
         run_context=ChatRunContext(

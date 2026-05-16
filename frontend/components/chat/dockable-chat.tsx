@@ -17,7 +17,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import type { FormEvent, ReactNode } from "react";
+import type { FormEvent, KeyboardEvent, ReactNode } from "react";
 import { Children, isValidElement, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
@@ -86,6 +86,8 @@ const PANEL_MARGIN = 8;
 const DEFAULT_SMALL_SIZE = { width: 520, height: 0 };
 const LARGE_PANEL_WIDTH_RATIO = 0.66;
 const LARGE_PANEL_MAX_WIDTH = 1280;
+const PROMPT_HISTORY_LIMIT = 30;
+const PROMPT_HISTORY_STORAGE_KEY = "tfr-assistant.prompt-history.v1";
 
 export function DockableChat({
   mode,
@@ -95,6 +97,8 @@ export function DockableChat({
   onModeChange: (mode: ChatPanelMode) => void;
 }) {
   const [input, setInput] = useState("");
+  const [promptHistory, setPromptHistory] = useState<string[]>(readPromptHistory);
+  const [promptHistoryIndex, setPromptHistoryIndex] = useState<number | null>(null);
   const {
     agent,
     homeTableContext,
@@ -115,6 +119,7 @@ export function DockableChat({
   const lastLargeRectRef = useRef(panelRect);
   const [isDarkTheme, setIsDarkTheme] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const promptDraftRef = useRef("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastVisibleModeRef = useRef<Exclude<ChatPanelMode, "hidden">>("small");
   const previousModeRef = useRef<ChatPanelMode>(mode);
@@ -169,6 +174,10 @@ export function DockableChat({
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    writePromptHistory(promptHistory);
+  }, [promptHistory]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -377,12 +386,75 @@ export function DockableChat({
     }
   };
 
+  const rememberPrompt = (content: string) => {
+    setPromptHistory((current) => {
+      const withoutDuplicate = current.filter((item) => item !== content);
+      return [...withoutDuplicate, content].slice(-PROMPT_HISTORY_LIMIT);
+    });
+    setPromptHistoryIndex(null);
+    promptDraftRef.current = "";
+  };
+
+  const navigatePromptHistory = (direction: "previous" | "next") => {
+    if (!promptHistory.length) return;
+    if (direction === "previous") {
+      const nextIndex =
+        promptHistoryIndex === null
+          ? promptHistory.length - 1
+          : Math.max(promptHistoryIndex - 1, 0);
+      if (promptHistoryIndex === null) {
+        promptDraftRef.current = input;
+      }
+      setPromptHistoryIndex(nextIndex);
+      setInput(promptHistory[nextIndex]);
+      return;
+    }
+
+    if (promptHistoryIndex === null) return;
+    const nextIndex = promptHistoryIndex + 1;
+    if (nextIndex >= promptHistory.length) {
+      setPromptHistoryIndex(null);
+      setInput(promptDraftRef.current);
+      promptDraftRef.current = "";
+      return;
+    }
+    setPromptHistoryIndex(nextIndex);
+    setInput(promptHistory[nextIndex]);
+  };
+
+  const handleInputKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      void sendMessage();
+      return;
+    }
+
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    const textarea = event.currentTarget;
+    const atStart = textarea.selectionStart === 0 && textarea.selectionEnd === 0;
+    const atEnd =
+      textarea.selectionStart === textarea.value.length &&
+      textarea.selectionEnd === textarea.value.length;
+
+    if (event.key === "ArrowUp" && (promptHistoryIndex !== null || atStart)) {
+      event.preventDefault();
+      navigatePromptHistory("previous");
+      return;
+    }
+
+    if (event.key === "ArrowDown" && (promptHistoryIndex !== null || atEnd)) {
+      event.preventDefault();
+      navigatePromptHistory("next");
+    }
+  };
+
   const sendMessage = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
     const content = input.trim();
     if (!content || isRunning) return;
 
     shouldStickToBottomRef.current = true;
+    rememberPrompt(content);
     setInput("");
     try {
       await runChatMessage(content);
@@ -483,13 +555,12 @@ export function DockableChat({
             className="max-h-[180px] min-h-[48px] resize-none border-0 px-2 py-2 shadow-none focus-visible:ring-0"
             placeholder="Ask about a review, form, eval result, or workflow..."
             value={input}
-            onChange={(event) => setInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                void sendMessage();
-              }
+            onChange={(event) => {
+              setInput(event.target.value);
+              setPromptHistoryIndex(null);
+              promptDraftRef.current = "";
             }}
+            onKeyDown={handleInputKeyDown}
           />
           <div className="flex items-center justify-between gap-2 px-1 pb-1">
             <span className="text-xs text-muted-foreground">
@@ -525,20 +596,30 @@ function agentMessageToChatMessage(
     const steps = toolCalls.map((toolCall) => {
       const completed = completedToolCallIds.has(toolCall.id) || responseStarted;
       const toolResultContent = toolResultContentById.get(toolCall.id);
+      const failed = isToolResultError(toolResultContent);
+      const executionError = getToolResultExecutionError(toolResultContent);
       return {
         id: toolCall.id,
         message: formatToolStatusMessage(
           toolCall.function.name,
           completed,
           toolCall.function.arguments,
+          failed,
         ),
-        status: completed || !isRunning ? "completed" : "in_progress",
+        status: failed ? "error" : completed || !isRunning ? "completed" : "in_progress",
         code:
           toolResultCodePreview(
             toolCall.function.name,
             toolCall.function.arguments,
             toolResultContent,
           ) ?? toolCallCodePreview(toolCall.function.name, toolCall.function.arguments),
+        error: executionError
+          ? {
+              message: executionError,
+              title: "Execution Error",
+              caption: "Returned to model",
+            }
+          : undefined,
       } satisfies ToolStep;
     });
     return [
@@ -619,6 +700,34 @@ function findLastIndex<T>(items: T[], predicate: (item: T, index: number) => boo
   return -1;
 }
 
+function readPromptHistory(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(PROMPT_HISTORY_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      .slice(-PROMPT_HISTORY_LIMIT);
+  } catch {
+    return [];
+  }
+}
+
+function writePromptHistory(history: string[]) {
+  if (typeof window === "undefined") return;
+  try {
+    if (!history.length) {
+      window.localStorage.removeItem(PROMPT_HISTORY_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(PROMPT_HISTORY_STORAGE_KEY, JSON.stringify(history));
+  } catch {
+    // Ignore storage errors; prompt history is a convenience layer.
+  }
+}
+
 type ToolCallLike = {
   id: string;
   function: {
@@ -665,9 +774,88 @@ function getToolResultContentById(messages: Message[]) {
   for (const message of messages) {
     const toolCallId = getToolResultCallId(message);
     if (!toolCallId) continue;
-    results.set(toolCallId, messageContentToString(message.content));
+    results.set(toolCallId, toolResultContentToString(message.content));
   }
   return results;
+}
+
+function toolResultContentToString(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) return messageContentToString(content);
+  if (!content || typeof content !== "object") return "";
+  try {
+    return JSON.stringify(content);
+  } catch {
+    return "";
+  }
+}
+
+function isToolResultError(result: string | undefined) {
+  if (!result?.trim()) return false;
+  try {
+    const parsed = JSON.parse(result) as unknown;
+    return hasErrorStatus(parsed);
+  } catch {
+    return false;
+  }
+}
+
+function getToolResultExecutionError(result: string | undefined) {
+  if (!result?.trim()) return null;
+  try {
+    const parsed = JSON.parse(result) as unknown;
+    return findExecutionError(parsed);
+  } catch {
+    return null;
+  }
+}
+
+function hasErrorStatus(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const record = value as {
+    content?: unknown;
+    result?: unknown;
+    return_value?: unknown;
+    returnValue?: unknown;
+    status?: unknown;
+  };
+  if (record.status === "error") return true;
+  return (
+    hasErrorStatus(record.return_value) ||
+    hasErrorStatus(record.returnValue) ||
+    hasErrorStatus(record.result) ||
+    hasErrorStatus(record.content)
+  );
+}
+
+function findExecutionError(value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as {
+    content?: unknown;
+    error?: unknown;
+    error_details?: { message?: unknown };
+    model_guidance?: unknown;
+    result?: unknown;
+    return_value?: unknown;
+    returnValue?: unknown;
+    status?: unknown;
+  };
+  if (record.status === "error") {
+    if (typeof record.error === "string" && record.error.trim()) return record.error.trim();
+    const detailsMessage = record.error_details?.message;
+    if (typeof detailsMessage === "string" && detailsMessage.trim()) {
+      return detailsMessage.trim();
+    }
+    if (typeof record.model_guidance === "string" && record.model_guidance.trim()) {
+      return record.model_guidance.trim();
+    }
+  }
+  return (
+    findExecutionError(record.return_value) ||
+    findExecutionError(record.returnValue) ||
+    findExecutionError(record.result) ||
+    findExecutionError(record.content)
+  );
 }
 
 function formatToolName(name: string) {
@@ -676,7 +864,12 @@ function formatToolName(name: string) {
     .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-function formatToolStatusMessage(name: string, completed: boolean, args: string | undefined) {
+function formatToolStatusMessage(
+  name: string,
+  completed: boolean,
+  args: string | undefined,
+  failed = false,
+) {
   const parsed = parseToolArgs(args);
   const tableName = getStringArg(parsed, "table_name");
   const scope = getStringArg(parsed, "scope");
@@ -691,6 +884,9 @@ function formatToolStatusMessage(name: string, completed: boolean, args: string 
   }
 
   if (isExecuteToolName(name)) {
+    if (failed) {
+      return name === "execute" ? "Database query failed." : "Python sandbox failed.";
+    }
     if (code.trim()) {
       return completed ? "Python sandbox completed." : "Running Python sandbox...";
     }
@@ -1022,7 +1218,7 @@ function ToolStatusView({
           {message.isLive ? (
             <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
           ) : errors ? (
-            <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
+            <X className="h-4 w-4 shrink-0 text-destructive" />
           ) : (
             <Check className="h-4 w-4 shrink-0 text-emerald-600" />
           )}
@@ -1049,7 +1245,7 @@ function ToolStatusView({
                   {step.status === "in_progress" ? (
                     <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-primary" />
                   ) : step.status === "error" ? (
-                    <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
+                    <X className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
                   ) : (
                     <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
                   )}
@@ -1063,6 +1259,18 @@ function ToolStatusView({
                     caption={step.code.caption}
                     defaultOpen={step.code.defaultOpen}
                     density="compact"
+                    className="ml-5"
+                  />
+                ) : null}
+                {step.error ? (
+                  <CodeDisclosure
+                    code={step.error.message}
+                    language="text"
+                    title={step.error.title ?? "Execution Error"}
+                    caption={step.error.caption}
+                    defaultOpen={false}
+                    density="compact"
+                    tone="error"
                     className="ml-5"
                   />
                 ) : null}
