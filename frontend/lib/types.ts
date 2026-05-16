@@ -285,6 +285,13 @@ export interface ToolStep {
   message: string;
   status: "in_progress" | "completed" | "error";
   timestamp?: string;
+  code?: {
+    code: string;
+    language: string;
+    title?: string;
+    caption?: string;
+    defaultOpen?: boolean;
+  };
 }
 
 export type A2UICellValue = string | number | boolean | null;

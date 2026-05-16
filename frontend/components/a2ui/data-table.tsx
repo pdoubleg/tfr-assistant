@@ -136,19 +136,19 @@ export function DataTable({
       ) : null}
 
       <div className="chat-scrollbar max-h-[460px] overflow-auto">
-        <table className="w-full min-w-[680px] border-collapse">
+        <table className="min-w-full border-collapse">
           <thead className="sticky top-0 z-10 border-b bg-card">
             <tr>
               {headers.map((header, index) => (
                 <th
                   key={`${header}-${index}`}
                   className={cn(
-                    "px-3 py-2 text-left text-xs font-semibold text-muted-foreground",
+                    "min-w-0 px-3 py-2 text-left align-top text-xs font-semibold text-muted-foreground [overflow-wrap:anywhere]",
                     sortable && "cursor-pointer select-none hover:bg-secondary/60",
                   )}
                   onClick={() => handleSort(index)}
                 >
-                  <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-flex min-w-0 items-center gap-1.5">
                     {header}
                     {sortable ? getSortIcon(sortColumn, sortDirection, index) : null}
                   </span>
@@ -161,7 +161,10 @@ export function DataTable({
               displayRows.map((row, rowIndex) => (
                 <tr key={rowIndex} className="border-b last:border-0 odd:bg-secondary/20 hover:bg-secondary/35">
                   {headers.map((_, cellIndex) => (
-                    <td key={cellIndex} className="px-3 py-2 text-xs text-foreground/90">
+                    <td
+                      key={cellIndex}
+                      className="min-w-0 max-w-[18rem] px-3 py-2 align-top text-xs text-foreground/90 [overflow-wrap:anywhere]"
+                    >
                       {formatCell(row[cellIndex])}
                     </td>
                   ))}

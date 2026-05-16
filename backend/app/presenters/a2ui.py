@@ -29,3 +29,29 @@ def generate_data_table(
         layout={"width": "full"},
         zone="chat",
     )
+
+
+def generate_code_disclosure(
+    *,
+    code: str,
+    language: str,
+    title: str,
+    caption: str = "",
+    default_open: bool = False,
+    copyable: bool = True,
+) -> A2UIComponent:
+    """Build a reusable collapsible code component payload for the chat pane."""
+
+    return A2UIComponent(
+        type="a2ui.CodeDisclosure",
+        props={
+            "code": code,
+            "language": language,
+            "title": title,
+            "caption": caption,
+            "defaultOpen": default_open,
+            "copyable": copyable,
+        },
+        layout={"width": "full"},
+        zone="chat",
+    )

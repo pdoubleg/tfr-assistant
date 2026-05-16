@@ -27,6 +27,7 @@ import remarkGfm from "remark-gfm";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { CodeDisclosure } from "@/components/a2ui/code-disclosure";
 import { A2UIRendererList } from "@/components/a2ui/a2ui-renderer";
 import type { ChatPanelMode } from "@/components/app-shell/chat-panel-mode-context";
 import { isChatComponent } from "@/lib/a2ui-catalog";
@@ -56,6 +57,14 @@ interface ComponentListMessage {
   components: A2UIComponent[];
 }
 
+interface ToolCodePreview {
+  code: string;
+  language: string;
+  title?: string;
+  caption?: string;
+  defaultOpen?: boolean;
+}
+
 type ChatMessage = UserAssistantMessage | ToolStatusMessage;
 type TranscriptItem = ChatMessage | ComponentListMessage;
 
@@ -75,6 +84,8 @@ const QUEUE_CONTEXT_TOP_OFFSET = 148;
 const QUEUE_CONTEXT_BOTTOM_OFFSET = 24;
 const PANEL_MARGIN = 8;
 const DEFAULT_SMALL_SIZE = { width: 520, height: 0 };
+const LARGE_PANEL_WIDTH_RATIO = 0.66;
+const LARGE_PANEL_MAX_WIDTH = 1280;
 
 export function DockableChat({
   mode,
@@ -91,8 +102,8 @@ export function DockableChat({
     runChatMessage,
     state: sharedState,
   } = useTfrAgent();
-  const [collapsedToolMessages, setCollapsedToolMessages] = useState<Set<string>>(new Set());
-  const autoCollapsedToolMessagesRef = useRef<Set<string>>(new Set());
+  const [expandedToolMessages, setExpandedToolMessages] = useState<Set<string>>(new Set());
+  const liveToolMessagesRef = useRef<Set<string>>(new Set());
   const shouldStickToBottomRef = useRef(true);
   const [panelRect, setPanelRect] = useState({
     left: 24,
@@ -114,6 +125,7 @@ export function DockableChat({
       ...starterMessages,
       ...agent.messages
         .map((message) => agentMessageToChatMessage(message, agent.messages, agent.isRunning))
+        .flat()
         .filter((message): message is ChatMessage => Boolean(message)),
     ],
     [agent.isRunning, agent.messages],
@@ -139,13 +151,16 @@ export function DockableChat({
             return `${item.id}:${item.components.map((component) => component.id).join(",")}`;
           }
           if (item.role === "tool_status") {
-            return `${item.id}:${item.isLive}:${item.steps.map((step) => step.status).join(",")}`;
+            return `${item.id}:${item.isLive}:${item.steps
+              .map((step) => `${step.status}:${step.code?.code.length ?? 0}`)
+              .join(",")}`;
           }
           return `${item.id}:${item.content.length}:${item.streaming ? "streaming" : "done"}`;
         })
         .join("|"),
     [transcriptItems],
   );
+  const chatGutter = useMemo(() => getChatGutter(panelRect.width, mode), [mode, panelRect.width]);
 
   useEffect(() => {
     const syncTheme = () => setIsDarkTheme(document.documentElement.classList.contains("dark"));
@@ -168,29 +183,26 @@ export function DockableChat({
   }, [sharedState.current_step, transcriptScrollKey]);
 
   useLayoutEffect(() => {
-    setCollapsedToolMessages((current) => {
+    const liveIds = new Set(
+      messages
+        .filter((message): message is ToolStatusMessage => message.role === "tool_status" && message.isLive)
+        .map((message) => message.id),
+    );
+    const previouslyLiveIds = liveToolMessagesRef.current;
+
+    setExpandedToolMessages((current) => {
       const next = new Set(current);
       let changed = false;
-      for (const message of messages) {
-        if (message.role !== "tool_status") continue;
-        if (message.isLive && next.has(message.id)) {
-          next.delete(message.id);
+      for (const messageId of previouslyLiveIds) {
+        if (!liveIds.has(messageId) && next.has(messageId)) {
+          next.delete(messageId);
           changed = true;
-        }
-        if (message.isLive) {
-          autoCollapsedToolMessagesRef.current.delete(message.id);
-          continue;
-        }
-        if (!autoCollapsedToolMessagesRef.current.has(message.id)) {
-          autoCollapsedToolMessagesRef.current.add(message.id);
-          if (!next.has(message.id)) {
-            next.add(message.id);
-            changed = true;
-          }
         }
       }
       return changed ? next : current;
     });
+
+    liveToolMessagesRef.current = liveIds;
   }, [messages]);
 
   const handleScroll = () => {
@@ -227,7 +239,14 @@ export function DockableChat({
       }
 
       if (mode === "large") {
-        const width = Math.max(MIN_PANEL_WIDTH, Math.floor(window.innerWidth * 0.82));
+        const width = Math.max(
+          MIN_PANEL_WIDTH,
+          Math.min(
+            Math.floor(window.innerWidth * LARGE_PANEL_WIDTH_RATIO),
+            LARGE_PANEL_MAX_WIDTH,
+            window.innerWidth - PANEL_MARGIN * 2,
+          ),
+        );
         const height = Math.max(MIN_PANEL_HEIGHT, Math.floor((window.innerHeight - 72) * 0.9));
         const nextRect = restorePreviousRectOnShowRef.current
           ? lastLargeRectRef.current
@@ -342,10 +361,13 @@ export function DockableChat({
     const container = scrollRef.current;
     const previousScrollTop = container?.scrollTop ?? null;
     shouldStickToBottomRef.current = false;
-    setCollapsedToolMessages((current) => {
+    setExpandedToolMessages((current) => {
       const next = new Set(current);
-      if (next.has(messageId)) next.delete(messageId);
-      else next.add(messageId);
+      if (next.has(messageId)) {
+        next.delete(messageId);
+      } else {
+        next.add(messageId);
+      }
       return next;
     });
     if (container && previousScrollTop !== null) {
@@ -423,7 +445,8 @@ export function DockableChat({
 
       <div
         ref={scrollRef}
-        className="chat-scrollbar flex-1 overflow-auto px-4 py-4"
+        className="chat-scrollbar flex-1 overflow-auto py-4"
+        style={{ paddingLeft: chatGutter, paddingRight: chatGutter }}
         onScroll={handleScroll}
       >
         <div className="space-y-5">
@@ -434,7 +457,7 @@ export function DockableChat({
               <ToolStatusView
                 key={message.id}
                 message={message}
-                collapsed={!message.isLive && collapsedToolMessages.has(message.id)}
+                collapsed={!expandedToolMessages.has(message.id)}
                 onToggle={() => toggleToolMessage(message.id)}
               />
             ) : (
@@ -449,7 +472,11 @@ export function DockableChat({
         </div>
       </div>
 
-      <form className="border-t p-3" onSubmit={sendMessage}>
+      <form
+        className="border-t py-3"
+        style={{ paddingLeft: chatGutter, paddingRight: chatGutter }}
+        onSubmit={sendMessage}
+      >
         <div className="rounded-xl border bg-background p-2 focus-within:ring-2 focus-within:ring-ring">
           <Textarea
             ref={textareaRef}
@@ -484,47 +511,63 @@ function agentMessageToChatMessage(
   message: Message,
   allMessages: Message[],
   isRunning: boolean,
-): ChatMessage | null {
-  if (message.role !== "user" && message.role !== "assistant") return null;
+): ChatMessage[] {
+  if (message.role !== "user" && message.role !== "assistant") return [];
   const toolCalls = getMessageToolCalls(message);
   if (message.role === "assistant" && toolCalls.length) {
+    const responseStarted = hasAssistantTextAfter(message, allMessages);
     const completedToolCallIds = new Set(
       allMessages
         .map(getToolResultCallId)
         .filter((toolCallId): toolCallId is string => Boolean(toolCallId)),
     );
     const steps = toolCalls.map((toolCall) => {
-      const completed = completedToolCallIds.has(toolCall.id);
+      const completed = completedToolCallIds.has(toolCall.id) || responseStarted;
       return {
         id: toolCall.id,
-        message: `${formatToolName(toolCall.function.name)} ${completed ? "completed" : "running"}.`,
+        message: formatToolStatusMessage(
+          toolCall.function.name,
+          completed,
+          toolCall.function.arguments,
+        ),
         status: completed || !isRunning ? "completed" : "in_progress",
+        code: toolCallCodePreview(toolCall.function.name, toolCall.function.arguments),
       } satisfies ToolStep;
     });
-    return {
-      id: `tools-${message.id}`,
-      role: "tool_status",
-      isLive: steps.some((step) => step.status === "in_progress"),
-      steps,
-    };
+    return [
+      {
+        id: `tools-${message.id}`,
+        role: "tool_status",
+        isLive: steps.some((step) => step.status === "in_progress"),
+        steps,
+      },
+    ];
   }
 
   const content = messageContentToString(message.content);
   if (!content && message.role === "assistant") {
-    if (!isRunning) return null;
-    return {
+    if (!isRunning) return [];
+    return [{
       id: message.id,
       role: "assistant",
       content: "",
       streaming: isRunning,
-    };
+    }];
   }
-  return {
+  return [{
     id: message.id,
     role: message.role,
     content,
     streaming: false,
-  };
+  }];
+}
+
+function hasAssistantTextAfter(message: Message, allMessages: Message[]) {
+  const currentIndex = allMessages.indexOf(message);
+  if (currentIndex === -1) return false;
+  return allMessages
+    .slice(currentIndex + 1)
+    .some((candidate) => candidate.role === "assistant" && messageContentToString(candidate.content).trim());
 }
 
 function insertComponentsBeforeRunResponse(
@@ -616,6 +659,239 @@ function formatToolName(name: string) {
     .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
+function formatToolStatusMessage(name: string, completed: boolean, args: string | undefined) {
+  const parsed = parseToolArgs(args);
+  const tableName = getStringArg(parsed, "table_name");
+  const scope = getStringArg(parsed, "scope");
+
+  if (name === "execute") {
+    const scopeSuffix = scope ? ` (${scope} scope)` : "";
+    return completed
+      ? `Database query completed${scopeSuffix}.`
+      : `Running database query${scopeSuffix}...`;
+  }
+  if (name === "explain") {
+    const scopeSuffix = scope ? ` (${scope} scope)` : "";
+    return completed
+      ? `Query plan prepared${scopeSuffix}.`
+      : `Preparing query plan${scopeSuffix}...`;
+  }
+  if (name === "get_table_info") {
+    return completed
+      ? `Finished inspecting ${tableName || "table"}.`
+      : `Inspecting ${tableName || "table"}...`;
+  }
+  if (name === "get_foreign_keys") {
+    return completed
+      ? `Loaded foreign keys for ${tableName || "table"}.`
+      : `Reading foreign keys for ${tableName || "table"}...`;
+  }
+  if (name === "get_related_tables") {
+    return completed
+      ? `Found tables related to ${tableName || "table"}.`
+      : `Finding tables related to ${tableName || "table"}...`;
+  }
+  if (name === "get_schema") {
+    return completed ? "Database schema loaded." : "Inspecting database schema...";
+  }
+  if (name === "get_tables") {
+    return completed ? "Database table list loaded." : "Reading database table list...";
+  }
+  if (name === "get_selected_rows_info") {
+    return completed
+      ? "Selected-row SQL context loaded."
+      : "Reading selected-row SQL context...";
+  }
+  if (name.startsWith("get_")) {
+    return completed ? "Database inspection completed." : "Inspecting database...";
+  }
+  return `${formatToolName(name)} ${completed ? "completed" : "running"}.`;
+}
+
+function toolCallCodePreview(
+  name: string,
+  args: string | undefined,
+): ToolCodePreview | undefined {
+  if (name !== "execute" || !args) return undefined;
+  const parsed = parseToolArgs(args);
+  const sql = getStringArg(parsed, "sql") || getStringArg(parsed, "sql_query") || getStringArg(parsed, "query");
+  if (!sql.trim()) return undefined;
+  const scope = getStringArg(parsed, "scope");
+  const limit = getStringArg(parsed, "limit");
+  const caption = [
+    scope ? `Scope: ${scope}` : "",
+    limit ? `Preview limit: ${limit}` : "",
+  ].filter(Boolean).join(" · ");
+  return {
+    code: formatSqlForDisplay(sql),
+    language: "sql",
+    title: "SQL",
+    caption,
+    defaultOpen: false,
+  };
+}
+
+function formatSqlForDisplay(sql: string): string {
+  const tokens = tokenizeSql(sql.trim().replace(/\s+/g, " "));
+  const lines: string[] = [];
+  let current = "";
+  let indent = 0;
+  let parenDepth = 0;
+
+  const push = () => {
+    const line = current.trim();
+    if (line) lines.push(`${"  ".repeat(Math.max(indent, 0))}${line}`);
+    current = "";
+  };
+  const append = (token: string) => {
+    current = current ? `${current} ${token}` : token;
+  };
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    const next = tokens[index + 1] ?? "";
+    const upper = token.toUpperCase();
+    const twoWord = `${upper} ${next.toUpperCase()}`;
+
+    if (
+      twoWord === "GROUP BY" ||
+      twoWord === "ORDER BY" ||
+      twoWord === "LEFT JOIN" ||
+      twoWord === "RIGHT JOIN" ||
+      twoWord === "FULL JOIN" ||
+      twoWord === "INNER JOIN" ||
+      twoWord === "CROSS JOIN"
+    ) {
+      push();
+      append(twoWord);
+      index += 1;
+      continue;
+    }
+
+    if (["SELECT", "FROM", "WHERE", "HAVING", "LIMIT", "OFFSET"].includes(upper)) {
+      push();
+      append(upper);
+      continue;
+    }
+
+    if (upper === "JOIN") {
+      push();
+      append(upper);
+      continue;
+    }
+
+    if (upper === "ON") {
+      push();
+      append(upper);
+      continue;
+    }
+
+    if (upper === "AND" || upper === "OR") {
+      push();
+      append(upper);
+      continue;
+    }
+
+    if (token === "(") {
+      append(token);
+      parenDepth += 1;
+      indent += 1;
+      continue;
+    }
+
+    if (token === ")") {
+      push();
+      parenDepth = Math.max(parenDepth - 1, 0);
+      indent = Math.max(indent - 1, 0);
+      append(token);
+      continue;
+    }
+
+    if (token === ",") {
+      current = `${current.trimEnd()},`;
+      if (parenDepth === 0) push();
+      continue;
+    }
+
+    append(token);
+  }
+
+  push();
+  return lines.join("\n");
+}
+
+function tokenizeSql(sql: string): string[] {
+  const tokens: string[] = [];
+  let current = "";
+  let quote: "'" | '"' | "`" | null = null;
+
+  const push = () => {
+    if (current) {
+      tokens.push(current);
+      current = "";
+    }
+  };
+
+  for (let index = 0; index < sql.length; index += 1) {
+    const character = sql[index];
+    if (quote) {
+      current += character;
+      if (character === quote) {
+        const next = sql[index + 1];
+        if (quote === "'" && next === "'") {
+          current += next;
+          index += 1;
+        } else {
+          quote = null;
+        }
+      }
+      continue;
+    }
+
+    if (character === "'" || character === '"' || character === "`") {
+      push();
+      quote = character;
+      current = character;
+      continue;
+    }
+
+    if (/\s/.test(character)) {
+      push();
+      continue;
+    }
+
+    if (character === "(" || character === ")" || character === ",") {
+      push();
+      tokens.push(character);
+      continue;
+    }
+
+    current += character;
+  }
+
+  push();
+  return tokens;
+}
+
+function parseToolArgs(args: string | undefined): Record<string, unknown> {
+  if (!args) return {};
+  try {
+    const parsed = JSON.parse(args) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function getStringArg(args: Record<string, unknown>, key: string): string {
+  const value = args[key];
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
+}
+
 function messageContentToString(content: unknown): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
@@ -692,15 +968,28 @@ function ToolStatusView({
             </div>
           ) : (
             steps.map((step) => (
-              <div key={step.id} className="flex items-start gap-2">
-                {step.status === "in_progress" ? (
-                  <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-primary" />
-                ) : step.status === "error" ? (
-                  <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
-                ) : (
-                  <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
-                )}
-                <span className="text-foreground/80">{step.message}</span>
+              <div key={step.id} className="space-y-2">
+                <div className="flex items-start gap-2">
+                  {step.status === "in_progress" ? (
+                    <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-primary" />
+                  ) : step.status === "error" ? (
+                    <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
+                  ) : (
+                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                  )}
+                  <span className="text-foreground/80">{step.message}</span>
+                </div>
+                {step.code ? (
+                  <CodeDisclosure
+                    code={step.code.code}
+                    language={step.code.language}
+                    title={step.code.title}
+                    caption={step.code.caption}
+                    defaultOpen={step.code.defaultOpen}
+                    density="compact"
+                    className="ml-5"
+                  />
+                ) : null}
               </div>
             ))
           )}
@@ -964,6 +1253,14 @@ function clampRectToViewport(
     width,
     height,
   };
+}
+
+function getChatGutter(width: number, mode: ChatPanelMode) {
+  if (mode === "small") return 16;
+  if (width >= 1180) return 32;
+  if (width >= 900) return 28;
+  if (width >= 680) return 24;
+  return 16;
 }
 
 function CodeBlock({
