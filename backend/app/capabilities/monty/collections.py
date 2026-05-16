@@ -1,4 +1,4 @@
-"""TFR-specific Monty helper collections."""
+"""TFR-specific Monty tool collections."""
 
 from __future__ import annotations
 
@@ -111,7 +111,7 @@ def _handle_from_preview(value: Any, *, argument_name: str, expected_prefix: str
     raise TypeError(
         f"{argument_name} must be a handle string like {expected_prefix!r}. "
         "preview_dataset() returns a preview dictionary; prefer passing the original "
-        "handle string directly to transform and chart helpers."
+        "handle string directly to transform and chart tools."
     )
 
 
@@ -223,7 +223,7 @@ class HandlesCollection(ToolCollection):
     name = "handles"
     description = (
         "List and describe dataset/chart handles, preview dataset metadata only when code "
-        "needs a dict, and emit handled artifacts into the chat UI. Monty helpers consume "
+        "needs a dict, and emit handled artifacts into the chat UI. Monty tools consume "
         "handle strings; they do not load SQL tables or dataframe objects into variables."
     )
 
@@ -235,7 +235,7 @@ class HandlesCollection(ToolCollection):
         """Return a compact text inventory of available dataset and chart handles.
 
         Prefer this over list_handles() when the next step is deciding which
-        handle string to pass into dataframe or visualization helpers. Dataset
+        handle string to pass into dataframe or visualization tools. Dataset
         handles usually come from SQL execute(..., persist_result=True) or from
         Monty transforms such as group_by(), value_counts(), and put_dataset().
 
@@ -266,9 +266,9 @@ class HandlesCollection(ToolCollection):
     def list_handles(self) -> list[dict[str, Any]]:
         """List dataset and chart handles available in this chat session.
 
-        This is a low-level structured helper. Prefer describe_handles() when a
+        This is a low-level structured tool. Prefer describe_handles() when a
         string summary is enough. Pass dataset handle strings such as "ds_1"
-        directly to dataframe and chart helpers.
+        directly to dataframe and chart tools.
 
         Returns:
             list[dict[str, Any]]: Handle metadata including kind, label, row count,
@@ -315,7 +315,7 @@ class HandlesCollection(ToolCollection):
     def inspect_handle(self, handle: str) -> dict[str, Any]:
         """Inspect one stored dataset or chart handle.
 
-        This is a low-level structured helper. Prefer describe_handle() when a
+        This is a low-level structured tool. Prefer describe_handle() when a
         string summary is enough.
 
         Args:
@@ -348,7 +348,7 @@ class HandlesCollection(ToolCollection):
         Prefer this for inspection. It returns a string and keeps the durable
         dataset behind its handle. To source database rows for Monty, first call
         the SQL execute tool with persist_result=True, then pass the returned
-        dataset_handle string directly to Monty helpers.
+        dataset_handle string directly to Monty tools.
 
         Args:
             dataset_handle: Handle string such as "ds_1".
@@ -380,12 +380,12 @@ class HandlesCollection(ToolCollection):
     def preview_dataset(self, dataset_handle: str, *, limit: int = 10) -> dict[str, Any]:
         """Return structured preview metadata for a dataset handle.
 
-        This is a low-level dict helper for code that must inspect columns,
+        This is a low-level dict tool for code that must inspect columns,
         row_count, or preview_rows programmatically. Prefer describe_dataset()
         when a string summary is enough. This does not return a dataframe,
         complete dataset, or new handle. Do not build charts or transformed
         datasets from preview_rows because preview_rows may omit most of the
-        dataset. For real transforms, pass the original handle string to helpers
+        dataset. For real transforms, pass the original handle string to tools
         such as select_columns(), group_by(), melt_columns(), stack_metric_columns(),
         or create_bar_chart().
 
@@ -425,7 +425,7 @@ class HandlesCollection(ToolCollection):
         Use this only for small datasets created inside Monty. For database
         rows, use the SQL execute tool with persist_result=True before entering
         Monty, then pass the returned dataset handle string directly to Monty
-        helpers.
+        tools.
 
         Args:
             rows: Row records to persist. Keys become dataset columns.
@@ -764,7 +764,7 @@ class DataframeOperationsCollection(ToolCollection):
         """Prepare an aggregated long-form dataset for stacked bars.
 
         Use this when a dataset has one row per observation and several numeric
-        metric columns, such as items_completed and items_other. The helper
+        metric columns, such as items_completed and items_other. The tool
         melts the full dataset to metric/value rows and aggregates duplicate
         category+metric pairs, so Plotly stacked bars render one segment per
         metric instead of many preview-row stripes.
@@ -1011,7 +1011,7 @@ class VisualizationsCollection(ToolCollection):
         description = argument.description
         if argument.name == "plotly_kwargs":
             valid_keys = ", ".join(allowed_kwargs)
-            description = f"{description} Valid plotly_kwargs keys for this helper: {valid_keys}."
+            description = f"{description} Valid plotly_kwargs keys for this tool: {valid_keys}."
         elif argument.name == "extra_plotly_kwargs":
             valid_keys = ", ".join(allowed_kwargs)
             description = f"{description} Valid direct Plotly Express option keys: {valid_keys}."
@@ -1065,7 +1065,7 @@ class VisualizationsCollection(ToolCollection):
         conflicts = sorted(set(extras) & protected_keys)
         if conflicts:
             raise ValueError(
-                "Use the named helper arguments for these options instead of "
+                "Use the named tool arguments for these options instead of "
                 f"plotly_kwargs: {', '.join(conflicts)}"
             )
         allowed_keys = _allowed_plotly_kwargs(plotly_func, protected_keys)
@@ -1101,7 +1101,7 @@ class VisualizationsCollection(ToolCollection):
             title: Optional chart title.
             plotly_kwargs: Optional extra keyword arguments passed to plotly.express.bar.
                 Use this for less common options such as labels, barmode,
-                opacity, text_auto, height, or width. Named helper arguments
+                opacity, text_auto, height, or width. Named tool arguments
                 such as x, y, color, and title cannot be overridden here.
             layout_kwargs: Optional layout updates passed to Figure.update_layout
                 after the chart is created. Use this for custom axis titles,
@@ -1179,7 +1179,7 @@ class VisualizationsCollection(ToolCollection):
             title: Optional chart title.
             plotly_kwargs: Optional extra keyword arguments passed to plotly.express.line.
                 Use this for less common options such as markers, line_shape,
-                labels, category_orders, height, or width. Named helper arguments
+                labels, category_orders, height, or width. Named tool arguments
                 such as x, y, color, and title cannot be overridden here.
             layout_kwargs: Optional layout updates passed to Figure.update_layout
                 after the chart is created.
@@ -1253,7 +1253,7 @@ class VisualizationsCollection(ToolCollection):
             title: Optional chart title.
             plotly_kwargs: Optional extra keyword arguments passed to plotly.express.scatter.
                 Use this for less common options such as size, symbol,
-                trendline, labels, opacity, height, or width. Named helper
+                trendline, labels, opacity, height, or width. Named tool
                 arguments such as x, y, color, and title cannot be overridden here.
             layout_kwargs: Optional layout updates passed to Figure.update_layout
                 after the chart is created.
@@ -1329,7 +1329,7 @@ class VisualizationsCollection(ToolCollection):
             plotly_kwargs: Optional extra keyword arguments passed to plotly.express.histogram.
                 Use this for less common options such as histnorm, histfunc,
                 barmode, marginal, labels, opacity, height, or width. Named
-                helper arguments such as column, color, title, and nbins cannot
+                tool arguments such as column, color, title, and nbins cannot
                 be overridden here.
             layout_kwargs: Optional layout updates passed to Figure.update_layout
                 after the chart is created.
@@ -1403,7 +1403,7 @@ class VisualizationsCollection(ToolCollection):
             title: Optional chart title.
             plotly_kwargs: Optional extra keyword arguments passed to plotly.express.box.
                 Use this for less common options such as points, boxmode,
-                notched, labels, height, or width. Named helper arguments such
+                notched, labels, height, or width. Named tool arguments such
                 as x, y, color, and title cannot be overridden here.
             layout_kwargs: Optional layout updates passed to Figure.update_layout
                 after the chart is created.
@@ -1475,7 +1475,7 @@ class VisualizationsCollection(ToolCollection):
             title: Optional chart title.
             plotly_kwargs: Optional extra keyword arguments passed to plotly.express.pie.
                 Use this for less common options such as color, hole, labels,
-                opacity, height, or width. Named helper arguments such as names,
+                opacity, height, or width. Named tool arguments such as names,
                 values, and title cannot be overridden here.
             layout_kwargs: Optional layout updates passed to Figure.update_layout
                 after the chart is created.
@@ -1576,7 +1576,7 @@ class RLMCollection(ToolCollection):
     name = "rlm"
     description = (
         "Create text lists from dataset handles and query sub-LLMs for row-level or "
-        "chunk-level semantic analysis. Async helpers must be called with await, "
+        "chunk-level semantic analysis. Async tools must be called with await, "
         "and all sub-LLM calls share the configured call budget for this artifact session."
     )
 
@@ -1646,7 +1646,7 @@ class RLMCollection(ToolCollection):
         dataset contains many rows of notes, descriptions, claim text, or other
         free-form fields. Store the returned list in a REPL variable, then build
         prompts from it without printing the whole list. For multiple text
-        columns, call this helper once per column and assign each list its own
+        columns, call this tool once per column and assign each list its own
         variable name.
 
         Args:
@@ -1687,7 +1687,7 @@ class RLMCollection(ToolCollection):
     async def llm_query(self, prompt: str) -> str:
         """Query a sub-LLM with one prompt string.
 
-        This is an async helper. In sandbox code, call it with await:
+        This is an async tool. In Python repl code, call it with await:
         `answer = await llm_query(prompt)`.
 
         Args:
@@ -1721,8 +1721,8 @@ class RLMCollection(ToolCollection):
     async def llm_query_batched(self, prompts: list[str]) -> list[str]:
         """Query a sub-LLM for multiple prompt strings concurrently.
 
-        Use this when rows or chunks can be analyzed independently. This helper
-        preserves result order. In sandbox code, call it with await:
+        Use this when rows or chunks can be analyzed independently. This tool
+        preserves result order. In Python repl code, call it with await:
         `answers = await llm_query_batched(prompts)`.
 
         Args:

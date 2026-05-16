@@ -1,4 +1,4 @@
-"""Prompt and help text for the lightweight Monty sandbox."""
+"""Prompt and help text for the lightweight Monty Python repl."""
 
 from __future__ import annotations
 
@@ -6,60 +6,61 @@ from app.capabilities.monty.registry import FunctionRegistry, RegisteredFunction
 
 HelpTarget = str | list[str] | None
 
-SANDBOX_GUIDANCE = (
-    "A Monty-sandboxed Python tool is available for composing dataframe handle "
-    "operations, Plotly visualizations, and sub-LLM text analysis. The sandbox "
-    "uses Monty, a restricted subset of Python. Class definitions are not "
-    "supported, wildcard imports are not supported, and third-party libraries "
-    "cannot be imported. Importable standard library modules include `sys`, "
-    "`typing`, `asyncio`, `math`, `json`, `re`, `datetime`, `os`, and `pathlib`; "
-    "`os` and `pathlib` are intentionally limited, so prefer pure string/path "
-    "manipulation unless help for a registered helper says otherwise. Import "
-    "standard modules at the top of the snippet before use. Wall-clock and timing "
-    "primitives such as `asyncio.sleep`, `datetime.datetime.now()`, "
-    "`datetime.date.today()`, and the `time` module are unavailable. Use `help()` "
-    "to discover collections, "
-    "`help('<collection>')` to inspect related helpers, then "
-    "`help('<helper>')` as often as needed for exact signatures, valid kwargs, "
-    "and return values. `help(['name_a', 'name_b'])` returns appended help for "
-    "multiple collections or helpers. Keep data behind handles returned by SQL "
-    "or Monty helpers. The normal data path is: use SQL execute with "
-    "persist_result=true to read database rows and receive a dataset_handle like "
-    "`ds_1`; inside Monty, assign that handle string to a variable if useful, "
-    "then pass the handle directly to dataframe and visualization helpers. Monty "
-    "does not need a separate load/get step and does not expose SQL tables as "
-    "Python variables. Registered helpers are injected directly into the sandbox "
-    "namespace, so call helpers such as "
-    "`list_handles()`, `group_by()`, and `create_bar_chart()` without imports. "
-    "Variables assigned in one sandbox execution remain available to later "
-    "sandbox executions in the same artifact session; they are convenient for "
-    "intermediate handle strings, chart handles, scalar settings, and small "
-    "derived values. "
-    "Pass `restart=True` to `python_sandbox_execute` to reset REPL state when "
-    "prior variables or imports are no longer useful. "
-    "Prefer string-returning inspection helpers such as `describe_handles()`, "
-    "`describe_handle()`, and `describe_dataset()`. Use `preview_dataset()` only "
-    "when code needs the structured preview dictionary with columns, row_count, "
-    "and preview_rows; it does not return a dataframe, complete dataset, or new "
-    "handle. Do not build charts or transformed datasets from preview_rows. For "
-    "real data prep, pass the original dataset handle to dataframe helpers such "
-    "as `select_columns()`, `group_by()`, `melt_columns()`, or "
-    "`stack_metric_columns()`, then pass the resulting handle to visualization "
-    "helpers. "
-    "Those Python variables are not SQL database tables and cannot be referenced "
-    "from SQL tools. "
-    "Scientific and "
-    "dataframe libraries such as `pandas`, `numpy`, `scipy`, and `plotly` are "
-    "not available inside sandbox code. Use registered dataframe and "
-    "visualization helpers instead of importing those libraries. "
-    "Async helpers such as `llm_query()` and `llm_query_batched()` must be called "
-    "with `await`; calling them without `await` returns an unresolved future, not "
-    "the value. Sub-LLM calls share a configured call budget for the artifact "
-    "session; use Python for grouping, filtering, and aggregation before spending "
-    "that budget. Synchronous helpers are called directly. "
-    "When submitting nested strings, assign multiline code to variables first and "
-    "avoid escape-heavy inline snippets."
-)
+
+def render_python_repl_guidance(help_name: str = "help") -> str:
+    """Render shared Python repl guidance with the caller's help function name."""
+
+    return (
+        "A Monty Python repl is available for composing dataframe handle operations, "
+        "Plotly visualizations, and sub-LLM text analysis.\n"
+        "Discovery flow:\n"
+        f"- Call {help_name}() to see all collections.\n"
+        f'- Call {help_name}("<collection-name>"), or a list of collections, to see '
+        "available tools for the collection(s).\n"
+        f'- Call {help_name}("<tool-name>"), or a list of tools, to see detailed docs '
+        "before executing code.\n"
+        "Use discovery instead of guessing collection names, tool names, signatures, "
+        "valid kwargs, or return values. The repl uses Monty, a restricted subset of "
+        "Python. Class definitions are not supported, wildcard imports are not "
+        "supported, and third-party libraries cannot be imported. Importable standard "
+        "library modules include `sys`, `typing`, `asyncio`, `math`, `json`, `re`, "
+        "`datetime`, `os`, and `pathlib`; `os` and `pathlib` are intentionally "
+        "limited, so prefer pure string/path manipulation unless a registered tool's "
+        "help says otherwise. Import standard modules at the top of the snippet before "
+        "use. Wall-clock and timing primitives such as `asyncio.sleep`, "
+        "`datetime.datetime.now()`, `datetime.date.today()`, and the `time` module are "
+        "unavailable. Keep data behind handles returned by SQL or Python repl tools. "
+        "The normal data path is: use SQL execute with persist_result=true to read "
+        "database rows and receive a dataset_handle; inside the Python repl, assign "
+        "that handle string to a variable if useful, then pass the handle directly to "
+        "dataframe and visualization tools. The Python repl does not need a separate "
+        "load/get step and does not expose SQL tables as Python variables. Registered "
+        "tools are injected directly into the repl namespace, so call them directly "
+        "without imports. Variables assigned in one python_repl_execute call remain "
+        "available to later Python repl executions in the same artifact session; they "
+        "are convenient for intermediate handle strings, chart handles, scalar "
+        "settings, and small derived values. Pass `restart=True` to "
+        "`python_repl_execute` to reset REPL state when prior variables or imports are "
+        "no longer useful. Prefer text-returning inspection tools when a human-readable "
+        "summary is enough. Use structured preview tools only when code needs fields "
+        "such as columns, row_count, or preview_rows; previews do not return a "
+        "dataframe, complete dataset, or new handle. Do not build charts or "
+        "transformed datasets from preview_rows. For real data prep, pass the original "
+        "dataset handle to dataframe tools, then pass the resulting handle to "
+        "visualization tools. Python repl variables are not SQL database tables and "
+        "cannot be referenced from SQL tools. Scientific and dataframe libraries such "
+        "as `pandas`, `numpy`, `scipy`, and `plotly` are not available inside Python "
+        "repl code. Use registered dataframe and visualization tools instead of "
+        "importing those libraries. Async tools must be called with `await`; calling "
+        "them without `await` returns an unresolved future, not the value. Sub-LLM "
+        "calls share a configured call budget for the artifact session; use Python for "
+        "grouping, filtering, and aggregation before spending that budget. Synchronous "
+        "tools are called directly. When submitting nested strings, assign multiline "
+        "code to variables first and avoid escape-heavy inline snippets."
+    )
+
+
+PYTHON_REPL_GUIDANCE = render_python_repl_guidance()
 
 
 def render_help(registry: FunctionRegistry, name: HelpTarget = None) -> str:
@@ -78,13 +79,13 @@ def render_help(registry: FunctionRegistry, name: HelpTarget = None) -> str:
     collections = ", ".join(item.name for item in registry.collections())
     functions = ", ".join(item.name for item in registry.entries())
     return (
-        f"No collection or function named {name!r} is registered.\n\n"
-        f"Collections: {collections}\n\nFunctions: {functions}"
+        f"No collection or tool named {name!r} is registered.\n\n"
+        f"Collections: {collections}\n\nTools: {functions}"
     )
 
 
 def _render_overview(registry: FunctionRegistry) -> str:
-    blocks = ["Monty Sandbox Overview", "", SANDBOX_GUIDANCE, "", "Collections:"]
+    blocks = ["Monty Python Repl Overview", "", PYTHON_REPL_GUIDANCE, "", "Collections:"]
     for collection in registry.collections():
         tools = ", ".join(collection.sorted_tool_names())
         blocks.append(f"- {collection.name}: {collection.description} Tools: {tools}")

@@ -1,4 +1,4 @@
-"""Usage and call-budget tracking for Monty RLM helpers."""
+"""Usage and call-budget tracking for Monty RLM tools."""
 
 from __future__ import annotations
 

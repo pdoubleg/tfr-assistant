@@ -22,3 +22,51 @@ INFO:     Started server process [19644]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 WARNING:  WatchFiles detected changes in 'app\capabilities\monty\collections.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for connections to close. (CTRL+C to force quit)
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [19644]
+WARNING:  WatchFiles detected changes in 'app\capabilities\monty\capability.py'. Reloading...
+INFO:     Started server process [11260]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [11260]
+INFO:     Started server process [6644]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app\capabilities\monty\help_content.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [6644]
+WARNING:  WatchFiles detected changes in 'app\capabilities\monty\runtime.py', 'app\agents\chat_agent.py', 'tests\test_sql_capability.py', 'app\capabilities\monty\help_content.py', 'tests\test_monty_capability.py', 'app\capabilities\monty\usage.py', 'app\capabilities\monty\interpreter.py', 'app\capabilities\monty\registry.py', 'app\capabilities\monty\capability.py', 'app\capabilities\monty\collections.py', 'app\capabilities\sql\capability.py'. Reloading...
+INFO:     Started server process [16308]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [16308]
+INFO:     Started server process [18256]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app\services\chat_artifacts.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [18256]
+WARNING:  WatchFiles detected changes in 'app\capabilities\monty\capability.py', 'app\capabilities\sql\capability.py', 'tests\test_monty_capability.py'. Reloading...
+INFO:     Started server process [5472]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [5472]
+INFO:     Started server process [5360]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.

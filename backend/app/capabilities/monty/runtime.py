@@ -155,8 +155,8 @@ def _error_type_from_message(message: str, fallback: str) -> str:
 
 def _model_guidance(error: str) -> str:
     return (
-        "This Python sandbox execution failed before the requested result can be assumed "
-        f"rendered. Fix the code and call python_sandbox_execute again. Error: {error}"
+        "This Python repl execution failed before the requested result can be assumed "
+        f"rendered. Fix the code and call python_repl_execute again. Error: {error}"
     )
 
 

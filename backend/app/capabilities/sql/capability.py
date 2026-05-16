@@ -50,12 +50,13 @@ class SQLDatabaseCapability(AbstractCapability[TFRChatDeps]):
                 "is obviously the clean final answer. Otherwise answer from the preview "
                 "and ask whether the user wants the result table shown. execute has "
                 "persist_result=false by default. Set persist_result=true only when a "
-                "downstream table, chart, or Python sandbox step needs a durable dataset "
+                "downstream table, chart, or Python repl step needs a durable dataset "
                 "handle for the full result. Copy the returned dataset_handle string, "
-                "for example ds_1, into python_sandbox_execute and pass it directly to "
-                "Monty helpers; Monty does not need a separate get/load step. Python "
-                "sandbox variables and handles created inside python_sandbox_execute are "
-                "not database tables and are not visible to SQL; SQL can only query the "
+                "for example ds_1, into python_repl_execute and pass it directly to "
+                "Monty tools discovered with python_repl_help; Monty does not need a "
+                "separate get/load step. Python repl variables and handles created inside "
+                "python_repl_execute are not database tables and are not visible to SQL; "
+                "SQL can only query the "
                 "configured application database plus the selected_home_rows CTE when "
                 "scope='selected'. "
                 f"{database.prompt_instructions}"
@@ -69,7 +70,7 @@ class SQLDatabaseCapability(AbstractCapability[TFRChatDeps]):
             instructions=(
                 "Use these read-only SQL tools for database discovery and analytics. "
                 "Never guess table relationships; inspect schema and foreign keys first. "
-                "Do not reference Python sandbox variables or Monty-created handles in SQL; "
+                "Do not reference Python repl variables or Monty-created handles in SQL; "
                 "they are not present in the database."
             ),
         )
@@ -253,8 +254,8 @@ class SQLDatabaseCapability(AbstractCapability[TFRChatDeps]):
 
             Use this for SELECT or WITH queries after inspecting schema. The SQL
             should include its own WHERE/LIMIT clauses when needed for correctness
-            or performance. Python sandbox variables and handles created by
-            python_sandbox_execute are not SQL tables and cannot be referenced
+            or performance. Python repl variables and handles created by
+            python_repl_execute are not SQL tables and cannot be referenced
             here.
 
             Args:
@@ -271,11 +272,11 @@ class SQLDatabaseCapability(AbstractCapability[TFRChatDeps]):
                     analysis and normal answers; set true only when the user asks
                     to see rows/a table or the table is clearly the final answer.
                 persist_result: Whether to save the full displayed query result as
-                    a dataset handle for downstream Python sandbox transforms or
+                    a dataset handle for downstream Python repl transforms or
                     Plotly charts. Defaults to false for exploratory queries. When
-                    true, copy the returned dataset_handle string into Monty and
-                    pass it directly to helpers such as describe_dataset(),
-                    group_by(), value_counts(), and create_bar_chart().
+                    true, copy the returned dataset_handle string into
+                    python_repl_execute and use python_repl_help to choose the
+                    right Python repl tools.
 
             Returns:
                 A JSON preview of the result columns and up to limit rows for
@@ -585,8 +586,8 @@ def _format_query_result_for_agent(
     if dataset_handle:
         handle_note = (
             f" Persisted dataset handle for Monty: {dataset_handle}. In "
-            "python_sandbox_execute, pass this handle string directly to helpers such as "
-            "describe_dataset(), group_by(), value_counts(), and create_bar_chart()."
+            "python_repl_execute, pass this handle string directly to Python repl tools. "
+            "Use python_repl_help to inspect the relevant collection or tool docs first."
         )
     else:
         handle_note = (

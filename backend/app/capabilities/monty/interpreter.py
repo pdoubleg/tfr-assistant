@@ -1,4 +1,4 @@
-"""Focused pydantic-monty interpreter for handle-oriented sandbox code."""
+"""Focused pydantic-monty interpreter for handle-oriented Python repl code."""
 
 from __future__ import annotations
 

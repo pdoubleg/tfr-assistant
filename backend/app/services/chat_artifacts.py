@@ -1,4 +1,4 @@
-"""File-backed chat artifacts shared by SQL and sandbox tools."""
+"""File-backed chat artifacts shared by SQL and Python repl tools."""
 
 from __future__ import annotations
 

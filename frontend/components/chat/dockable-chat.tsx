@@ -932,16 +932,16 @@ function formatToolStatusMessage(
   if (isHelpToolName(name)) {
     const target = helpTarget || "overview";
     return completed
-      ? `Sandbox help loaded: ${target}.`
-      : `Loading sandbox help: ${target}...`;
+      ? `Python repl help loaded: ${target}.`
+      : `Loading Python repl help: ${target}...`;
   }
 
   if (isExecuteToolName(name)) {
     if (failed) {
-      return name === "execute" ? "Database query failed." : "Python sandbox failed.";
+      return name === "execute" ? "Database query failed." : "Python repl failed.";
     }
     if (code.trim()) {
-      return completed ? "Python sandbox completed." : "Running Python sandbox...";
+      return completed ? "Python repl completed." : "Running Python repl...";
     }
   }
   if (name === "execute") {
@@ -1000,7 +1000,7 @@ function toolCallCodePreview(
       code,
       language: "python",
       title: "Python",
-      caption: "Monty sandbox",
+      caption: "Python repl",
       defaultOpen: false,
     };
   }
@@ -1033,7 +1033,7 @@ function toolResultCodePreview(
     code: result,
     language: "markdown",
     title: "Help",
-    caption: `Sandbox help: ${target}`,
+    caption: `Python repl help: ${target}`,
     defaultOpen: false,
   };
 }

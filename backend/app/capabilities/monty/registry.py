@@ -1,4 +1,4 @@
-"""Lightweight registry and doc parsing for Monty sandbox functions."""
+"""Lightweight registry and doc parsing for Monty Python repl tools."""
 
 from __future__ import annotations
 
@@ -99,7 +99,7 @@ _TOOL_METADATA_ATTR = "__monty_tool_metadata__"
 def tool(
     func: Callable[..., Any] | None = None,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]] | Callable[..., Any]:
-    """Mark a collection method as available inside the Monty sandbox."""
+    """Mark a collection method as available inside the Monty Python repl."""
 
     metadata = ToolMetadata()
 
@@ -150,7 +150,7 @@ class ToolCollection(ABC):
 
 
 class FunctionRegistry:
-    """Declarative registry of sandbox-callable functions."""
+    """Declarative registry of Python repl-callable functions."""
 
     def __init__(self) -> None:
         self._functions: dict[str, RegisteredFunction] = {}

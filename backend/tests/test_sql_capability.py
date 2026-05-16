@@ -35,10 +35,10 @@ def test_validate_readonly_query_rejects_multi_statement_write() -> None:
         validate_readonly_query("select * from audit_reviews; drop table audit_reviews")
 
 
-def test_sql_instructions_explain_python_sandbox_is_separate() -> None:
+def test_sql_instructions_explain_python_repl_is_separate() -> None:
     instructions = SQLDatabaseCapability().get_instructions()(None)  # type: ignore[arg-type]
 
-    assert "Python sandbox variables and handles" in instructions
+    assert "Python repl variables and handles" in instructions
     assert "not visible to SQL" in instructions
 
 

@@ -32,12 +32,12 @@ def test_monty_help_lists_registered_collections(tmp_path) -> None:
     assert "dataframe_operations" in help_text
     assert "rlm" in help_text
     assert "visualizations" in help_text
-    assert "help('<collection>')" in help_text
-    assert "help('<helper>')" in help_text
+    assert 'help("<collection-name>")' in help_text
+    assert 'help("<tool-name>")' in help_text
     assert "asyncio.sleep" in help_text
     assert "math" in help_text
     assert "pandas" in help_text
-    assert "not available inside sandbox code" in help_text
+    assert "not available inside Python repl code" in help_text
     assert "Class definitions are not supported" in help_text
     assert "wildcard imports are not supported" in help_text
     assert "remain available to later" in help_text
@@ -111,7 +111,7 @@ async def test_monty_runtime_returns_stdout_before_error(tmp_path) -> None:
     assert result["error_details"]["stdout_before_error"] == "before\n"
     assert result["error_details"]["error_type"] == "ZeroDivisionError"
     assert result["retryable"] is True
-    assert "call python_sandbox_execute again" in result["model_guidance"]
+    assert "call python_repl_execute again" in result["model_guidance"]
 
 
 def test_monty_help_accepts_multiple_targets(tmp_path) -> None:
@@ -125,7 +125,7 @@ def test_monty_help_accepts_multiple_targets(tmp_path) -> None:
 
     assert "Collection: handles" in help_text
     assert "Tool: create_line_chart" in help_text
-    assert "Valid plotly_kwargs keys for this helper" in help_text
+    assert "Valid plotly_kwargs keys for this tool" in help_text
     assert "\n\n---\n\n" in help_text
 
 
@@ -143,17 +143,17 @@ def test_monty_help_explains_sql_handle_flow_and_preview_escape_hatch(tmp_path) 
     assert runtime.registry.get("get_dataset") is None
     assert "SQL execute with persist_result=true" in overview
     assert "does not need a separate load/get step" in overview
-    assert "Prefer string-returning inspection helpers" in overview
+    assert "Prefer text-returning inspection tools" in overview
     assert "SQL execute tool with persist_result=True" in describe_help
     assert "Return a text description" in describe_help
-    assert "low-level dict helper" in preview_help
+    assert "low-level dict tool" in preview_help
     assert "Prefer describe_dataset" in preview_help
     assert "does not return a dataframe" in preview_help
     assert "Do not build charts" in preview_help
     assert "preview_rows" in preview_help
 
 
-def test_monty_rlm_help_lists_async_helpers(tmp_path) -> None:
+def test_monty_rlm_help_lists_async_tools(tmp_path) -> None:
     settings = Settings(
         data_dir=tmp_path / "data",
         chat_artifacts_dir=tmp_path / "data" / "chat_artifacts",
@@ -178,7 +178,7 @@ def test_monty_visualization_help_lists_valid_plotly_kwargs(tmp_path) -> None:
     line_help = runtime.help("create_line_chart")
     bar_help = runtime.help("create_bar_chart")
 
-    assert "Valid plotly_kwargs keys for this helper" in line_help
+    assert "Valid plotly_kwargs keys for this tool" in line_help
     assert "markers" in line_help
     assert "line_shape" in line_help
     assert "color_continuous_scale" not in line_help
@@ -227,7 +227,7 @@ def test_monty_viridis_palette_is_green_first() -> None:
 
 
 @pytest.mark.anyio
-async def test_chat_agent_exposes_prefixed_monty_tools_without_execute_conflict(tmp_path) -> None:
+async def test_chat_agent_exposes_python_repl_tools_without_execute_conflict(tmp_path) -> None:
     settings = Settings(
         chat_model="test",
         monty_rlm_model="test",
@@ -247,8 +247,8 @@ async def test_chat_agent_exposes_prefixed_monty_tools_without_execute_conflict(
         tool_names.extend((await toolset.get_tools(ctx)).keys())
 
     assert "execute" in tool_names
-    assert "python_sandbox_execute" in tool_names
-    assert "python_sandbox_help" in tool_names
+    assert "python_repl_execute" in tool_names
+    assert "python_repl_help" in tool_names
 
 
 @pytest.mark.anyio
@@ -267,12 +267,12 @@ async def test_monty_tool_docstrings_populate_registered_schema(tmp_path) -> Non
 
     tools = await build_chat_agent(settings).toolsets[1].get_tools(ctx)
 
-    help_tool = tools["python_sandbox_help"].tool_def
-    execute_tool = tools["python_sandbox_execute"].tool_def
+    help_tool = tools["python_repl_help"].tool_def
+    execute_tool = tools["python_repl_execute"].tool_def
 
-    assert "Monty sandbox collections" in help_tool.description
+    assert "Python repl collections" in help_tool.description
     assert (
-        "collection or helper name"
+        "collection or tool name"
         in help_tool.parameters_json_schema["properties"]["name"]["description"]
     )
     assert "dataframe handles and Plotly charts" in execute_tool.description
@@ -280,7 +280,7 @@ async def test_monty_tool_docstrings_populate_registered_schema(tmp_path) -> Non
     restart_description = execute_tool.parameters_json_schema["properties"]["restart"][
         "description"
     ]
-    assert "restrictive Monty" in code_description
+    assert "Monty Python repl" in code_description
     assert "dataset or chart handle strings" in code_description
     assert "reset the REPL state" in restart_description
 
@@ -339,7 +339,7 @@ print(emitted["component"])
 
 
 @pytest.mark.anyio
-async def test_monty_describe_helpers_return_strings_for_handle_inspection(tmp_path) -> None:
+async def test_monty_describe_tools_return_strings_for_handle_inspection(tmp_path) -> None:
     settings = Settings(
         data_dir=tmp_path / "data",
         chat_artifacts_dir=tmp_path / "data" / "chat_artifacts",
@@ -547,7 +547,7 @@ emitted = emit_plotly_chart(chart)
     assert failed["traceback"] is None
     assert failed["error_details"]["error_type"] == "TypeError"
     assert failed["retryable"] is True
-    assert "call python_sandbox_execute again" in failed["model_guidance"]
+    assert "call python_repl_execute again" in failed["model_guidance"]
     assert recovered["status"] == "success"
     assert state.components[-1].type == "a2ui.PlotlyChart"
 
@@ -570,21 +570,21 @@ async def test_monty_execute_status_uses_generic_failure_message(tmp_path) -> No
     tools = await toolset.get_tools(ctx)
 
     failed = await toolset.call_tool(
-        "python_sandbox_execute",
+        "python_repl_execute",
         {"code": "1 / 0"},
         ctx,
-        tools["python_sandbox_execute"],
+        tools["python_repl_execute"],
     )
     assert failed.return_value["status"] == "error"
     assert failed.return_value["error"] == "ZeroDivisionError: division by zero"
-    assert state.error_message == "Python sandbox execution failed."
-    assert state.current_step == "Python sandbox execution failed."
+    assert state.error_message == "Python repl execution failed."
+    assert state.current_step == "Python repl execution failed."
 
     recovered = await toolset.call_tool(
-        "python_sandbox_execute",
+        "python_repl_execute",
         {"code": 'print("ok")'},
         ctx,
-        tools["python_sandbox_execute"],
+        tools["python_repl_execute"],
     )
 
     assert state.error_message is None
@@ -593,7 +593,7 @@ async def test_monty_execute_status_uses_generic_failure_message(tmp_path) -> No
 
 
 @pytest.mark.anyio
-async def test_monty_rlm_helpers_create_texts_and_run_batched_queries(tmp_path) -> None:
+async def test_monty_rlm_tools_create_texts_and_run_batched_queries(tmp_path) -> None:
     settings = Settings(
         chat_model="test",
         monty_rlm_model="test",
@@ -640,7 +640,7 @@ print(answers[0])
 
 
 @pytest.mark.anyio
-async def test_monty_rlm_helpers_enforce_call_budget_and_restart_resets(tmp_path) -> None:
+async def test_monty_rlm_tools_enforce_call_budget_and_restart_resets(tmp_path) -> None:
     settings = Settings(
         chat_model="test",
         monty_rlm_model="test",
@@ -669,7 +669,7 @@ print(len(answers))
 
 
 @pytest.mark.anyio
-async def test_visualization_helpers_accept_extra_plotly_and_layout_kwargs(tmp_path) -> None:
+async def test_visualization_tools_accept_extra_plotly_and_layout_kwargs(tmp_path) -> None:
     settings = Settings(
         data_dir=tmp_path / "data",
         chat_artifacts_dir=tmp_path / "data" / "chat_artifacts",
@@ -707,7 +707,7 @@ emit_plotly_chart(chart)
 
 
 @pytest.mark.anyio
-async def test_visualization_helpers_reject_plotly_kwargs_that_override_named_args(
+async def test_visualization_tools_reject_plotly_kwargs_that_override_named_args(
     tmp_path,
 ) -> None:
     settings = Settings(
@@ -738,12 +738,12 @@ create_line_chart(
     )
 
     assert result["status"] == "error"
-    assert "Use the named helper arguments" in result["error"]
+    assert "Use the named tool arguments" in result["error"]
     assert "x" in result["error"]
 
 
 @pytest.mark.anyio
-async def test_visualization_helpers_reject_unsupported_plotly_kwargs(tmp_path) -> None:
+async def test_visualization_tools_reject_unsupported_plotly_kwargs(tmp_path) -> None:
     settings = Settings(
         data_dir=tmp_path / "data",
         chat_artifacts_dir=tmp_path / "data" / "chat_artifacts",
