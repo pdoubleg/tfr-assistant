@@ -37,6 +37,7 @@ def build_chat_agent(settings: Settings | None = None) -> Agent[TFRChatDeps, str
         model,
         output_type=str,
         deps_type=TFRChatDeps,
+        retries=5,
         instructions=(
             "You are the general assistant for a Targeted File Review application. "
             "Help users navigate reviews, forms, dashboard data, and evaluation workflows. "

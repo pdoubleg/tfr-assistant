@@ -2,11 +2,12 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from app.capabilities.sql.backend import SQLiteDatabase, create_sql_database
+from app.capabilities.sql.backend import SQLDatabaseError, SQLiteDatabase, create_sql_database
 from app.capabilities.sql.capability import (
     _effective_sql_for_scope,
     _format_query_result_for_agent,
     _format_selected_rows_info,
+    _format_sql_error_for_agent,
 )
 from app.capabilities.sql.safety import SQLSafetyError, validate_readonly_query
 from app.capabilities.sql.types import QueryResult
@@ -75,6 +76,26 @@ async def test_database_execute_limits_agent_rows() -> None:
 
 
 @pytest.mark.anyio
+async def test_database_execute_wraps_driver_errors_for_tool_handling() -> None:
+    local_engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    try:
+        async with local_engine.begin() as connection:
+            await connection.execute(text("create table sample (id integer, name text)"))
+
+        database = SQLiteDatabase(local_engine)
+        with pytest.raises(SQLDatabaseError) as exc_info:
+            await database.execute("select missing_column from sample")
+
+        error = exc_info.value
+        assert error.operation == "execute"
+        assert error.dialect_name == "sqlite"
+        assert error.sql == "select missing_column from sample"
+        assert "missing_column" in error.message
+    finally:
+        await local_engine.dispose()
+
+
+@pytest.mark.anyio
 async def test_database_factory_selects_sqlite_backend() -> None:
     local_engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     try:
@@ -102,6 +123,22 @@ def test_query_result_message_mentions_when_table_is_not_rendered() -> None:
 
     assert "No result table was emitted" in message
     assert '"table_rendered": false' in message
+
+
+def test_sql_error_message_is_structured_for_agent_retry() -> None:
+    error = SQLDatabaseError(
+        "execute",
+        "sqlite",
+        "no such column: missing_column",
+        sql="select missing_column from sample",
+    )
+
+    message = _format_sql_error_for_agent("execute", error, sql="select missing_column from sample")
+
+    assert "Unable to execute SQL" in message
+    assert '"error_type": "SQLDatabaseError"' in message
+    assert '"message": "no such column: missing_column"' in message
+    assert "Call get_table_info" in message
 
 
 def test_selected_rows_info_explains_join_recipe() -> None:

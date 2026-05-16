@@ -11,7 +11,7 @@ from pydantic_ai import FunctionToolset, RunContext, ToolReturn
 from pydantic_ai.capabilities import AbstractCapability
 
 from app.capabilities.deps import TFRChatDeps
-from app.capabilities.sql.backend import SQLDatabase, create_sql_database
+from app.capabilities.sql.backend import SQLDatabase, SQLDatabaseError, create_sql_database
 from app.capabilities.sql.safety import SQLSafetyError, validate_readonly_query
 from app.capabilities.sql.types import ForeignKeyInfo, QueryResult, SchemaInfo, TableInfo
 from app.db.session import engine
@@ -175,9 +175,10 @@ class SQLDatabaseCapability(AbstractCapability[TFRChatDeps]):
             try:
                 effective_sql = _effective_sql_for_scope(ctx.deps.state, sql, scope)
                 plan = await _database().explain(effective_sql)
-            except (SQLSafetyError, ValueError) as exc:
-                reporter.error(str(exc), progress=100)
-                return _tool_return(ctx.deps.state, f"Unable to explain SQL: {exc}")
+            except (SQLSafetyError, ValueError, SQLDatabaseError) as exc:
+                message = _format_sql_error_for_agent("explain", exc, sql=sql)
+                reporter.error(_sql_error_status("explain", exc), progress=100)
+                return _tool_return(ctx.deps.state, message)
             reporter.completed("SQL query plan is ready.", progress=100)
             _mark_complete(ctx.deps.state)
             return _tool_return(ctx.deps.state, plan)
@@ -269,9 +270,10 @@ class SQLDatabaseCapability(AbstractCapability[TFRChatDeps]):
                     max_display_rows=self.max_display_rows,
                     max_agent_rows=self.max_agent_rows,
                 ).execute(effective_sql, agent_limit=limit, scope=scope)
-            except (SQLSafetyError, ValueError) as exc:
-                reporter.error(str(exc), progress=100)
-                return _tool_return(ctx.deps.state, f"Unable to execute SQL: {exc}")
+            except (SQLSafetyError, ValueError, SQLDatabaseError) as exc:
+                message = _format_sql_error_for_agent("execute", exc, sql=sql)
+                reporter.error(_sql_error_status("execute", exc), progress=100)
+                return _tool_return(ctx.deps.state, message)
 
             if render_table:
                 _append_query_components(ctx.deps.state, result)
@@ -530,3 +532,50 @@ def _format_query_result_for_agent(result: QueryResult, *, table_rendered: bool)
         + "\nPreview for reasoning:\n"
         + json.dumps(payload, ensure_ascii=False, indent=2)
     )
+
+
+def _format_sql_error_for_agent(
+    operation: Literal["execute", "explain"],
+    error: SQLSafetyError | ValueError | SQLDatabaseError,
+    *,
+    sql: str,
+) -> str:
+    problem = str(error)
+    payload = {
+        "operation": operation,
+        "error_type": error.__class__.__name__,
+        "message": problem,
+        "sql": error.sql if isinstance(error, SQLDatabaseError) and error.sql else sql,
+        "hint": _sql_error_hint(error),
+    }
+    return (
+        f"Unable to {operation} SQL. The tool caught the database error so you can "
+        "revise the query and try again.\n" + json.dumps(payload, ensure_ascii=False, indent=2)
+    )
+
+
+def _sql_error_status(
+    operation: Literal["execute", "explain"],
+    error: SQLSafetyError | ValueError | SQLDatabaseError,
+) -> str:
+    if isinstance(error, SQLDatabaseError):
+        return f"SQL {operation} failed: {error.message}"
+    return f"SQL {operation} blocked: {error}"
+
+
+def _sql_error_hint(error: SQLSafetyError | ValueError | SQLDatabaseError) -> str:
+    message = str(error).lower()
+    if isinstance(error, SQLSafetyError):
+        return "Use a single read-only SELECT or WITH query."
+    if "selected_home_rows" in message:
+        return (
+            "Call get_selected_rows_info, then include selected_home_rows in the "
+            "selected-scope query."
+        )
+    if "no such table" in message or "does not exist" in message:
+        return "Call get_tables or get_schema to verify the table name before retrying."
+    if "no such column" in message or "unknown column" in message:
+        return "Call get_table_info for the tables involved and correct the column or alias."
+    if "syntax" in message:
+        return "Check the active dialect instructions and rewrite the SQL syntax."
+    return "Inspect schema context, adjust the SQL, and retry with a narrow LIMIT when useful."

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -11,6 +12,7 @@ from decimal import Decimal
 from typing import Any, Protocol
 
 from sqlalchemy import inspect, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.capabilities.sql.safety import validate_readonly_query
@@ -56,6 +58,24 @@ class SQLDatabase(Protocol):
 
 class UnsupportedSQLDialectError(ValueError):
     """Raised when the configured database dialect has no SQL capability backend."""
+
+
+class SQLDatabaseError(RuntimeError):
+    """Raised when the configured database cannot complete a SQL operation."""
+
+    def __init__(
+        self,
+        operation: str,
+        dialect_name: str,
+        message: str,
+        *,
+        sql: str | None = None,
+    ) -> None:
+        self.operation = operation
+        self.dialect_name = dialect_name
+        self.message = message
+        self.sql = sql
+        super().__init__(message)
 
 
 @dataclass(slots=True)
@@ -112,9 +132,17 @@ class SQLAlchemyDatabaseBase(ABC):
     async def explain(self, sql: str) -> str:
         prepared = validate_readonly_query(sql)
         explain_sql = self._explain_sql(prepared)
-        async with self.engine.connect() as connection:
-            result = await connection.execute(text(explain_sql))
-            rows = result.fetchall()
+        try:
+            async with self.engine.connect() as connection:
+                result = await connection.execute(text(explain_sql))
+                rows = result.fetchall()
+        except SQLAlchemyError as exc:
+            raise SQLDatabaseError(
+                "explain",
+                self.dialect_name,
+                _format_sqlalchemy_error(exc),
+                sql=prepared,
+            ) from exc
         if not rows:
             return "The database returned an empty query plan."
         return "\n".join(" | ".join(_cell_to_text(cell) for cell in row) for row in rows)
@@ -129,10 +157,18 @@ class SQLAlchemyDatabaseBase(ABC):
         prepared = validate_readonly_query(sql)
         safe_agent_limit = max(1, min(agent_limit, self.max_agent_rows))
 
-        async with self.engine.connect() as connection:
-            result = await connection.execute(text(prepared))
-            columns = list(result.keys())
-            fetched = result.fetchmany(self.max_display_rows + 1)
+        try:
+            async with self.engine.connect() as connection:
+                result = await connection.execute(text(prepared))
+                columns = list(result.keys())
+                fetched = result.fetchmany(self.max_display_rows + 1)
+        except SQLAlchemyError as exc:
+            raise SQLDatabaseError(
+                "execute",
+                self.dialect_name,
+                _format_sqlalchemy_error(exc),
+                sql=prepared,
+            ) from exc
 
         truncated = len(fetched) > self.max_display_rows
         rows = fetched[: self.max_display_rows]
@@ -279,3 +315,9 @@ def _normalize_cell(value: Any) -> str | int | float | bool | None:
 def _cell_to_text(value: Any) -> str:
     normalized = _normalize_cell(value)
     return "" if normalized is None else str(normalized)
+
+
+def _format_sqlalchemy_error(exc: SQLAlchemyError) -> str:
+    raw = str(getattr(exc, "orig", None) or exc)
+    message = re.sub(r"\s+", " ", raw).strip()
+    return message or exc.__class__.__name__

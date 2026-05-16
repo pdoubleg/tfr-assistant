@@ -56,6 +56,8 @@ class ChatStateStatusReporter:
     ) -> None:
         self.state.status = "using_tools" if status != "error" else "error"
         self.state.current_step = message
+        if status == "error":
+            self.state.error_message = message
         if progress is not None:
             self.state.progress = max(self.state.progress, progress)
         log_activity(self.state, message, status, self.source_name)
