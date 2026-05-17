@@ -1344,3 +1344,16 @@ sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such column: eval
 FROM eval_runs ORDER BY eval_runs.created_at DESC]
 (Background on this error at: https://sqlalche.me/e/20/e3q8)
 WARNING:  WatchFiles detected changes in 'app\capabilities\monty\capability.py', 'tests\test_evaluation_metrics.py', 'app\services\evaluation_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for connections to close. (CTRL+C to force quit)
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [4652]
+INFO:     Started server process [8524]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app\schemas\forms.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [8524]

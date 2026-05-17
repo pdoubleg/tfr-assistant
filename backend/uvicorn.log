@@ -151,4 +151,21 @@ INFO:     127.0.0.1:63499 - "GET /api/evaluations/datasets HTTP/1.1" 200 OK
 INFO:     127.0.0.1:63500 - "GET /api/evaluations/runs HTTP/1.1" 200 OK
 INFO:     127.0.0.1:63500 - "GET /api/evaluations/runs/9116b2dc-9ed2-4263-8209-91803c68e41e/items HTTP/1.1" 200 OK
 INFO:     127.0.0.1:63500 - "GET /api/evaluations/runs/9116b2dc-9ed2-4263-8209-91803c68e41e/items HTTP/1.1" 200 OK
- 
+ INFO:     127.0.0.1:63501 - "GET /api/evaluations/runs/fece9b5b-f570-47b1-b530-e48c8bf0d5b3/items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63567 - "GET /api/forms HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63570 - "GET /api/forms HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63571 - "GET /api/batches/templates HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63568 - "GET /api/batches/templates HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63572 - "GET /api/reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63569 - "GET /api/reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63584 - "GET /api/evaluations/datasets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63585 - "GET /api/evaluations/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63585 - "GET /api/evaluations/runs/9116b2dc-9ed2-4263-8209-91803c68e41e/items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63584 - "GET /api/evaluations/runs/9116b2dc-9ed2-4263-8209-91803c68e41e/items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63902 - "GET /api/forms HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63901 - "GET /api/forms HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63901 - "GET /api/forms/exterior_hail/v0.1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63944 - "GET /api/forms/exterior_hail/v0.1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64020 - "GET /api/forms/exterior_hail/v0.1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64413 - "GET /api/forms/exterior_hail/v0.1 HTTP/1.1" 200 OK
+ INFO:     127.0.0.1:64877 - "GET /api/forms HTTP/1.1" 200 OK

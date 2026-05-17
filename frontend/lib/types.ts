@@ -38,8 +38,9 @@ export interface AuditFormDefinition {
   version: string;
   title: string;
   description?: string | null;
-  audit_scope?: string | null;
-  tool_instructions?: string | null;
+  instructions?: string | null;
+  tools?: string[] | null;
+  knowledge_docs?: string[] | null;
   canonical: AuditFormResult;
   created_at?: string;
 }
@@ -284,8 +285,9 @@ export interface FormCatalogEntry {
   version: string;
   title: string;
   description: string;
-  auditScope: string;
-  toolInstructions: string;
+  instructions: string;
+  tools: string[];
+  knowledgeDocs: string[];
   questionCount: number;
   subQuestionCount: number;
   status: "active" | "draft";

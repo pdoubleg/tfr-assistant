@@ -98,8 +98,9 @@ export async function listFormCatalog(): Promise<FormCatalogEntry[]> {
       version: string;
       title: string;
       description?: string | null;
-      audit_scope?: string | null;
-      tool_instructions?: string | null;
+      instructions?: string | null;
+      tools?: string[] | null;
+      knowledge_docs?: string[] | null;
       question_count: number;
       sub_question_count?: number;
       review_count?: number;
@@ -114,8 +115,9 @@ export async function listFormCatalog(): Promise<FormCatalogEntry[]> {
     version: form.version,
     title: form.title,
     description: form.description ?? "",
-    auditScope: form.audit_scope ?? "",
-    toolInstructions: form.tool_instructions ?? "",
+    instructions: form.instructions ?? "",
+    tools: form.tools ?? [],
+    knowledgeDocs: form.knowledge_docs ?? [],
     questionCount: form.question_count,
     subQuestionCount: form.sub_question_count ?? 0,
     status: "active",
@@ -152,8 +154,9 @@ export async function registerForm(
       version: definition.version,
       title: definition.title,
       description: definition.description ?? "",
-      audit_scope: definition.audit_scope ?? "",
-      tool_instructions: definition.tool_instructions ?? "",
+      instructions: definition.instructions ?? null,
+      tools: definition.tools ?? null,
+      knowledge_docs: definition.knowledge_docs ?? null,
       canonical: definition.canonical,
     }),
   });

@@ -45,7 +45,6 @@ import type {
   FormQuestion,
   FormSubQuestion,
   OverallOutcome,
-  QuestionAnswer,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -53,13 +52,18 @@ type DialogMode = "create" | "edit";
 type UsageFilter = "all" | "used" | "unused";
 type PreviewMode = "form" | "json" | "string";
 
+const FORM_TOOL_OPTIONS = ["Claim Summary", "Notes", "Documents", "Images"] as const;
+const CANONICAL_PLACEHOLDER = "Canonical template placeholder.";
+
 interface FormEditorState {
   id: string;
   version: string;
   title: string;
   description: string;
-  auditScope: string;
-  toolInstructions: string;
+  instructions: string;
+  tools: string[];
+  knowledgeDocs: string[];
+  knowledgeDocDraft: string;
   questions: FormQuestion[];
   overallOutcome: OverallOutcome;
   outcomeJustification: string;
@@ -75,50 +79,15 @@ const subQuestionSchema = z.object({
   help_text: z.string().nullable().optional(),
 });
 
-const questionSchema = z
-  .object({
-    id: z.string().trim().min(1, "Question ID is required."),
-    text: z.string().trim().min(1, "Question text is required."),
-    answer: z.enum(["Yes", "No"]),
-    comments: z.string().nullable().optional(),
-    citations: z.string().nullable().optional(),
-    sub_questions: z.array(subQuestionSchema).nullable().optional().default([]),
-    help_text: z.string().nullable().optional(),
-  })
-  .superRefine((question, ctx) => {
-    const subQuestions = question.sub_questions ?? [];
-    if (subQuestions.length === 0 && !question.comments?.trim()) {
-      ctx.addIssue({
-        code: "custom",
-        message: `${question.id}: Questions without drivers need question comments.`,
-        path: ["comments"],
-      });
-    }
-    if (subQuestions.length === 0 && !question.citations?.trim()) {
-      ctx.addIssue({
-        code: "custom",
-        message: `${question.id}: Questions without drivers need question citations.`,
-        path: ["citations"],
-      });
-    }
-    for (const subQuestion of subQuestions) {
-      if (!subQuestion.answer) continue;
-      if (!subQuestion.reasoning.trim()) {
-        ctx.addIssue({
-          code: "custom",
-          message: `${subQuestion.id}: Applicable drivers need reasoning.`,
-          path: ["sub_questions"],
-        });
-      }
-      if (!subQuestion.citations.trim()) {
-        ctx.addIssue({
-          code: "custom",
-          message: `${subQuestion.id}: Applicable drivers need citations.`,
-          path: ["sub_questions"],
-        });
-      }
-    }
-  });
+const questionSchema = z.object({
+  id: z.string().trim().min(1, "Question ID is required."),
+  text: z.string().trim().min(1, "Question text is required."),
+  answer: z.enum(["Yes", "No"]),
+  comments: z.string().nullable().optional(),
+  citations: z.string().nullable().optional(),
+  sub_questions: z.array(subQuestionSchema).nullable().optional().default([]),
+  help_text: z.string().nullable().optional(),
+});
 
 const auditFormSchema = z.object({
   form_id: z
@@ -141,9 +110,9 @@ const auditFormSchema = z.object({
 const emptySubQuestion = (questionId: string, index: number): FormSubQuestion => ({
   id: `${questionId}.${index}`,
   text: "",
-  reasoning: "",
-  citations: "",
-  answer: false,
+  reasoning: CANONICAL_PLACEHOLDER,
+  citations: CANONICAL_PLACEHOLDER,
+  answer: true,
   help_text: "",
 });
 
@@ -153,8 +122,8 @@ const emptyQuestion = (index: number): FormQuestion => {
     id,
     text: "",
     answer: "No",
-    comments: "",
-    citations: "",
+    comments: CANONICAL_PLACEHOLDER,
+    citations: CANONICAL_PLACEHOLDER,
     help_text: "",
     sub_questions: [emptySubQuestion(id, 1)],
   };
@@ -216,6 +185,13 @@ function normalizeOptionalText(value?: string | null): string | null {
   return trimmed ? trimmed : null;
 }
 
+function normalizeList(values: string[]): string[] | null {
+  const unique = Array.from(
+    new Set(values.map((value) => value.trim()).filter(Boolean)),
+  );
+  return unique.length ? unique : null;
+}
+
 function buildCanonical(state: FormEditorState): AuditFormResult {
   const formId = state.id.trim();
   const version = state.version.trim();
@@ -226,17 +202,22 @@ function buildCanonical(state: FormEditorState): AuditFormResult {
       ...subQuestion,
       id: subQuestion.id.trim(),
       text: subQuestion.text.trim(),
-      reasoning: subQuestion.reasoning ?? "",
-      citations: subQuestion.citations ?? "",
+      reasoning: (subQuestion.reasoning || CANONICAL_PLACEHOLDER).trim(),
+      citations: (subQuestion.citations || CANONICAL_PLACEHOLDER).trim(),
       help_text: normalizeOptionalText(subQuestion.help_text),
-      answer: Boolean(subQuestion.answer),
+      answer: true,
     }));
+    const hasSubQuestions = subQuestions.length > 0;
     return {
       ...question,
       id: question.id.trim(),
       text: question.text.trim(),
-      comments: normalizeOptionalText(question.comments),
-      citations: normalizeOptionalText(question.citations),
+      comments: hasSubQuestions
+        ? normalizeOptionalText(question.comments)
+        : normalizeOptionalText(question.comments) || CANONICAL_PLACEHOLDER,
+      citations: hasSubQuestions
+        ? normalizeOptionalText(question.citations)
+        : normalizeOptionalText(question.citations) || CANONICAL_PLACEHOLDER,
       help_text: normalizeOptionalText(question.help_text),
       answer: question.answer,
       sub_questions: subQuestions.length ? subQuestions : undefined,
@@ -261,8 +242,9 @@ function buildDefinition(state: FormEditorState): AuditFormDefinition {
     version: canonical.form_version,
     title: canonical.title,
     description: canonical.description,
-    audit_scope: normalizeOptionalText(state.auditScope),
-    tool_instructions: normalizeOptionalText(state.toolInstructions),
+    instructions: normalizeOptionalText(state.instructions),
+    tools: normalizeList(state.tools),
+    knowledge_docs: normalizeList(state.knowledgeDocs),
     canonical,
   };
 }
@@ -304,15 +286,16 @@ function definitionToState(
   const title = definition?.title ?? canonical?.title ?? titleFromId(baseId);
   const description = definition?.description ?? canonical?.description ?? "";
   const questions = canonical?.questions?.length
-    ? canonical.questions.map((question) => ({
+      ? canonical.questions.map((question) => ({
         ...question,
-        comments: question.comments ?? "",
-        citations: question.citations ?? "",
+        comments: question.comments ?? CANONICAL_PLACEHOLDER,
+        citations: question.citations ?? CANONICAL_PLACEHOLDER,
         help_text: question.help_text ?? "",
         sub_questions: (question.sub_questions ?? []).map((subQuestion) => ({
           ...subQuestion,
-          reasoning: subQuestion.reasoning ?? "",
-          citations: subQuestion.citations ?? "",
+          reasoning: subQuestion.reasoning || CANONICAL_PLACEHOLDER,
+          citations: subQuestion.citations || CANONICAL_PLACEHOLDER,
+          answer: true,
           help_text: subQuestion.help_text ?? "",
         })),
       }))
@@ -323,8 +306,10 @@ function definitionToState(
     version,
     title,
     description,
-    auditScope: definition?.audit_scope ?? "",
-    toolInstructions: definition?.tool_instructions ?? "",
+    instructions: definition?.instructions ?? "",
+    tools: definition?.tools ?? [],
+    knowledgeDocs: definition?.knowledge_docs ?? [],
+    knowledgeDocDraft: "",
     questions,
     overallOutcome: canonical?.overall_outcome ?? "Does Not Meet",
     outcomeJustification: canonical?.outcome_justification ?? "Canonical template draft.",
@@ -342,6 +327,20 @@ function zodMessage(error: unknown): string {
   }
   if (error instanceof Error) return error.message;
   return "The form could not be validated.";
+}
+
+async function readFirstColumnValues(file: File): Promise<string[]> {
+  const XLSX = await import("xlsx");
+  const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", raw: false });
+  const firstSheet = workbook.SheetNames[0];
+  if (!firstSheet) return [];
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[firstSheet], {
+    header: 1,
+    blankrows: false,
+  });
+  return rows
+    .map((row) => (Array.isArray(row) ? String(row[0] ?? "").trim() : ""))
+    .filter(Boolean);
 }
 
 function useBodyScrollLock(open: boolean) {
@@ -731,8 +730,9 @@ export function FormCatalog() {
           form.version,
           form.title,
           form.description,
-          form.auditScope,
-          form.toolInstructions,
+          form.instructions,
+          form.tools.join(" "),
+          form.knowledgeDocs.join(" "),
         ]
           .join(" ")
           .toLowerCase()
@@ -832,7 +832,7 @@ export function FormCatalog() {
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   className="pl-9"
-                  placeholder="Search title, ID, scope, instructions..."
+                  placeholder="Search title, ID, instructions, tools, docs..."
                 />
               </label>
               <select
@@ -951,18 +951,34 @@ export function FormCatalog() {
                   <MetadataPill label="Last Review" value={formatDate(selectedForm.lastReviewedAt)} />
                 </div>
 
-                {selectedDefinition.audit_scope || selectedDefinition.tool_instructions ? (
-                  <div className="grid gap-3 lg:grid-cols-2">
-                    {selectedDefinition.audit_scope ? (
+                {selectedDefinition.instructions ||
+                selectedDefinition.tools?.length ||
+                selectedDefinition.knowledge_docs?.length ? (
+                  <div className="grid gap-3 lg:grid-cols-3">
+                    {selectedDefinition.instructions ? (
                       <div className="rounded-lg border bg-background p-4">
-                        <p className="text-[11px] font-semibold uppercase text-muted-foreground">Audit Scope</p>
-                        <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{selectedDefinition.audit_scope}</p>
+                        <p className="text-[11px] font-semibold uppercase text-muted-foreground">Instructions</p>
+                        <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{selectedDefinition.instructions}</p>
                       </div>
                     ) : null}
-                    {selectedDefinition.tool_instructions ? (
+                    {selectedDefinition.tools?.length ? (
                       <div className="rounded-lg border bg-background p-4">
-                        <p className="text-[11px] font-semibold uppercase text-muted-foreground">Tool Instructions</p>
-                        <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{selectedDefinition.tool_instructions}</p>
+                        <p className="text-[11px] font-semibold uppercase text-muted-foreground">Tools</p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {selectedDefinition.tools.map((tool) => (
+                            <Badge key={tool} variant="outline">{tool}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                    {selectedDefinition.knowledge_docs?.length ? (
+                      <div className="rounded-lg border bg-background p-4">
+                        <p className="text-[11px] font-semibold uppercase text-muted-foreground">Knowledge Docs</p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {selectedDefinition.knowledge_docs.map((doc) => (
+                            <Badge key={doc} variant="secondary">{doc}</Badge>
+                          ))}
+                        </div>
                       </div>
                     ) : null}
                   </div>
@@ -971,7 +987,7 @@ export function FormCatalog() {
                     <Badge
                       variant="outline"
                       className="gap-1 text-[10px] text-muted-foreground"
-                      title="No audit scope or tool instructions are stored for this form."
+                      title="No instructions, tools, or knowledge documents are stored for this form."
                     >
                       <Info className="h-3 w-3" />
                       No prompt metadata
@@ -1038,12 +1054,14 @@ function FormRegistrationDialog({
   const [importMessage, setImportMessage] = useState("");
   const [importing, setImporting] = useState(false);
   const [uploadedWorkbookName, setUploadedWorkbookName] = useState("");
+  const [uploadedKnowledgeDocName, setUploadedKnowledgeDocName] = useState("");
 
   const isEditing = mode === "edit";
   const duplicateVersion = forms.some(
     (form) => form.id === state.id.trim() && form.version === state.version.trim(),
   );
-  const runtimeMetadataMissing = !state.auditScope.trim() && !state.toolInstructions.trim();
+  const runtimeMetadataMissing =
+    !state.instructions.trim() && state.tools.length === 0 && state.knowledgeDocs.length === 0;
 
   useBodyScrollLock(open);
 
@@ -1058,6 +1076,7 @@ function FormRegistrationDialog({
     setImportMessage("");
     setImporting(false);
     setUploadedWorkbookName("");
+    setUploadedKnowledgeDocName("");
   }, [forms, mode, open, sourceDefinition]);
 
   if (!open) return null;
@@ -1192,6 +1211,51 @@ function FormRegistrationDialog({
       setFormError(err instanceof Error ? err.message : "Failed to extract the workbook.");
     } finally {
       setImporting(false);
+    }
+  };
+
+  const toggleTool = (tool: string) => {
+    setState((current) => ({
+      ...current,
+      tools: current.tools.includes(tool)
+        ? current.tools.filter((item) => item !== tool)
+        : [...current.tools, tool],
+    }));
+  };
+
+  const addKnowledgeDoc = () => {
+    const value = state.knowledgeDocDraft.trim();
+    if (!value) return;
+    setState((current) => ({
+      ...current,
+      knowledgeDocs: normalizeList([...current.knowledgeDocs, value]) ?? [],
+      knowledgeDocDraft: "",
+    }));
+  };
+
+  const removeKnowledgeDoc = (doc: string) => {
+    setState((current) => ({
+      ...current,
+      knowledgeDocs: current.knowledgeDocs.filter((item) => item !== doc),
+    }));
+  };
+
+  const importKnowledgeDocs = async (file: File) => {
+    setFormError("");
+    setUploadedKnowledgeDocName(file.name);
+    try {
+      const docs = await readFirstColumnValues(file);
+      if (!docs.length) {
+        setFormError("No knowledge document names or IDs were found in the first column.");
+        return;
+      }
+      setState((current) => ({
+        ...current,
+        knowledgeDocs: normalizeList([...current.knowledgeDocs, ...docs]) ?? [],
+      }));
+      setImportMessage(`Added ${docs.length} knowledge doc item${docs.length === 1 ? "" : "s"}.`);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Failed to import knowledge docs.");
     }
   };
 
@@ -1345,12 +1409,209 @@ function FormRegistrationDialog({
               </div>
             </div>
 
+            <div className="rounded-lg border bg-background p-4">
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.7fr)]">
+                <div className="grid gap-4">
+                  <div className="grid gap-2">
+                    <FieldLabel htmlFor="form-description" label="Description" optional />
+                    <Textarea
+                      id="form-description"
+                      value={state.description}
+                      onChange={(event) =>
+                        setState((current) => ({ ...current, description: event.target.value }))
+                      }
+                      disabled={saving}
+                      className="min-h-[64px]"
+                      placeholder="Review focus, use case, and catalog notes"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <FieldLabel
+                      htmlFor="form-instructions"
+                      label="Instructions"
+                      optional
+                      tooltip="Stored on the catalog definition and injected into the file-review agent prompt."
+                    />
+                    <Textarea
+                      id="form-instructions"
+                      value={state.instructions}
+                      onChange={(event) =>
+                        setState((current) => ({ ...current, instructions: event.target.value }))
+                      }
+                      disabled={saving}
+                      className="min-h-[220px]"
+                      placeholder="Form-specific review focus, evidence boundaries, citation expectations..."
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-4">
+                  <div className="grid gap-2">
+                    <FieldLabel htmlFor="tools-selector" label="Tools" optional />
+                    <details className="group relative">
+                      <summary
+                        id="tools-selector"
+                        className="flex h-10 cursor-pointer list-none items-center justify-between rounded-md border border-input bg-background px-3 text-sm"
+                      >
+                        <span className="truncate">
+                          {state.tools.length
+                            ? `${state.tools.length} selected`
+                            : "No tools selected"}
+                        </span>
+                        <ChevronDown className="h-4 w-4 text-muted-foreground group-open:rotate-180" />
+                      </summary>
+                      <div className="absolute z-50 mt-2 w-full rounded-md border bg-card p-2 shadow-xl ring-1 ring-border">
+                        <div className="mb-2 flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 flex-1"
+                            onClick={() =>
+                              setState((current) => ({ ...current, tools: [...FORM_TOOL_OPTIONS] }))
+                            }
+                            disabled={saving}
+                          >
+                            All
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 flex-1"
+                            onClick={() => setState((current) => ({ ...current, tools: [] }))}
+                            disabled={saving}
+                          >
+                            None
+                          </Button>
+                        </div>
+                        <div className="grid gap-1">
+                          {FORM_TOOL_OPTIONS.map((tool) => (
+                            <label
+                              key={tool}
+                              className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-secondary"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={state.tools.includes(tool)}
+                                onChange={() => toggleTool(tool)}
+                                disabled={saving}
+                              />
+                              {tool}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </details>
+                    <div className="flex min-h-8 flex-wrap gap-1.5">
+                      {state.tools.length ? (
+                        state.tools.map((tool) => (
+                          <Badge key={tool} variant="outline" className="gap-1">
+                            <span className="max-w-[220px] truncate">{tool}</span>
+                            <button
+                              type="button"
+                              onClick={() => toggleTool(tool)}
+                              disabled={saving}
+                              aria-label={`Remove ${tool}`}
+                              title={`Remove ${tool}`}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-xs text-muted-foreground">No tools selected.</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <FieldLabel
+                      htmlFor="knowledge-doc"
+                      label="Knowledge Docs"
+                      optional
+                      tooltip="Names or IDs added to the agent context for this form."
+                    />
+                    <div className="flex gap-2">
+                      <Input
+                        id="knowledge-doc"
+                        value={state.knowledgeDocDraft}
+                        onChange={(event) =>
+                          setState((current) => ({
+                            ...current,
+                            knowledgeDocDraft: event.target.value,
+                          }))
+                        }
+                        onKeyDown={(event) => {
+                          if (event.key !== "Enter") return;
+                          event.preventDefault();
+                          addKnowledgeDoc();
+                        }}
+                        disabled={saving}
+                        placeholder="Document name or ID"
+                      />
+                      <Button type="button" variant="outline" onClick={addKnowledgeDoc} disabled={saving}>
+                        Add
+                      </Button>
+                    </div>
+                    <input
+                      id="knowledge-doc-upload"
+                      type="file"
+                      accept=".xlsb,.xlsx,.xls,.csv"
+                      disabled={saving}
+                      className="sr-only"
+                      onChange={(event) => {
+                        const file = event.currentTarget.files?.[0];
+                        if (file) void importKnowledgeDocs(file);
+                        event.currentTarget.value = "";
+                      }}
+                    />
+                    <div className="flex min-w-0 items-center gap-2">
+                      <label
+                        htmlFor="knowledge-doc-upload"
+                        className={cn(
+                          "inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium transition-colors hover:bg-secondary",
+                          saving && "pointer-events-none opacity-50",
+                        )}
+                      >
+                        <Upload className="h-3.5 w-3.5" />
+                        Import
+                      </label>
+                      <span className="truncate text-xs text-muted-foreground">
+                        {uploadedKnowledgeDocName || "Excel or CSV first column"}
+                      </span>
+                    </div>
+                    <div className="flex min-h-8 flex-wrap gap-1.5">
+                      {state.knowledgeDocs.length ? (
+                        state.knowledgeDocs.map((doc) => (
+                          <Badge key={doc} variant="secondary" className="gap-1">
+                            <span className="max-w-[220px] truncate">{doc}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeKnowledgeDoc(doc)}
+                              disabled={saving}
+                              aria-label={`Remove ${doc}`}
+                              title={`Remove ${doc}`}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-xs text-muted-foreground">No knowledge docs added.</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="rounded-lg border bg-background">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-secondary/35 px-4 py-3">
                 <div>
                   <h3 className="text-sm font-semibold">Audit Form Questions</h3>
                   <p className="text-xs text-muted-foreground">
-                    Answers and applicable drivers are stored only so the backend can validate this canonical template.
+                    Add the canonical question text and optional help text the agent should see.
                   </p>
                 </div>
                 <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={addQuestion} disabled={saving}>
@@ -1362,14 +1623,6 @@ function FormRegistrationDialog({
                 {state.questions.map((question, questionIndex) => {
                   const expanded = expandedQuestions.has(questionIndex);
                   const subQuestions = question.sub_questions ?? [];
-                  const hasDriverWarning = subQuestions.some(
-                    (subQuestion) =>
-                      subQuestion.answer &&
-                      (!subQuestion.reasoning?.trim() || !subQuestion.citations?.trim()),
-                  );
-                  const needsQuestionEvidence =
-                    subQuestions.length === 0 &&
-                    (!question.comments?.trim() || !question.citations?.trim());
                   return (
                     <div key={`${question.id}-${questionIndex}`} className="p-4">
                       <div className="flex items-start gap-3">
@@ -1382,7 +1635,7 @@ function FormRegistrationDialog({
                         >
                           {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                         </button>
-                        <div className="grid min-w-0 flex-1 gap-3 md:grid-cols-[110px_minmax(0,1fr)_120px_40px]">
+                        <div className="grid min-w-0 flex-1 gap-3 md:grid-cols-[110px_minmax(0,1fr)_40px]">
                           <Input
                             value={question.id}
                             onChange={(event) => setQuestion(questionIndex, { id: event.target.value })}
@@ -1396,20 +1649,6 @@ function FormRegistrationDialog({
                             disabled={saving}
                             placeholder="Question text"
                           />
-                          <select
-                            value={question.answer}
-                            onChange={(event) =>
-                              setQuestion(questionIndex, {
-                                answer: event.target.value as QuestionAnswer,
-                              })
-                            }
-                            disabled={saving}
-                            title="Template answer used for validation only."
-                            className="h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <option value="No">No</option>
-                            <option value="Yes">Yes</option>
-                          </select>
                           <Button
                             type="button"
                             variant="ghost"
@@ -1441,49 +1680,11 @@ function FormRegistrationDialog({
                             />
                           </div>
 
-                          <div className="grid gap-3 md:grid-cols-2">
-                            <div className="grid gap-2">
-                              <FieldLabel htmlFor={`question-comments-${questionIndex}`} label="Question Comments" optional />
-                              <Textarea
-                                id={`question-comments-${questionIndex}`}
-                                value={question.comments ?? ""}
-                                onChange={(event) =>
-                                  setQuestion(questionIndex, { comments: event.target.value })
-                                }
-                                disabled={saving}
-                                className="min-h-[76px]"
-                                placeholder="Question-level reasoning"
-                              />
-                            </div>
-                            <div className="grid gap-2">
-                              <FieldLabel htmlFor={`question-citations-${questionIndex}`} label="Question Citations" optional />
-                              <Textarea
-                                id={`question-citations-${questionIndex}`}
-                                value={question.citations ?? ""}
-                                onChange={(event) =>
-                                  setQuestion(questionIndex, { citations: event.target.value })
-                                }
-                                disabled={saving}
-                                className="min-h-[76px]"
-                                placeholder="Question-level evidence citations"
-                              />
-                            </div>
-                          </div>
-
                           <div className="rounded-lg border bg-card">
                             <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
                               <div>
                                 <p className="text-sm font-medium">Drivers</p>
-                                {hasDriverWarning ? (
-                                  <p className="text-xs text-amber-700 dark:text-amber-300">
-                                    Applicable drivers need reasoning and citations.
-                                  </p>
-                                ) : null}
-                                {needsQuestionEvidence ? (
-                                  <p className="text-xs text-amber-700 dark:text-amber-300">
-                                    Add question comments and citations for questions without drivers.
-                                  </p>
-                                ) : null}
+                                <p className="text-xs text-muted-foreground">Optional driver text and help text.</p>
                               </div>
                               <Button
                                 type="button"
@@ -1501,7 +1702,7 @@ function FormRegistrationDialog({
                               {subQuestions.map((subQuestion, subQuestionIndex) => (
                                 <div
                                   key={`${subQuestion.id}-${subQuestionIndex}`}
-                                  className="grid gap-3 p-3 xl:grid-cols-[110px_minmax(0,1fr)_120px_40px]"
+                                  className="grid gap-3 p-3 xl:grid-cols-[110px_minmax(0,1fr)_40px]"
                                 >
                                   <Input
                                     value={subQuestion.id}
@@ -1535,42 +1736,7 @@ function FormRegistrationDialog({
                                       disabled={saving}
                                       placeholder="Optional driver help text"
                                     />
-                                    <Textarea
-                                      value={subQuestion.reasoning ?? ""}
-                                      onChange={(event) =>
-                                        setSubQuestion(questionIndex, subQuestionIndex, {
-                                          reasoning: event.target.value,
-                                        })
-                                      }
-                                      disabled={saving}
-                                      className="min-h-[72px]"
-                                      placeholder="Driver reasoning"
-                                    />
-                                    <Textarea
-                                      value={subQuestion.citations ?? ""}
-                                      onChange={(event) =>
-                                        setSubQuestion(questionIndex, subQuestionIndex, {
-                                          citations: event.target.value,
-                                        })
-                                      }
-                                      disabled={saving}
-                                      className="min-h-[72px]"
-                                      placeholder="Driver citations"
-                                    />
                                   </div>
-                                  <label className="flex h-10 items-center gap-2 rounded-md border bg-background px-3 text-sm" title="Optional sample applicability for template preview and smoke data.">
-                                    <input
-                                      type="checkbox"
-                                      checked={subQuestion.answer}
-                                      onChange={(event) =>
-                                        setSubQuestion(questionIndex, subQuestionIndex, {
-                                          answer: event.target.checked,
-                                        })
-                                      }
-                                      disabled={saving}
-                                    />
-                                    Applicable
-                                  </label>
                                   <Button
                                     type="button"
                                     variant="ghost"
@@ -1592,64 +1758,6 @@ function FormRegistrationDialog({
                     </div>
                   );
                 })}
-              </div>
-            </div>
-
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <FieldLabel htmlFor="form-description" label="Description" optional />
-                <Textarea
-                  id="form-description"
-                  value={state.description}
-                  onChange={(event) =>
-                    setState((current) => ({ ...current, description: event.target.value }))
-                  }
-                  disabled={saving}
-                  className="min-h-[92px]"
-                  placeholder="Review focus, use case, and catalog notes"
-                />
-              </div>
-              <div className="grid gap-2">
-                <FieldLabel
-                  htmlFor="audit-scope"
-                  label="Audit Scope"
-                  optional
-                  tooltip="Stored on the catalog definition and injected into the file-review agent prompt."
-                />
-                <Textarea
-                  id="audit-scope"
-                  value={state.auditScope}
-                  onChange={(event) =>
-                    setState((current) => ({ ...current, auditScope: event.target.value }))
-                  }
-                  disabled={saving}
-                  className="min-h-[112px]"
-                  placeholder="Claim types, document boundaries, review focus..."
-                />
-              </div>
-              <div className="grid gap-2">
-                <FieldLabel
-                  htmlFor="tool-instructions"
-                  label="Tool Instructions"
-                  optional
-                  tooltip="Stored with the form and mapped to runtime prompt metadata."
-                />
-                <Textarea
-                  id="tool-instructions"
-                  value={state.toolInstructions}
-                  onChange={(event) =>
-                    setState((current) => ({ ...current, toolInstructions: event.target.value }))
-                  }
-                  disabled={saving}
-                  className="min-h-[112px]"
-                  placeholder="Evidence lookup preferences, citation expectations, escalation notes..."
-                />
-                {runtimeMetadataMissing ? (
-                  <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                    <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                    Optional runtime metadata can make form-specific prompt behavior more explicit.
-                  </p>
-                ) : null}
               </div>
             </div>
 

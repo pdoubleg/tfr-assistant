@@ -16,8 +16,9 @@ class FormCatalog:
                 version=form.version,
                 title=form.title,
                 description=form.description,
-                audit_scope=form.audit_scope,
-                tool_instructions=form.tool_instructions,
+                instructions=form.instructions,
+                tools=form.tools,
+                knowledge_docs=form.knowledge_docs,
                 question_count=len(form.canonical.questions),
                 sub_question_count=sum(
                     len(question.sub_questions or []) for question in form.canonical.questions

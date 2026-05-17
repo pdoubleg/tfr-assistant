@@ -18,8 +18,8 @@ class FileReviewAgentDeps:
     claim_number: str = ""
     effective_date: str = ""
     instructions: str = ""
-    audit_scope: str = ""
-    tool_instructions: str = ""
+    tools: list[str] = field(default_factory=list)
+    knowledge_docs: list[str] = field(default_factory=list)
     form_path: Path = field(init=False)
     form_definition: AuditFormDefinition = field(init=False)
     canonical: AuditFormResult = field(init=False)
@@ -28,6 +28,10 @@ class FileReviewAgentDeps:
         self.form_path = Path(self.path_to_questionnaire or settings.default_questionnaire_path)
         self.form_definition = load_form_definition(self.form_path)
         self.canonical = self.form_definition.canonical
+        if not self.tools:
+            self.tools = list(self.form_definition.tools or [])
+        if not self.knowledge_docs:
+            self.knowledge_docs = list(self.form_definition.knowledge_docs or [])
 
 
 def load_canonical_form(path: str | Path) -> AuditFormResult:
@@ -82,22 +86,28 @@ def build_file_review_agent() -> Agent[FileReviewAgentDeps, AuditFormResult]:
     def add_tfr_template(ctx: RunContext[FileReviewAgentDeps]) -> str:
         definition = ctx.deps.form_definition
         sections = [definition.canonical.as_questionnaire_string()]
-        audit_scope = ctx.deps.audit_scope or definition.audit_scope
-        tool_instructions = ctx.deps.tool_instructions or definition.tool_instructions
-        if audit_scope:
+        if definition.instructions:
             sections.extend(
                 [
                     "",
-                    "Audit Scope:",
-                    audit_scope,
+                    "Form Instructions:",
+                    definition.instructions,
                 ]
             )
-        if tool_instructions:
+        if ctx.deps.tools:
             sections.extend(
                 [
                     "",
-                    "Tool Instructions:",
-                    tool_instructions,
+                    "Selected Agent Tools:",
+                    ", ".join(ctx.deps.tools),
+                ]
+            )
+        if ctx.deps.knowledge_docs:
+            sections.extend(
+                [
+                    "",
+                    "Knowledge Documents:",
+                    "\n".join(f"- {doc}" for doc in ctx.deps.knowledge_docs),
                 ]
             )
         return "\n".join(sections)
@@ -156,8 +166,8 @@ async def run_file_review_agent(
     instructions: str,
     path_to_questionnaire: str = "",
     user_prompt: str = "",
-    audit_scope: str = "",
-    tool_instructions: str = "",
+    tools: list[str] | None = None,
+    knowledge_docs: list[str] | None = None,
 ) -> AuditFormResult:
     agent = build_file_review_agent()
     deps = FileReviewAgentDeps(
@@ -165,8 +175,8 @@ async def run_file_review_agent(
         claim_number=claim_number,
         effective_date=effective_date,
         instructions=instructions,
-        audit_scope=audit_scope,
-        tool_instructions=tool_instructions,
+        tools=list(tools or []),
+        knowledge_docs=list(knowledge_docs or []),
     )
     prompt = user_prompt or "Please run a TFR audit."
     if claim_number:

@@ -35,8 +35,8 @@ class ReviewAgentTestArgs:
     effective_date: str
     instructions: str
     questionnaire_path: str
-    audit_scope: str
-    tool_instructions: str
+    tools: list[str]
+    knowledge_docs: list[str]
     output_dir: Path | None
 
 
@@ -87,14 +87,18 @@ def parse_args(argv: Sequence[str] | None = None) -> ReviewAgentTestArgs:
         help="Optional path to the questionnaire JSON file.",
     )
     parser.add_argument(
-        "--audit-scope",
-        default="",
-        help="Optional audit scope override for the questionnaire definition.",
+        "--tool",
+        dest="tools",
+        action="append",
+        default=None,
+        help="Optional form tool name to expose to the review agent. Repeat to pass multiple.",
     )
     parser.add_argument(
-        "--tool-instructions",
-        default="",
-        help="Optional tool instructions override for the questionnaire definition.",
+        "--knowledge-doc",
+        dest="knowledge_docs",
+        action="append",
+        default=None,
+        help="Optional knowledge document name or ID. Repeat to pass multiple.",
     )
     parser.add_argument(
         "--output-dir",
@@ -112,8 +116,8 @@ def parse_args(argv: Sequence[str] | None = None) -> ReviewAgentTestArgs:
         effective_date=parsed.effective_date,
         instructions=parsed.instructions,
         questionnaire_path=parsed.questionnaire_path,
-        audit_scope=parsed.audit_scope,
-        tool_instructions=parsed.tool_instructions,
+        tools=parsed.tools or [],
+        knowledge_docs=parsed.knowledge_docs or [],
         output_dir=output_dir,
     )
 
@@ -161,8 +165,8 @@ async def run_prompts(args: ReviewAgentTestArgs) -> int:
                 instructions=args.instructions,
                 path_to_questionnaire=args.questionnaire_path,
                 user_prompt=prompt,
-                audit_scope=args.audit_scope,
-                tool_instructions=args.tool_instructions,
+                tools=args.tools,
+                knowledge_docs=args.knowledge_docs,
             )
         except Exception as exc:
             failure_count += 1

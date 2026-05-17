@@ -34,15 +34,16 @@ def test_monty_help_lists_registered_collections(tmp_path) -> None:
     assert "visualizations" in help_text
     assert 'help("<collection-name>")' in help_text
     assert 'help("<tool-name>")' in help_text
-    assert "asyncio.sleep" in help_text
+    assert "wall-clock/timing primitives are unavailable" in help_text
+    assert "`asyncio`" in help_text
     assert "math" in help_text
     assert "pandas" in help_text
-    assert "not available inside Python repl code" in help_text
-    assert "Class definitions are not supported" in help_text
-    assert "wildcard imports are not supported" in help_text
-    assert "remain available to later" in help_text
+    assert "use registered tools instead" in help_text
+    assert "class definitions" in help_text
+    assert "wildcard imports" in help_text
+    assert "imports are no longer useful" in help_text
     assert "restart=True" in help_text
-    assert "cannot be referenced from SQL tools" in help_text
+    assert "Python variables cannot be referenced" in help_text
     assert "preview_rows" in help_text
     assert "stack_metric_columns" in help_text
 
@@ -143,7 +144,7 @@ def test_monty_help_explains_sql_handle_flow_and_preview_escape_hatch(tmp_path) 
     assert runtime.registry.get("get_dataset") is None
     assert "SQL execute with persist_result=true" in overview
     assert "does not need a separate load/get step" in overview
-    assert "Prefer text-returning inspection tools" in overview
+    assert "Preview tools are for inspection only" in overview
     assert "SQL execute tool with persist_result=True" in describe_help
     assert "Return a text description" in describe_help
     assert "low-level dict tool" in preview_help
@@ -275,7 +276,7 @@ async def test_monty_tool_docstrings_populate_registered_schema(tmp_path) -> Non
         "collection or tool name"
         in help_tool.parameters_json_schema["properties"]["name"]["description"]
     )
-    assert "dataframe handles and Plotly charts" in execute_tool.description
+    assert "handles" in execute_tool.description
     code_description = execute_tool.parameters_json_schema["properties"]["code"]["description"]
     restart_description = execute_tool.parameters_json_schema["properties"]["restart"][
         "description"
