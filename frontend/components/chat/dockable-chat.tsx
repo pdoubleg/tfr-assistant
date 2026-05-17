@@ -10,12 +10,14 @@ import {
   ChevronDown,
   ChevronRight,
   Copy,
+  CircleAlert,
   Loader2,
   Maximize2,
   MessageSquareText,
   Minimize2,
   Send,
   Sparkles,
+  Wrench,
   X,
 } from "lucide-react";
 import type { FormEvent, KeyboardEvent, ReactNode } from "react";
@@ -72,6 +74,14 @@ interface ComponentRunGroup {
   components: A2UIComponent[];
 }
 
+type StatusTranscriptItem = ReasoningChatMessage | ToolStatusMessage;
+
+interface StatusGroupMessage {
+  id: string;
+  role: "status_group";
+  items: StatusTranscriptItem[];
+}
+
 interface ToolCodePreview {
   code: string;
   language: string;
@@ -81,7 +91,7 @@ interface ToolCodePreview {
 }
 
 type ChatMessage = UserAssistantMessage | ReasoningChatMessage | ToolStatusMessage;
-type TranscriptItem = ChatMessage | ComponentListMessage;
+type TranscriptItem = ChatMessage | ComponentListMessage | StatusGroupMessage;
 
 const starterMessages: ChatMessage[] = [
   {
@@ -161,9 +171,11 @@ export function DockableChat({
   );
   const transcriptItems = useMemo<TranscriptItem[]>(
     () =>
-      insertComponentGroupsBeforeRunResponses(
-        messages,
-        chatComponentGroups,
+      packageCompletedStatusGroups(
+        insertComponentGroupsBeforeRunResponses(
+          messages,
+          chatComponentGroups,
+        ),
       ),
     [chatComponentGroups, messages],
   );
@@ -173,6 +185,17 @@ export function DockableChat({
         .map((item) => {
           if (item.role === "components") {
             return `${item.id}:${item.components.map((component) => component.id).join(",")}`;
+          }
+          if (item.role === "status_group") {
+            return `${item.id}:${item.items
+              .map((statusItem) =>
+                statusItem.role === "tool_status"
+                  ? `${statusItem.id}:${statusItem.isLive}:${statusItem.steps
+                      .map((step) => `${step.status}:${step.code?.code.length ?? 0}`)
+                      .join(",")}`
+                  : `${statusItem.id}:${statusItem.content.length}:${statusItem.streaming ? "streaming" : "done"}`,
+              )
+              .join("|")}`;
           }
           if (item.role === "tool_status") {
             return `${item.id}:${item.isLive}:${item.steps
@@ -548,6 +571,13 @@ export function DockableChat({
             >
               {message.role === "components" ? (
                 <A2UIRendererList components={message.components} />
+              ) : message.role === "status_group" ? (
+                <StatusGroupView
+                  group={message}
+                  isDarkTheme={isDarkTheme}
+                  expandedToolMessages={expandedToolMessages}
+                  onToggleTool={toggleToolMessage}
+                />
               ) : message.role === "tool_status" ? (
                 <ToolStatusView
                   message={message}
@@ -771,6 +801,50 @@ function insertComponentGroupsBeforeRunResponses(
   return items;
 }
 
+function packageCompletedStatusGroups(items: TranscriptItem[]): TranscriptItem[] {
+  const packagedItems: TranscriptItem[] = [];
+  let pending: StatusTranscriptItem[] = [];
+
+  const flushPending = () => {
+    if (!pending.length) return;
+    const groupIsLive = pending.some((item) =>
+      item.role === "tool_status" ? item.isLive : Boolean(item.streaming),
+    );
+    if (groupIsLive) {
+      packagedItems.push(...pending);
+    } else {
+      packagedItems.push({
+        id: `status-group-${pending[0].id}`,
+        role: "status_group",
+        items: pending,
+      });
+    }
+    pending = [];
+  };
+
+  for (const item of items) {
+    if (isPackageableStatus(item)) {
+      if (isStatusItemLive(item)) {
+        flushPending();
+        packagedItems.push(item);
+        continue;
+      }
+      pending.push(item);
+      continue;
+    }
+
+    flushPending();
+    packagedItems.push(item);
+  }
+
+  flushPending();
+  return packagedItems;
+}
+
+function isStatusItemLive(item: StatusTranscriptItem) {
+  return item.role === "tool_status" ? item.isLive : Boolean(item.streaming);
+}
+
 function findLastIndex<T>(items: T[], predicate: (item: T, index: number) => boolean) {
   for (let index = items.length - 1; index >= 0; index -= 1) {
     if (predicate(items[index], index)) return index;
@@ -787,7 +861,11 @@ function transcriptItemSpacing(item: TranscriptItem, previous: TranscriptItem | 
   return "mt-5";
 }
 
-function isTranscriptStatus(item: TranscriptItem) {
+function isTranscriptStatus(item: TranscriptItem): item is StatusTranscriptItem | StatusGroupMessage {
+  return item.role === "reasoning" || item.role === "tool_status" || item.role === "status_group";
+}
+
+function isPackageableStatus(item: TranscriptItem): item is StatusTranscriptItem {
   return item.role === "reasoning" || item.role === "tool_status";
 }
 
@@ -1270,6 +1348,96 @@ function messageContentToString(content: unknown): string {
     .join("");
 }
 
+function StatusGroupView({
+  group,
+  expandedToolMessages,
+  isDarkTheme,
+  onToggleTool,
+}: {
+  group: StatusGroupMessage;
+  expandedToolMessages: Set<string>;
+  isDarkTheme: boolean;
+  onToggleTool: (messageId: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const stats = statusGroupStats(group.items);
+  const label = `Completed ${stats.steps} step${stats.steps === 1 ? "" : "s"}${
+    stats.errors ? ` · ${stats.errors} error${stats.errors === 1 ? "" : "s"}` : ""
+  }`;
+
+  return (
+    <div
+      className={cn(
+        "text-xs text-muted-foreground transition-colors",
+        expanded
+          ? "rounded-md border bg-secondary/25 p-2"
+          : "-mx-1 rounded-md border border-transparent bg-transparent px-1.5 py-1 hover:bg-secondary/25",
+      )}
+    >
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-2 text-left"
+        onClick={() => setExpanded((current) => !current)}
+        aria-expanded={expanded}
+      >
+        <span className="flex min-w-0 items-center gap-1.5">
+          <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+          <span className="truncate font-normal text-muted-foreground">{label}</span>
+          {stats.errors ? (
+            <CircleAlert
+              className="h-3 w-3 shrink-0 text-amber-500"
+              aria-label={`${stats.errors} recoverable error${stats.errors === 1 ? "" : "s"}`}
+            />
+          ) : null}
+        </span>
+        {expanded ? (
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/75" />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/75" />
+        )}
+      </button>
+
+      {expanded ? (
+        <div className="mt-1.5 space-y-1">
+          {group.items.map((item) =>
+            item.role === "tool_status" ? (
+              <ToolStatusView
+                key={item.id}
+                message={item}
+                collapsed={!expandedToolMessages.has(item.id)}
+                onToggle={() => onToggleTool(item.id)}
+              />
+            ) : (
+              <MessageView key={item.id} message={item} isDarkTheme={isDarkTheme} />
+            ),
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function statusGroupStats(items: StatusTranscriptItem[]) {
+  return items.reduce(
+    (stats, item) => {
+      if (item.role === "reasoning") {
+        return {
+          ...stats,
+          steps: stats.steps + 1,
+        };
+      }
+
+      const stepCount = Math.max(item.steps.length, 1);
+      const errorCount = item.steps.filter((step) => step.status === "error").length;
+      return {
+        steps: stats.steps + stepCount,
+        errors: stats.errors + errorCount,
+      };
+    },
+    { steps: 0, errors: 0 },
+  );
+}
+
 function ToolStatusView({
   message,
   collapsed,
@@ -1314,36 +1482,27 @@ function ToolStatusView({
         onClick={onToggle}
       >
         <span className={cn("flex min-w-0 items-center", expanded ? "gap-2" : "gap-1.5")}>
-          {message.isLive ? (
-            <Loader2
-              className={cn(
-                "shrink-0 animate-spin text-primary",
-                expanded ? "h-4 w-4" : "h-3.5 w-3.5",
-              )}
-            />
-          ) : errors ? (
-            <X
-              className={cn(
-                "shrink-0 text-destructive",
-                expanded ? "h-4 w-4" : "h-3.5 w-3.5",
-              )}
-            />
-          ) : (
-            <Check
-              className={cn(
-                "shrink-0 text-emerald-600",
-                expanded ? "h-4 w-4" : "h-3.5 w-3.5",
-              )}
-            />
-          )}
-          <span
+          <Wrench
+            className={cn(
+              "shrink-0 text-primary/75",
+              expanded ? "h-4 w-4" : "h-3.5 w-3.5",
+            )}
+          />
+          <ShimmeringText
+            active={message.isLive}
             className={cn(
               "truncate",
               expanded ? "font-medium text-foreground/85" : "font-normal text-muted-foreground",
             )}
-          >
-            {summary}
-          </span>
+            duration={1.35}
+            text={summary}
+          />
+          {errors ? (
+            <CircleAlert
+              className="h-3 w-3 shrink-0 text-amber-500"
+              aria-label={`${errors} recoverable tool error${errors === 1 ? "" : "s"}`}
+            />
+          ) : null}
         </span>
         {collapsed ? (
           <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/75" />
