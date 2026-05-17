@@ -340,7 +340,11 @@ def _database(max_display_rows: int = 1000, max_agent_rows: int = 100) -> SQLDat
 
 
 def _reporter(ctx: RunContext[TFRChatDeps], source_name: str) -> ChatStateStatusReporter:
-    return ChatStateStatusReporter(ctx.deps.state, source_name=source_name)
+    return ChatStateStatusReporter(
+        ctx.deps.state,
+        source_name=source_name,
+        user_visible_errors=False,
+    )
 
 
 def _tool_return(state: TFRChatState, return_value: str) -> ToolReturn:

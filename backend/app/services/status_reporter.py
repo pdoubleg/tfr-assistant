@@ -46,6 +46,7 @@ class NullStatusReporter:
 class ChatStateStatusReporter:
     state: TFRChatState
     source_name: str = "audit_form_generation"
+    user_visible_errors: bool = True
 
     def update(
         self,
@@ -54,9 +55,11 @@ class ChatStateStatusReporter:
         *,
         progress: int | None = None,
     ) -> None:
-        self.state.status = "using_tools" if status != "error" else "error"
+        self.state.status = (
+            "error" if status == "error" and self.user_visible_errors else "using_tools"
+        )
         self.state.current_step = message
-        if status == "error":
+        if status == "error" and self.user_visible_errors:
             self.state.error_message = message
         else:
             self.state.error_message = None

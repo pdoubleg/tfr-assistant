@@ -578,7 +578,8 @@ async def test_monty_execute_status_uses_generic_failure_message(tmp_path) -> No
     )
     assert failed.return_value["status"] == "error"
     assert failed.return_value["error"] == "ZeroDivisionError: division by zero"
-    assert state.error_message == "Python repl execution failed."
+    assert state.status == "using_tools"
+    assert state.error_message is None
     assert state.current_step == "Python repl execution failed."
 
     recovered = await toolset.call_tool(

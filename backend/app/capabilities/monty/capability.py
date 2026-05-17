@@ -81,7 +81,11 @@ class MontyPythonCapability(AbstractCapability[TFRChatDeps]):
                 Python repl code fails.
             """
             state = ctx.deps.state
-            reporter = ChatStateStatusReporter(state, source_name="python_repl_execute")
+            reporter = ChatStateStatusReporter(
+                state,
+                source_name="python_repl_execute",
+                user_visible_errors=False,
+            )
             reporter.in_progress("Executing Python repl code...", progress=35)
             result = await self._runtime(ctx).execute(code, restart=restart)
             if result["status"] == "error":

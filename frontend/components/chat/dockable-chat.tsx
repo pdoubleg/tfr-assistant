@@ -80,6 +80,7 @@ interface StatusGroupMessage {
   id: string;
   role: "status_group";
   items: StatusTranscriptItem[];
+  finalized: boolean;
 }
 
 interface ToolCodePreview {
@@ -92,6 +93,8 @@ interface ToolCodePreview {
 
 type ChatMessage = UserAssistantMessage | ReasoningChatMessage | ToolStatusMessage;
 type TranscriptItem = ChatMessage | ComponentListMessage | StatusGroupMessage;
+
+const statusGroupTimingById = new Map<string, { endedAt?: number; startedAt: number }>();
 
 const starterMessages: ChatMessage[] = [
   {
@@ -187,7 +190,7 @@ export function DockableChat({
             return `${item.id}:${item.components.map((component) => component.id).join(",")}`;
           }
           if (item.role === "status_group") {
-            return `${item.id}:${item.items
+            return `${item.id}:${item.finalized ? "finalized" : "open"}:${item.items
               .map((statusItem) =>
                 statusItem.role === "tool_status"
                   ? `${statusItem.id}:${statusItem.isLive}:${statusItem.steps
@@ -589,11 +592,6 @@ export function DockableChat({
               )}
             </div>
           ))}
-          {sharedState.error_message ? (
-            <div className="rounded-lg border border-destructive/35 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {sharedState.error_message}
-            </div>
-          ) : null}
         </div>
       </div>
 
@@ -805,7 +803,7 @@ function packageCompletedStatusGroups(items: TranscriptItem[]): TranscriptItem[]
   const packagedItems: TranscriptItem[] = [];
   let pending: StatusTranscriptItem[] = [];
 
-  const flushPending = () => {
+  const flushPending = (finalized: boolean) => {
     if (!pending.length) return;
     const groupIsLive = pending.some((item) =>
       item.role === "tool_status" ? item.isLive : Boolean(item.streaming),
@@ -817,6 +815,7 @@ function packageCompletedStatusGroups(items: TranscriptItem[]): TranscriptItem[]
         id: `status-group-${pending[0].id}`,
         role: "status_group",
         items: pending,
+        finalized,
       });
     }
     pending = [];
@@ -825,7 +824,7 @@ function packageCompletedStatusGroups(items: TranscriptItem[]): TranscriptItem[]
   for (const item of items) {
     if (isPackageableStatus(item)) {
       if (isStatusItemLive(item)) {
-        flushPending();
+        flushPending(false);
         packagedItems.push(item);
         continue;
       }
@@ -833,16 +832,33 @@ function packageCompletedStatusGroups(items: TranscriptItem[]): TranscriptItem[]
       continue;
     }
 
-    flushPending();
+    flushPending(true);
     packagedItems.push(item);
   }
 
-  flushPending();
+  flushPending(false);
   return packagedItems;
 }
 
 function isStatusItemLive(item: StatusTranscriptItem) {
   return item.role === "tool_status" ? item.isLive : Boolean(item.streaming);
+}
+
+function getStatusGroupTiming(groupId: string, finalized: boolean) {
+  let timing = statusGroupTimingById.get(groupId);
+  if (!timing) {
+    const now = Date.now();
+    timing = { startedAt: now, endedAt: finalized ? now : undefined };
+    statusGroupTimingById.set(groupId, timing);
+  }
+  return timing;
+}
+
+function formatWorkDuration(milliseconds: number) {
+  const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}m ${seconds}s`;
 }
 
 function findLastIndex<T>(items: T[], predicate: (item: T, index: number) => boolean) {
@@ -1360,8 +1376,26 @@ function StatusGroupView({
   onToggleTool: (messageId: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [timing] = useState(() => getStatusGroupTiming(group.id, group.finalized));
+  const [now, setNow] = useState(() => Date.now());
   const stats = statusGroupStats(group.items);
-  const label = `Completed ${stats.steps} step${stats.steps === 1 ? "" : "s"}${
+  const groupIsOpen = !group.finalized;
+
+  useEffect(() => {
+    if (!groupIsOpen) {
+      timing.endedAt ??= Date.now();
+      setNow(timing.endedAt);
+      return;
+    }
+
+    timing.endedAt = undefined;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [groupIsOpen, timing]);
+
+  const elapsed = formatWorkDuration((timing.endedAt ?? now) - timing.startedAt);
+  const label = `${groupIsOpen ? "Working" : "Worked"} for ${elapsed}${
     stats.errors ? ` · ${stats.errors} error${stats.errors === 1 ? "" : "s"}` : ""
   }`;
 
@@ -1382,7 +1416,13 @@ function StatusGroupView({
       >
         <span className="flex min-w-0 items-center gap-1.5">
           <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
-          <span className="truncate font-normal text-muted-foreground">{label}</span>
+          <ShimmeringText
+            active={groupIsOpen}
+            breakDuration={0.35}
+            className="truncate font-normal text-muted-foreground"
+            duration={1.35}
+            text={label}
+          />
           {stats.errors ? (
             <CircleAlert
               className="h-3 w-3 shrink-0 text-amber-500"
