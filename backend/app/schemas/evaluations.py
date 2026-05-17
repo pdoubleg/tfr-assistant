@@ -116,6 +116,30 @@ class EvalRunCreate(BaseModel):
     base_run_id: str | None = None
 
 
+class EvalAgreementItemRecord(BaseModel):
+    id: str
+    run_id: str
+    run_item_id: str
+    case_id: str
+    ground_truth_id: str
+    comparison_id: str
+    reference_kind: EvalReferenceKind
+    level: Literal["overall", "question", "subquestion"]
+    question_id: str | None = None
+    subquestion_id: str | None = None
+    question_text: str | None = None
+    subquestion_text: str | None = None
+    generated_answer: str | None = None
+    reference_answer: str | None = None
+    matched: bool
+    agreement: float
+    generated_comment: str | None = None
+    reference_comment: str | None = None
+    generated_citations: str | None = None
+    reference_citations: str | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
 class EvalComparisonRecord(BaseModel):
     id: str
     run_id: str
@@ -125,6 +149,7 @@ class EvalComparisonRecord(BaseModel):
     reference_kind: EvalReferenceKind
     score: float | None = None
     metrics: dict[str, Any] = Field(default_factory=dict)
+    agreement_items: list[EvalAgreementItemRecord] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
@@ -170,6 +195,7 @@ class EvalRunRecord(BaseModel):
     queued_count: int = 0
     progress_percent: float = 0
     primary_score: float | None = None
+    metrics: dict[str, Any] = Field(default_factory=dict)
     input: dict[str, Any] = Field(default_factory=dict)
     error_message: str | None = None
     started_at: datetime | None = None

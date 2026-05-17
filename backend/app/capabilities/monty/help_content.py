@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from textwrap import dedent
+
 from app.capabilities.monty.registry import FunctionRegistry, RegisteredFunction
 
 HelpTarget = str | list[str] | None
@@ -10,54 +12,43 @@ HelpTarget = str | list[str] | None
 def render_python_repl_guidance(help_name: str = "help") -> str:
     """Render shared Python repl guidance with the caller's help function name."""
 
-    return (
-        "A Monty Python repl is available for composing dataframe handle operations, "
-        "Plotly visualizations, and sub-LLM text analysis.\n"
-        "Discovery flow:\n"
-        f"- Call {help_name}() to see all collections.\n"
-        f'- Call {help_name}("<collection-name>"), or a list of collections, to see '
-        "available tools for the collection(s).\n"
-        f'- Call {help_name}("<tool-name>"), or a list of tools, to see detailed docs '
-        "before executing code.\n"
-        "Use discovery instead of guessing collection names, tool names, signatures, "
-        "valid kwargs, or return values. The repl uses Monty, a restricted subset of "
-        "Python. Class definitions are not supported, wildcard imports are not "
-        "supported, and third-party libraries cannot be imported. Importable standard "
-        "library modules include `sys`, `typing`, `asyncio`, `math`, `json`, `re`, "
-        "`datetime`, `os`, and `pathlib`; `os` and `pathlib` are intentionally "
-        "limited, so prefer pure string/path manipulation unless a registered tool's "
-        "help says otherwise. Import standard modules at the top of the snippet before "
-        "use. Wall-clock and timing primitives such as `asyncio.sleep`, "
-        "`datetime.datetime.now()`, `datetime.date.today()`, and the `time` module are "
-        "unavailable. Keep data behind handles returned by SQL or Python repl tools. "
-        "The normal data path is: use SQL execute with persist_result=true to read "
-        "database rows and receive a dataset_handle; inside the Python repl, assign "
-        "that handle string to a variable if useful, then pass the handle directly to "
-        "dataframe and visualization tools. The Python repl does not need a separate "
-        "load/get step and does not expose SQL tables as Python variables. Registered "
-        "tools are injected directly into the repl namespace, so call them directly "
-        "without imports. Variables assigned in one python_repl_execute call remain "
-        "available to later Python repl executions in the same artifact session; they "
-        "are convenient for intermediate handle strings, chart handles, scalar "
-        "settings, and small derived values. Pass `restart=True` to "
-        "`python_repl_execute` to reset REPL state when prior variables or imports are "
-        "no longer useful. Prefer text-returning inspection tools when a human-readable "
-        "summary is enough. Use structured preview tools only when code needs fields "
-        "such as columns, row_count, or preview_rows; previews do not return a "
-        "dataframe, complete dataset, or new handle. Do not build charts or "
-        "transformed datasets from preview_rows. For real data prep, pass the original "
-        "dataset handle to dataframe tools, then pass the resulting handle to "
-        "visualization tools. Python repl variables are not SQL database tables and "
-        "cannot be referenced from SQL tools. Scientific and dataframe libraries such "
-        "as `pandas`, `numpy`, `scipy`, and `plotly` are not available inside Python "
-        "repl code. Use registered dataframe and visualization tools instead of "
-        "importing those libraries. Async tools must be called with `await`; calling "
-        "them without `await` returns an unresolved future, not the value. Sub-LLM "
-        "calls share a configured call budget for the artifact session; use Python for "
-        "grouping, filtering, and aggregation before spending that budget. Synchronous "
-        "tools are called directly. When submitting nested strings, assign multiline "
-        "code to variables first and avoid escape-heavy inline snippets."
-    )
+    return dedent(
+        f"""\
+        A Monty Python repl is available for dataframe handle operations, Plotly
+        visualizations, and sub-LLM text analysis.
+        Discovery flow:
+        - Call {help_name}() to see all collections.
+        - Call {help_name}("<collection-name>"), or a list of collections, to see
+          tools in the collection(s).
+        - Call {help_name}("<tool-name>"), or a list of tools, to see detailed docs
+          before executing code.
+
+        Use discovery instead of guessing names, signatures, kwargs, or return values.
+        Registered tools, including collection tools, are injected directly into the repl
+        namespace; call them without imports. A single code block can chain multiple
+        calls, pass one tool's returned handle into another, and produce a final chart,
+        dataset, or text result. For uncertain work, call one function at a time to
+        inspect output before moving to the next step. Choose the style that best fits
+        the task.
+
+        Keep data behind string handles returned by SQL or repl tools. The normal data path is
+        SQL execute with persist_result=true -> dataset_handle -> dataframe tools ->
+        visualization tools. The repl does not need a separate load/get step, does not
+        expose SQL tables as Python variables, and Python variables cannot be referenced
+        from SQL tools. Preview tools are for inspection only; do not build charts or
+        transformed datasets from preview_rows.
+
+        Monty is a restricted Python subset: class definitions, wildcard imports,
+        third-party libraries, `time`, and wall-clock/timing primitives are unavailable.
+        Importable standard modules include `sys`, `typing`, `asyncio`, `math`, `json`,
+        `re`, `datetime`, `os`, and `pathlib`; `os` and `pathlib` are limited. Scientific
+        and dataframe libraries such as `pandas`, `numpy`, `scipy`, and `plotly` are not
+        available; use registered tools instead. Await async tools, call sync tools
+        directly, and use `restart=True` to reset repl state when prior variables or
+        imports are no longer useful. Sub-LLM calls share a session budget, so use
+        Python for grouping, filtering, and aggregation before spending that budget.
+        """
+    ).strip()
 
 
 PYTHON_REPL_GUIDANCE = render_python_repl_guidance()

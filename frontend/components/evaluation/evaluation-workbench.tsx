@@ -95,7 +95,7 @@ interface PairResultRow {
   score: number | null;
   outcomeMatch: boolean;
   questionAgreement: number | null;
-  driverF1: number | null;
+  subquestionF1: number | null;
   generatedOutcome: string;
   referenceOutcome: string;
 }
@@ -119,6 +119,14 @@ function agreementPercent(value: number): string {
 function metricNumber(metrics: Record<string, unknown>, key: string): number | null {
   const value = metrics[key];
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function metricNumberFallback(metrics: Record<string, unknown>, keys: string[]): number | null {
+  for (const key of keys) {
+    const value = metricNumber(metrics, key);
+    if (value !== null) return value;
+  }
+  return null;
 }
 
 function metricBool(metrics: Record<string, unknown>, key: string): boolean {
@@ -186,10 +194,6 @@ function useBodyScrollLock(open: boolean) {
   }, [open]);
 }
 
-function isQuestionMetric(value: unknown): value is Array<Record<string, unknown>> {
-  return Array.isArray(value);
-}
-
 function buildHierarchyRows(items: EvalRunItemRecord[]): HierarchyMetricRow[] {
   const rows = new Map<HierarchyMetricRow["id"], HierarchyMetricRow & { scoreSum: number; scoreCount: number }>();
 
@@ -234,29 +238,63 @@ function buildHierarchyRows(items: EvalRunItemRecord[]): HierarchyMetricRow[] {
         formRow.scoreCount += 1;
       }
 
-      const questionMetrics = comparison.metrics.questions;
-      if (!isQuestionMetric(questionMetrics)) continue;
-      for (const question of questionMetrics) {
-        const questionId = typeof question.id === "string" ? question.id : "Question";
-        const questionText = typeof question.text === "string" ? question.text : questionId;
+      for (const agreementItem of comparison.agreement_items ?? []) {
+        if (agreementItem.level === "overall") {
+          continue;
+        }
+
+        if (agreementItem.level === "question") {
+          const questionId = agreementItem.question_id ?? "Question";
+          const questionText = agreementItem.question_text ?? questionId;
+          const questionRow = ensure("question", comparison.reference_kind, questionId, "", questionText);
+          questionRow.total += 1;
+          if (agreementItem.matched) questionRow.matches += 1;
+          continue;
+        }
+
+        const questionId = agreementItem.question_id ?? "Question";
+        const subquestionId = agreementItem.subquestion_id ?? "Sub-question";
+        const subquestionText = agreementItem.subquestion_text ?? subquestionId;
+        const subquestionRow = ensure(
+          "subquestion",
+          comparison.reference_kind,
+          subquestionId,
+          questionId,
+          subquestionText,
+        );
+        subquestionRow.total += 1;
+        if (agreementItem.matched) subquestionRow.matches += 1;
+      }
+
+      if ((comparison.agreement_items ?? []).length > 0) {
+        continue;
+      }
+
+      const legacyQuestionMetrics = comparison.metrics.questions;
+      if (!Array.isArray(legacyQuestionMetrics)) continue;
+      for (const question of legacyQuestionMetrics) {
+        const questionRecord = question as Record<string, unknown>;
+        const questionId = typeof questionRecord.id === "string" ? questionRecord.id : "Question";
+        const questionText = typeof questionRecord.text === "string" ? questionRecord.text : questionId;
         const questionRow = ensure("question", comparison.reference_kind, questionId, "", questionText);
         questionRow.total += 1;
-        if (question.answer_match === true) questionRow.matches += 1;
+        if (questionRecord.answer_match === true) questionRow.matches += 1;
 
-        const drivers = question.drivers;
-        if (!Array.isArray(drivers)) continue;
-        for (const driver of drivers) {
-          const driverId = typeof driver.id === "string" ? driver.id : "Driver";
-          const driverText = typeof driver.text === "string" ? driver.text : driverId;
+        const legacyDrivers = questionRecord.drivers;
+        if (!Array.isArray(legacyDrivers)) continue;
+        for (const driver of legacyDrivers) {
+          const driverRecord = driver as Record<string, unknown>;
+          const driverId = typeof driverRecord.id === "string" ? driverRecord.id : "Driver";
+          const driverText = typeof driverRecord.text === "string" ? driverRecord.text : driverId;
           const driverRow = ensure(
             "subquestion",
             comparison.reference_kind,
-            `${questionId}.${driverId}`,
+            driverId,
             questionId,
             driverText,
           );
           driverRow.total += 1;
-          if (driver.match === true) driverRow.matches += 1;
+          if (driverRecord.match === true) driverRow.matches += 1;
         }
       }
     }
@@ -285,15 +323,15 @@ function aggregateRunMetrics(run: EvalRunRecord | null, items: EvalRunItemRecord
   const questionAgreement = primaryComparisons
     .map((comparison) => metricNumber(comparison.metrics, "question_agreement"))
     .filter((value): value is number => value !== null);
-  const driverF1 = primaryComparisons
-    .map((comparison) => metricNumber(comparison.metrics, "driver_f1"))
+  const subquestionF1 = primaryComparisons
+    .map((comparison) => metricNumberFallback(comparison.metrics, ["subquestion_f1", "driver_f1"]))
     .filter((value): value is number => value !== null);
   const average = (values: number[]) => (values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null);
   return {
     completedItems: completedItems.length,
     outcomeAgreement: primaryComparisons.length ? outcomeMatches / primaryComparisons.length : null,
     questionAgreement: average(questionAgreement),
-    driverF1: average(driverF1),
+    subquestionF1: average(subquestionF1),
   };
 }
 
@@ -314,7 +352,7 @@ function buildPairRows(items: EvalRunItemRecord[]): PairResultRow[] {
           score: typeof comparison.score === "number" ? comparison.score : null,
           outcomeMatch: metricBool(comparison.metrics, "outcome_match"),
           questionAgreement: metricNumber(comparison.metrics, "question_agreement"),
-          driverF1: metricNumber(comparison.metrics, "driver_f1"),
+          subquestionF1: metricNumberFallback(comparison.metrics, ["subquestion_f1", "driver_f1"]),
           generatedOutcome: item.generated_result?.overall_outcome ?? "",
           referenceOutcome: referenceTruth.result.overall_outcome,
         },
@@ -970,9 +1008,9 @@ function CompletedRunAnalysisCard({
               helper="Yes/No answers"
             />
             <MiniMetric
-              label="Driver F1"
-              value={metrics.driverF1 === null ? "-" : agreementPercent(metrics.driverF1)}
-              helper="applicable drivers"
+              label="Sub-question F1"
+              value={metrics.subquestionF1 === null ? "-" : agreementPercent(metrics.subquestionF1)}
+              helper="applicable sub-questions"
             />
           </div>
         )}
@@ -1361,7 +1399,7 @@ function PairResultsTable({
               <TableHead>Score</TableHead>
               <TableHead>Outcome</TableHead>
               <TableHead>Question Agree</TableHead>
-              <TableHead>Driver F1</TableHead>
+              <TableHead>Sub-question F1</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1402,7 +1440,9 @@ function PairResultsTable({
                     </div>
                   </TableCell>
                   <TableCell className="tabular-nums">{row.questionAgreement === null ? "-" : agreementPercent(row.questionAgreement)}</TableCell>
-                  <TableCell className="tabular-nums">{row.driverF1 === null ? "-" : agreementPercent(row.driverF1)}</TableCell>
+                  <TableCell className="tabular-nums">
+                    {row.subquestionF1 === null ? "-" : agreementPercent(row.subquestionF1)}
+                  </TableCell>
                 </TableRow>
               ))
             )}
@@ -1438,7 +1478,7 @@ function PairComparisonDialog({ pair, onClose }: { pair: PairResultRow | null; o
   const activeTruth = pair.item.ground_truths.find((truth) => truth.reference_kind === referenceKind) ?? pair.referenceTruth;
   const activeComparison = comparisonFor(pair.item, activeTruth.reference_kind) ?? pair.comparison;
   const questionAgreement = metricNumber(activeComparison.metrics, "question_agreement");
-  const driverF1 = metricNumber(activeComparison.metrics, "driver_f1");
+  const subquestionF1 = metricNumberFallback(activeComparison.metrics, ["subquestion_f1", "driver_f1"]);
   const outcomeMatch = metricBool(activeComparison.metrics, "outcome_match");
 
   return (
@@ -1479,7 +1519,11 @@ function PairComparisonDialog({ pair, onClose }: { pair: PairResultRow | null; o
           <div className="grid gap-3 md:grid-cols-4">
             <MiniMetric label="Score" value={scorePercent(activeComparison.score)} helper={`Ground truth ${activeTruth.reference_kind}`} />
             <MiniMetric label="Question Agree" value={questionAgreement === null ? "-" : agreementPercent(questionAgreement)} helper="Yes/No answers" />
-            <MiniMetric label="Driver F1" value={driverF1 === null ? "-" : agreementPercent(driverF1)} helper="applicable drivers" />
+            <MiniMetric
+              label="Sub-question F1"
+              value={subquestionF1 === null ? "-" : agreementPercent(subquestionF1)}
+              helper="applicable sub-questions"
+            />
             <MiniMetric label="Attempts" value={String(pair.item.attempt_count)} helper={formatDate(pair.item.completed_at) || pair.item.status} />
           </div>
 

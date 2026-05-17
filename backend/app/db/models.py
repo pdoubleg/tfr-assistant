@@ -288,6 +288,7 @@ class EvalRunORM(Base):
     total_count: Mapped[int] = mapped_column(Integer, default=0)
     completed_count: Mapped[int] = mapped_column(Integer, default=0)
     failed_count: Mapped[int] = mapped_column(Integer, default=0)
+    metrics_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
     input_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -352,3 +353,38 @@ class EvalComparisonORM(Base):
 
     run_item: Mapped[EvalRunItemORM] = relationship(back_populates="comparisons")
     ground_truth: Mapped[EvalGroundTruthORM] = relationship(back_populates="comparisons")
+    agreement_items: Mapped[list["EvalAgreementItemORM"]] = relationship(
+        back_populates="comparison",
+        cascade="all, delete-orphan",
+    )
+
+
+class EvalAgreementItemORM(Base):
+    __tablename__ = "eval_agreement_items"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    run_id: Mapped[str] = mapped_column(ForeignKey("eval_runs.id"), index=True)
+    run_item_id: Mapped[str] = mapped_column(ForeignKey("eval_run_items.id"), index=True)
+    case_id: Mapped[str] = mapped_column(ForeignKey("eval_cases.id"), index=True)
+    ground_truth_id: Mapped[str] = mapped_column(ForeignKey("eval_ground_truths.id"), index=True)
+    comparison_id: Mapped[str] = mapped_column(
+        ForeignKey("eval_comparisons.id", ondelete="CASCADE"),
+        index=True,
+    )
+    reference_kind: Mapped[str] = mapped_column(String(16), index=True)
+    level: Mapped[str] = mapped_column(String(24), index=True)
+    question_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    subquestion_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    question_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    subquestion_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    generated_answer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reference_answer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    matched: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    agreement: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    generated_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reference_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    generated_citations: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reference_citations: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    comparison: Mapped[EvalComparisonORM] = relationship(back_populates="agreement_items")

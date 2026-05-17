@@ -79,7 +79,7 @@ const starterMessages: ChatMessage[] = [
     id: "welcome",
     role: "assistant",
     content:
-      "### TFR Assistant\n\nI can help triage review batches, explain form results, and keep audit context synced as AG-UI state comes online.\n\n| Capability | Ready |\n| --- | --- |\n| Markdown tables | Yes |\n| Streaming text | Yes |\n| Tool status timeline | Starting now |",
+      "### TFR Assistant\n\nHi, how can I help you today?",
   },
 ];
 

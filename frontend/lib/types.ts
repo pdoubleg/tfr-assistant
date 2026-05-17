@@ -213,6 +213,7 @@ export interface EvalRunRecord {
   queued_count: number;
   progress_percent: number;
   primary_score?: number | null;
+  metrics: Record<string, unknown>;
   input: Record<string, unknown>;
   error_message?: string | null;
   started_at?: string | null;
@@ -231,6 +232,31 @@ export interface EvalComparisonRecord {
   reference_kind: EvalReferenceKind;
   score?: number | null;
   metrics: Record<string, unknown>;
+  agreement_items: EvalAgreementItemRecord[];
+  created_at?: string;
+}
+
+export interface EvalAgreementItemRecord {
+  id: string;
+  run_id: string;
+  run_item_id: string;
+  case_id: string;
+  ground_truth_id: string;
+  comparison_id: string;
+  reference_kind: EvalReferenceKind;
+  level: "overall" | "question" | "subquestion";
+  question_id?: string | null;
+  subquestion_id?: string | null;
+  question_text?: string | null;
+  subquestion_text?: string | null;
+  generated_answer?: string | null;
+  reference_answer?: string | null;
+  matched: boolean;
+  agreement: number;
+  generated_comment?: string | null;
+  reference_comment?: string | null;
+  generated_citations?: string | null;
+  reference_citations?: string | null;
   created_at?: string;
 }
 

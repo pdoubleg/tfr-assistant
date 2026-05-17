@@ -62,7 +62,7 @@ class MontyPythonCapability(AbstractCapability[TFRChatDeps]):
             code: str,
             restart: bool = False,
         ) -> ToolReturn:
-            """Execute Python repl code for dataframe handles and Plotly charts.
+            """Execute a Python code block in a repl sandbox.
 
             Use after SQL or earlier Python repl code has produced handles.
             Registered tools are available by name inside the repl; use

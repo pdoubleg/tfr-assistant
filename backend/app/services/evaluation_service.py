@@ -6,11 +6,13 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
+import pandas as pd
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
 from app.db.models import (
+    EvalAgreementItemORM,
     EvalCaseORM,
     EvalComparisonORM,
     EvalDatasetORM,
@@ -21,6 +23,7 @@ from app.db.models import (
 from app.db.session import AsyncSessionLocal
 from app.models.audit import AuditFormResult
 from app.schemas.evaluations import (
+    EvalAgreementItemRecord,
     EvalCaseCreate,
     EvalCaseRecord,
     EvalComparisonRecord,
@@ -35,7 +38,12 @@ from app.schemas.evaluations import (
 from app.schemas.reviews import ReviewGenerateRequest
 from app.services.audit_generation import AuditGenerationService
 from app.services.catalog import FormCatalog
-from app.services.evaluation_metrics import compare_audit_results
+from app.services.evaluation_metrics import (
+    aggregate_comparison_metrics,
+    compare_audit_results,
+    comparison_metrics_to_row,
+    comparison_result_to_agreement_items,
+)
 from app.services.review_repository import ReviewRepository
 
 
@@ -402,9 +410,13 @@ class EvaluationRepository:
         item_id: str,
         *,
         generated_review_id: str,
-        comparisons: list[tuple[EvalGroundTruthORM, dict[str, Any]]],
+        generated_result: AuditFormResult,
+        comparisons: list[tuple[EvalGroundTruthORM, AuditFormResult, dict[str, Any]]],
     ) -> EvalRunItemRecord:
         item = await self._get_run_item_orm(item_id)
+        await self.session.execute(
+            delete(EvalAgreementItemORM).where(EvalAgreementItemORM.run_item_id == item.id)
+        )
         await self.session.execute(
             delete(EvalComparisonORM).where(EvalComparisonORM.run_item_id == item.id)
         )
@@ -413,23 +425,59 @@ class EvaluationRepository:
         item.error_message = None
         item.completed_at = _now()
         item.updated_at = _now()
-        for truth, metrics in comparisons:
-            self.session.add(
-                EvalComparisonORM(
-                    id=str(uuid4()),
-                    run_id=item.run_id,
-                    run_item_id=item.id,
-                    case_id=item.case_id,
-                    ground_truth_id=truth.id,
-                    reference_kind=truth.reference_kind,
-                    score=metrics.get("score"),
-                    metrics_json=metrics,
-                )
+        for truth, reference_result, metrics in comparisons:
+            comparison = EvalComparisonORM(
+                id=str(uuid4()),
+                run_id=item.run_id,
+                run_item_id=item.id,
+                case_id=item.case_id,
+                ground_truth_id=truth.id,
+                reference_kind=truth.reference_kind,
+                score=metrics.get("score"),
+                metrics_json=metrics,
             )
+            self.session.add(comparison)
+            await self.session.flush()
+            for agreement_item in comparison_result_to_agreement_items(
+                metrics,
+                generated_result,
+                reference_result,
+            ):
+                self.session.add(
+                    EvalAgreementItemORM(
+                        id=str(uuid4()),
+                        run_id=item.run_id,
+                        run_item_id=item.id,
+                        case_id=item.case_id,
+                        ground_truth_id=truth.id,
+                        comparison_id=comparison.id,
+                        reference_kind=truth.reference_kind,
+                        **agreement_item,
+                    )
+                )
+        await self.session.flush()
+        await self._save_run_aggregate_metrics(item.run_id)
         await self.session.commit()
         await self.refresh_run_counts(item.run_id)
         await self.session.refresh(item)
         return await self._run_item_to_schema(item)
+
+    async def _save_run_aggregate_metrics(self, run_id: str) -> None:
+        run = await self._get_run_orm(run_id)
+        comparisons = (
+            await self.session.scalars(
+                select(EvalComparisonORM)
+                .where(EvalComparisonORM.run_id == run_id)
+                .order_by(EvalComparisonORM.created_at.asc())
+            )
+        ).all()
+        rows = [
+            comparison_metrics_to_row(comparison.metrics_json, comparison.reference_kind)
+            for comparison in comparisons
+        ]
+        run.metrics_json = aggregate_comparison_metrics(pd.DataFrame(rows)) if rows else {}
+        run.updated_at = _now()
+        self.session.add(run)
 
     async def fail_item(self, item_id: str, message: str) -> EvalRunItemRecord:
         item = await self._get_run_item_orm(item_id)
@@ -554,6 +602,7 @@ class EvaluationRepository:
             queued_count=queued,
             progress_percent=progress_percent,
             primary_score=primary_score,
+            metrics=run.metrics_json or {},
             input=input_json,
             error_message=run.error_message,
             started_at=run.started_at,
@@ -580,6 +629,23 @@ class EvaluationRepository:
                 .order_by(EvalComparisonORM.reference_kind.asc())
             )
         ).all()
+        agreement_items = (
+            await self.session.scalars(
+                select(EvalAgreementItemORM)
+                .where(EvalAgreementItemORM.run_item_id == item.id)
+                .order_by(
+                    EvalAgreementItemORM.reference_kind.asc(),
+                    EvalAgreementItemORM.level.asc(),
+                    EvalAgreementItemORM.question_id.asc(),
+                    EvalAgreementItemORM.subquestion_id.asc(),
+                )
+            )
+        ).all()
+        agreement_items_by_comparison: dict[str, list[EvalAgreementItemORM]] = {}
+        for agreement_item in agreement_items:
+            agreement_items_by_comparison.setdefault(agreement_item.comparison_id, []).append(
+                agreement_item
+            )
         return EvalRunItemRecord(
             id=item.id,
             run_id=item.run_id,
@@ -592,7 +658,13 @@ class EvaluationRepository:
             generated_result=generated_result,
             ground_truths=case_schema.ground_truths,
             error_message=item.error_message,
-            comparisons=[self._comparison_to_schema(comparison) for comparison in comparisons],
+            comparisons=[
+                self._comparison_to_schema(
+                    comparison,
+                    agreement_items_by_comparison.get(comparison.id, []),
+                )
+                for comparison in comparisons
+            ],
             started_at=item.started_at,
             completed_at=item.completed_at,
             created_at=item.created_at,
@@ -610,7 +682,39 @@ class EvaluationRepository:
             created_at=truth.created_at,
         )
 
-    def _comparison_to_schema(self, comparison: EvalComparisonORM) -> EvalComparisonRecord:
+    def _agreement_item_to_schema(
+        self,
+        agreement_item: EvalAgreementItemORM,
+    ) -> EvalAgreementItemRecord:
+        return EvalAgreementItemRecord(
+            id=agreement_item.id,
+            run_id=agreement_item.run_id,
+            run_item_id=agreement_item.run_item_id,
+            case_id=agreement_item.case_id,
+            ground_truth_id=agreement_item.ground_truth_id,
+            comparison_id=agreement_item.comparison_id,
+            reference_kind=agreement_item.reference_kind,  # type: ignore[arg-type]
+            level=agreement_item.level,  # type: ignore[arg-type]
+            question_id=agreement_item.question_id,
+            subquestion_id=agreement_item.subquestion_id,
+            question_text=agreement_item.question_text,
+            subquestion_text=agreement_item.subquestion_text,
+            generated_answer=agreement_item.generated_answer,
+            reference_answer=agreement_item.reference_answer,
+            matched=agreement_item.matched,
+            agreement=agreement_item.agreement,
+            generated_comment=agreement_item.generated_comment,
+            reference_comment=agreement_item.reference_comment,
+            generated_citations=agreement_item.generated_citations,
+            reference_citations=agreement_item.reference_citations,
+            created_at=agreement_item.created_at,
+        )
+
+    def _comparison_to_schema(
+        self,
+        comparison: EvalComparisonORM,
+        agreement_items: list[EvalAgreementItemORM],
+    ) -> EvalComparisonRecord:
         return EvalComparisonRecord(
             id=comparison.id,
             run_id=comparison.run_id,
@@ -620,6 +724,9 @@ class EvaluationRepository:
             reference_kind=comparison.reference_kind,  # type: ignore[arg-type]
             score=comparison.score,
             metrics=comparison.metrics_json,
+            agreement_items=[
+                self._agreement_item_to_schema(agreement_item) for agreement_item in agreement_items
+            ],
             created_at=comparison.created_at,
         )
 
@@ -813,19 +920,23 @@ class EvaluationRunService:
                 if review.status != "completed" or not review.original:
                     raise RuntimeError(review.error_message or "Audit generation did not complete.")
                 truths = await repository.ground_truths_for_case(case.id)
-                comparisons = [
-                    (
-                        truth,
-                        compare_audit_results(
-                            generated=review.original,
-                            reference=AuditFormResult.model_validate(truth.payload_json),
-                        ),
+                comparisons = []
+                for truth in truths:
+                    reference_result = AuditFormResult.model_validate(truth.payload_json)
+                    comparisons.append(
+                        (
+                            truth,
+                            reference_result,
+                            compare_audit_results(
+                                generated=review.original,
+                                reference=reference_result,
+                            ),
+                        )
                     )
-                    for truth in truths
-                ]
                 await repository.complete_item(
                     item_id,
                     generated_review_id=review.id,
+                    generated_result=review.original,
                     comparisons=comparisons,
                 )
         except Exception as exc:
@@ -872,6 +983,13 @@ class EvaluationRunService:
             }
             if run.primary_score is not None:
                 metrics["primary_score"] = run.primary_score
+            metrics.update(
+                {
+                    metric_name: metric_value
+                    for metric_name, metric_value in run.metrics.items()
+                    if isinstance(metric_value, (int, float))
+                }
+            )
             mlflow.log_metrics(metrics)
             mlflow.end_run(status="FINISHED" if run.status == "completed" else "FAILED")
         except Exception:
