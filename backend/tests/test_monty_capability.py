@@ -340,6 +340,38 @@ print(emitted["component"])
 
 
 @pytest.mark.anyio
+async def test_monty_runtime_resolves_bare_handle_aliases(tmp_path) -> None:
+    settings = Settings(
+        data_dir=tmp_path / "data",
+        chat_artifacts_dir=tmp_path / "data" / "chat_artifacts",
+    )
+    state = TFRChatState()
+    store = ChatArtifactStore(settings)
+    store.save_dataset(
+        state,
+        columns=["category", "amount"],
+        rows=[["A", 10], ["A", 15], ["B", 7]],
+        label="Example rows",
+        source="test",
+    )
+    runtime = MontyPythonRuntime(state, settings)
+
+    result = await runtime.execute(
+        """
+counts = value_counts(ds_1, "category")
+chart = create_bar_chart(ds_2, "category", "count", title="Counts")
+emitted = emit_plotly_chart(chart)
+print(emitted["component"])
+"""
+    )
+
+    assert result["status"] == "success"
+    assert result["stdout"] == "a2ui.PlotlyChart\n"
+    assert [handle["handle"] for handle in result["handles"]] == ["ds_2", "fig_1"]
+    assert state.components[-1].type == "a2ui.PlotlyChart"
+
+
+@pytest.mark.anyio
 async def test_monty_describe_tools_return_strings_for_handle_inspection(tmp_path) -> None:
     settings = Settings(
         data_dir=tmp_path / "data",

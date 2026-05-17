@@ -133,9 +133,11 @@ class MontyReplInterpreter:
         self,
         *,
         tools: Mapping[str, Callable[..., Any]],
+        name_resolver: Callable[[str], Any | None] | None = None,
         limits: pydantic_monty.ResourceLimits | None = None,
     ) -> None:
         self._tools = dict(tools)
+        self._name_resolver = name_resolver
         self._limits = limits or DEFAULT_RESOURCE_LIMITS
         self._state: dict[str, Any] = {}
         self._name_collector = _TopLevelNameCollector()
@@ -303,7 +305,14 @@ class MontyReplInterpreter:
         try:
             while not isinstance(progress, pydantic_monty.MontyComplete):
                 if isinstance(progress, pydantic_monty.NameLookupSnapshot):
-                    value = external_tools.get(progress.variable_name)
+                    if progress.variable_name in external_tools:
+                        progress = progress.resume(value=external_tools[progress.variable_name])
+                        continue
+                    value = (
+                        self._name_resolver(progress.variable_name)
+                        if self._name_resolver is not None
+                        else None
+                    )
                     progress = (
                         progress.resume(value=value) if value is not None else progress.resume()
                     )

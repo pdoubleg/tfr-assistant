@@ -37,7 +37,10 @@ class MontyPythonRuntime:
     def __init__(self, state: TFRChatState, settings: Settings) -> None:
         self.context = MontyRuntimeContext(state=state, settings=settings)
         self.registry = build_monty_registry(self.context)
-        self.interpreter = MontyReplInterpreter(tools=self.registry.exported_tools())
+        self.interpreter = MontyReplInterpreter(
+            tools=self.registry.exported_tools(),
+            name_resolver=self._resolve_handle_alias,
+        )
         self._execution_counter = 0
 
     def bind(self, state: TFRChatState, settings: Settings) -> None:
@@ -46,6 +49,12 @@ class MontyPythonRuntime:
 
     def help(self, name: HelpTarget = None) -> str:
         return render_help(self.registry, name=name)
+
+    def _resolve_handle_alias(self, name: str) -> str | None:
+        for handle in self.context.state.handles:
+            if handle.handle == name:
+                return name
+        return None
 
     async def execute(self, code: str, *, restart: bool = False) -> dict[str, Any]:
         status = "success"
