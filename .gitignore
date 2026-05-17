@@ -31,3 +31,10 @@ backend/data/chat_artifacts/
 Thumbs.db
 .idea/
 .vscode/
+backend/uvicorn.err.log
+backend/uvicorn.log
+backend/uvicorn.err.log
+backend/uvicorn.err.log
+backend/uvicorn.err.log
+backend/uvicorn.log
+backend/uvicorn.err.log

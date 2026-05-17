@@ -41,3 +41,33 @@ INFO:     Application startup complete.
 C:\Python312\Lib\asyncio\base_events.py:1986: RuntimeWarning: coroutine 'RLMCollection.llm_query' was never awaited
   handle = None  # Needed to break cycles when an exception occurs.
 RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+WARNING:  WatchFiles detected changes in 'app\agents\chat_agent.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for connections to close. (CTRL+C to force quit)
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [9948]
+INFO:     Started server process [12280]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app\agents\chat_agent.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [12280]
+WARNING:  WatchFiles detected changes in 'app\agents\chat_agent.py'. Reloading...
+INFO:     Started server process [12824]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [12824]
+INFO:     Started server process [17016]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app\agents\chat_agent.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [17016]

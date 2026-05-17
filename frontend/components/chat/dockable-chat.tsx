@@ -4,6 +4,7 @@ import type { Message } from "@ag-ui/client";
 import {
   AlertCircle,
   Bot,
+  Brain,
   Check,
   ClipboardCheck,
   ChevronDown,
@@ -26,6 +27,7 @@ import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/pris
 import remarkGfm from "remark-gfm";
 
 import { Button } from "@/components/ui/button";
+import { ShimmeringText } from "@/components/ui/shimmering-text";
 import { Textarea } from "@/components/ui/textarea";
 import { CodeDisclosure } from "@/components/a2ui/code-disclosure";
 import { A2UIRendererList } from "@/components/a2ui/a2ui-renderer";
@@ -40,6 +42,13 @@ type ChatRole = "user" | "assistant";
 interface UserAssistantMessage {
   id: string;
   role: ChatRole;
+  content: string;
+  streaming?: boolean;
+}
+
+interface ReasoningChatMessage {
+  id: string;
+  role: "reasoning";
   content: string;
   streaming?: boolean;
 }
@@ -71,7 +80,7 @@ interface ToolCodePreview {
   defaultOpen?: boolean;
 }
 
-type ChatMessage = UserAssistantMessage | ToolStatusMessage;
+type ChatMessage = UserAssistantMessage | ReasoningChatMessage | ToolStatusMessage;
 type TranscriptItem = ChatMessage | ComponentListMessage;
 
 const starterMessages: ChatMessage[] = [
@@ -531,21 +540,25 @@ export function DockableChat({
         style={{ paddingLeft: chatGutter, paddingRight: chatGutter }}
         onScroll={handleScroll}
       >
-        <div className="space-y-5">
-          {transcriptItems.map((message) =>
-            message.role === "components" ? (
-              <A2UIRendererList key={message.id} components={message.components} />
-            ) : message.role === "tool_status" ? (
-              <ToolStatusView
-                key={message.id}
-                message={message}
-                collapsed={!expandedToolMessages.has(message.id)}
-                onToggle={() => toggleToolMessage(message.id)}
-              />
-            ) : (
-              <MessageView key={message.id} message={message} isDarkTheme={isDarkTheme} />
-            ),
-          )}
+        <div className="flex flex-col">
+          {transcriptItems.map((message, index) => (
+            <div
+              key={message.id}
+              className={transcriptItemSpacing(message, transcriptItems[index - 1])}
+            >
+              {message.role === "components" ? (
+                <A2UIRendererList components={message.components} />
+              ) : message.role === "tool_status" ? (
+                <ToolStatusView
+                  message={message}
+                  collapsed={!expandedToolMessages.has(message.id)}
+                  onToggle={() => toggleToolMessage(message.id)}
+                />
+              ) : (
+                <MessageView message={message} isDarkTheme={isDarkTheme} />
+              )}
+            </div>
+          ))}
           {sharedState.error_message ? (
             <div className="rounded-lg border border-destructive/35 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {sharedState.error_message}
@@ -593,6 +606,18 @@ function agentMessageToChatMessage(
   allMessages: Message[],
   isRunning: boolean,
 ): ChatMessage[] {
+  if (message.role === "reasoning") {
+    const content = messageContentToString(message.content);
+    const streaming = isRunning && allMessages[allMessages.length - 1]?.id === message.id;
+    if (!content && !streaming) return [];
+    return [{
+      id: message.id,
+      role: "reasoning",
+      content,
+      streaming,
+    }];
+  }
+
   if (message.role !== "user" && message.role !== "assistant") return [];
   const toolCalls = getMessageToolCalls(message);
   if (message.role === "assistant" && toolCalls.length) {
@@ -751,6 +776,19 @@ function findLastIndex<T>(items: T[], predicate: (item: T, index: number) => boo
     if (predicate(items[index], index)) return index;
   }
   return -1;
+}
+
+function transcriptItemSpacing(item: TranscriptItem, previous: TranscriptItem | undefined) {
+  if (!previous) return "";
+  const itemIsStatus = isTranscriptStatus(item);
+  const previousIsStatus = isTranscriptStatus(previous);
+  if (itemIsStatus && previousIsStatus) return "mt-1";
+  if (itemIsStatus || previousIsStatus) return "mt-2.5";
+  return "mt-5";
+}
+
+function isTranscriptStatus(item: TranscriptItem) {
+  return item.role === "reasoning" || item.role === "tool_status";
 }
 
 function readPromptHistory(): string[] {
@@ -1259,28 +1297,62 @@ function ToolStatusView({
       : `${steps.length} step${steps.length === 1 ? "" : "s"} · ${
           running > 0 ? `${running} running` : `${completed} complete`
         }${errors ? ` · ${errors} error` : ""}`;
+  const expanded = !collapsed;
 
   return (
-    <div className="rounded-lg border bg-secondary/45 p-3 text-sm">
+    <div
+      className={cn(
+        "transition-colors",
+        expanded
+          ? "rounded-lg border bg-secondary/45 p-3 text-sm"
+          : "-mx-1 rounded-md border border-transparent bg-transparent px-1.5 py-1 text-xs text-muted-foreground hover:bg-secondary/25",
+      )}
+    >
       <button
         type="button"
         className="flex w-full items-center justify-between gap-2 text-left"
         onClick={onToggle}
       >
-        <span className="flex min-w-0 items-center gap-2">
+        <span className={cn("flex min-w-0 items-center", expanded ? "gap-2" : "gap-1.5")}>
           {message.isLive ? (
-            <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+            <Loader2
+              className={cn(
+                "shrink-0 animate-spin text-primary",
+                expanded ? "h-4 w-4" : "h-3.5 w-3.5",
+              )}
+            />
           ) : errors ? (
-            <X className="h-4 w-4 shrink-0 text-destructive" />
+            <X
+              className={cn(
+                "shrink-0 text-destructive",
+                expanded ? "h-4 w-4" : "h-3.5 w-3.5",
+              )}
+            />
           ) : (
-            <Check className="h-4 w-4 shrink-0 text-emerald-600" />
+            <Check
+              className={cn(
+                "shrink-0 text-emerald-600",
+                expanded ? "h-4 w-4" : "h-3.5 w-3.5",
+              )}
+            />
           )}
-          <span className="truncate font-medium text-foreground/85">{summary}</span>
+          <span
+            className={cn(
+              "truncate",
+              expanded ? "font-medium text-foreground/85" : "font-normal text-muted-foreground",
+            )}
+          >
+            {summary}
+          </span>
         </span>
-        {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        {collapsed ? (
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/75" />
+        ) : (
+          <ChevronDown className="h-4 w-4" />
+        )}
       </button>
 
-      {!collapsed ? (
+      {expanded ? (
         <div className="mt-3 space-y-2">
           {steps.length === 0 ? (
             <div className="flex items-center gap-2 text-muted-foreground">
@@ -1340,9 +1412,13 @@ function MessageView({
   message,
   isDarkTheme,
 }: {
-  message: UserAssistantMessage;
+  message: UserAssistantMessage | ReasoningChatMessage;
   isDarkTheme: boolean;
 }) {
+  if (message.role === "reasoning") {
+    return <ReasoningMessageView message={message} isDarkTheme={isDarkTheme} />;
+  }
+
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
@@ -1368,6 +1444,69 @@ function MessageView({
         )}
       </div>
       {message.streaming ? <span className="mt-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-primary align-middle" /> : null}
+    </div>
+  );
+}
+
+function ReasoningMessageView({
+  message,
+  isDarkTheme,
+}: {
+  message: ReasoningChatMessage;
+  isDarkTheme: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [dotCount, setDotCount] = useState(0);
+
+  useEffect(() => {
+    if (!message.streaming) {
+      setDotCount(0);
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setDotCount((current) => (current + 1) % 4);
+    }, 360);
+    return () => window.clearInterval(timer);
+  }, [message.streaming]);
+
+  const hasContent = message.content.trim().length > 0;
+  const expanded = open && hasContent;
+  return (
+    <div
+      className={cn(
+        "text-xs text-muted-foreground transition-colors",
+        expanded
+          ? "rounded-md border bg-secondary/25 px-2.5 py-1.5"
+          : "-mx-1 rounded-md border border-transparent bg-transparent px-1.5 py-1 hover:bg-secondary/25",
+      )}
+    >
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-2 text-left"
+        onClick={() => hasContent && setOpen((current) => !current)}
+        aria-expanded={hasContent ? open : undefined}
+      >
+        <span className="flex min-w-0 items-center gap-1.5">
+          <Brain className="h-3.5 w-3.5 shrink-0 text-primary/75" />
+          <ShimmeringText
+            active={Boolean(message.streaming)}
+            className="truncate font-normal"
+            duration={1.35}
+            text={`Thinking${message.streaming ? ".".repeat(dotCount) : ""}`}
+          />
+        </span>
+        {hasContent ? (
+          open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />
+        ) : null}
+      </button>
+      {expanded ? (
+        <div className="chat-markdown mt-1.5 border-l pl-2.5 text-xs text-foreground/70">
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={buildMarkdownComponents(isDarkTheme)}>
+            {message.content}
+          </ReactMarkdown>
+        </div>
+      ) : null}
     </div>
   );
 }

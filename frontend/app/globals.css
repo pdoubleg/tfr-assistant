@@ -92,6 +92,43 @@
     animation: output-rise 260ms ease-out both;
   }
 
+  @keyframes text-shimmer {
+    from {
+      background-position: 180% 50%;
+    }
+    to {
+      background-position: -80% 50%;
+    }
+  }
+
+  .shimmering-text {
+    background-image: linear-gradient(
+      105deg,
+      hsl(var(--muted-foreground)) 0%,
+      hsl(var(--muted-foreground)) 34%,
+      hsl(var(--foreground)) 48%,
+      hsl(var(--primary)) 52%,
+      hsl(var(--foreground)) 56%,
+      hsl(var(--muted-foreground)) 70%,
+      hsl(var(--muted-foreground)) 100%
+    );
+    background-size: 250% 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    animation: text-shimmer var(--shimmer-duration, 1.6s) linear infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .shimmering-text {
+      animation: none;
+      background-image: none;
+      color: currentColor;
+      -webkit-text-fill-color: currentColor;
+    }
+  }
+
   .chat-markdown h1,
   .chat-markdown h2,
   .chat-markdown h3 {

@@ -358,3 +358,23 @@ INFO:     127.0.0.1:53461 - "POST /api/chat/ag-ui HTTP/1.1" 200 OK
 INFO:     127.0.0.1:53463 - "POST /api/chat/ag-ui HTTP/1.1" 200 OK
 INFO:     127.0.0.1:53500 - "POST /api/chat/ag-ui HTTP/1.1" 200 OK
 INFO:     127.0.0.1:53543 - "GET /api/reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53602 - "POST /api/chat/ag-ui HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53645 - "GET /api/generated-images/20260517T052927Z_abf387c6-5d7c-4524-9e61-01a22c51c6e5.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53645 - "GET /api/generated-images/20260517T052927Z_abf387c6-5d7c-4524-9e61-01a22c51c6e5.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53645 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:53661 - "GET /api/generated-images/20260517T052927Z_abf387c6-5d7c-4524-9e61-01a22c51c6e5.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53672 - "GET /api/reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53673 - "GET /api/reviews HTTP/1.1" 200 OK
+ INFO:     127.0.0.1:54088 - "GET /api/reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54089 - "OPTIONS /api/chat/ag-ui HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54089 - "POST /api/chat/ag-ui HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54108 - "GET /api/reviews HTTP/1.1" 200 OK
+ INFO:     127.0.0.1:54161 - "GET /api/reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54162 - "POST /api/chat/ag-ui HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54186 - "GET /api/reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54255 - "POST /api/chat/ag-ui HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54256 - "GET /api/reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54284 - "GET /api/reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54284 - "POST /api/chat/ag-ui HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54285 - "GET /api/reviews HTTP/1.1" 200 OK
+  
