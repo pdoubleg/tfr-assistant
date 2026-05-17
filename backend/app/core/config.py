@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     chat_model: str = "openai:gpt-5.4-mini"
     audit_model: str = "openai:gpt-5.4-nano"
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
+    cors_origin_regex: str | None = r"^https?://(localhost|127\.0\.0\.1):\d+$"
     data_dir: Path = Path("data")
     database_url: str = "sqlite+aiosqlite:///data/tfr_assistant.db"
     form_catalog_dir: Path = Path("data/form_catalog")

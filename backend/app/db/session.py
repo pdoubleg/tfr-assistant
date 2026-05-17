@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.sql import text
 
 from app.core.config import get_settings
 from app.db.models import Base
@@ -77,6 +78,30 @@ async def init_db() -> None:
 
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
+        if is_sqlite_url(settings.database_url):
+            await repair_local_sqlite_schema(connection)
+
+
+async def repair_local_sqlite_schema(connection) -> None:
+    """Patch local SQLite DBs that were stamped before all dev DDL landed.
+
+    Alembic remains the source of truth. This guard only handles local/dev
+    databases where `create_all()` cannot add a missing column to an existing
+    table and the database is already marked as migrated.
+    """
+
+    table_rows = (
+        await connection.execute(text("SELECT name FROM sqlite_master WHERE type='table'"))
+    ).all()
+    tables = {row[0] for row in table_rows}
+    if "eval_runs" not in tables:
+        return
+
+    eval_run_columns = {
+        row[1] for row in (await connection.execute(text("PRAGMA table_info(eval_runs)"))).all()
+    }
+    if "metrics_json" not in eval_run_columns:
+        await connection.execute(text("ALTER TABLE eval_runs ADD COLUMN metrics_json JSON"))
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:

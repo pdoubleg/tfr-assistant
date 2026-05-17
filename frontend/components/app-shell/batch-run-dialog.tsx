@@ -37,6 +37,7 @@ type ColumnMap = {
 interface BatchRunDialogProps {
   open: boolean;
   template?: BatchTemplateRecord | null;
+  mode?: "create" | "edit" | "duplicate";
   forms: FormCatalogEntry[];
   locked?: boolean;
   saving?: boolean;
@@ -229,6 +230,7 @@ function useBodyScrollLock(open: boolean) {
 export function BatchRunDialog({
   open,
   template,
+  mode,
   forms,
   locked = false,
   saving = false,
@@ -241,7 +243,9 @@ export function BatchRunDialog({
   const [uploadName, setUploadName] = useState("");
   const [uploadError, setUploadError] = useState("");
   const [formError, setFormError] = useState("");
-  const isEditing = Boolean(template);
+  const dialogMode = mode ?? (template ? "edit" : "create");
+  const isEditing = dialogMode === "edit";
+  const isDuplicate = dialogMode === "duplicate";
   const disabled = locked || saving;
   const selectedForm = forms.find((form) => `${form.id}@${form.version}` === state.formKey);
 
@@ -429,7 +433,7 @@ export function BatchRunDialog({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-xl font-semibold">
-                {isEditing ? "Edit Batch Audit Run" : "Create Batch Audit Run"}
+                {isEditing ? "Edit Batch Audit Run" : isDuplicate ? "Configure Production Batch" : "Create Batch Audit Run"}
               </h2>
               {locked ? <Badge variant="warning">Locked</Badge> : null}
             </div>
@@ -730,7 +734,7 @@ export function BatchRunDialog({
           {!locked ? (
             <Button type="button" className="min-w-32 gap-2" onClick={() => void handleSave()} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {isEditing ? "Save Changes" : "Create Run"}
+              {isEditing ? "Save Changes" : isDuplicate ? "Save Configuration" : "Create Run"}
             </Button>
           ) : null}
         </div>

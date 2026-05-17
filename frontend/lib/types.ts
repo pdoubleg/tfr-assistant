@@ -81,6 +81,7 @@ export interface ReviewRecord {
 }
 
 export type BatchInputMode = "manual" | "upload" | "synthetic";
+export type BatchStatus = "queued" | "running" | "paused" | "completed" | "failed" | "canceled";
 
 export interface BatchReviewInput {
   claim_number: string;
@@ -98,11 +99,14 @@ export interface BatchRecord {
   template_id?: string | null;
   name: string;
   description: string;
-  status: "queued" | "running" | "completed" | "failed";
+  status: BatchStatus;
   source: string;
   total_count: number;
   completed_count: number;
   failed_count: number;
+  running_count: number;
+  queued_count: number;
+  progress_percent: number;
   input_json?: Record<string, unknown> | null;
   error_message?: string | null;
   started_at?: string | null;
@@ -134,6 +138,30 @@ export type BatchTemplatePayload = Omit<
   BatchTemplateRecord,
   "id" | "item_count" | "latest_run" | "run_count" | "created_at" | "updated_at"
 >;
+
+export interface BatchFormVolume {
+  form_id: string;
+  form_version: string;
+  total_count: number;
+  completed_count: number;
+  failed_count: number;
+}
+
+export interface BatchSummary {
+  active_batches: number;
+  queued_batches: number;
+  paused_batches: number;
+  failed_batches: number;
+  completed_batches: number;
+  total_reviews: number;
+  completed_reviews: number;
+  failed_reviews: number;
+  running_reviews: number;
+  queued_reviews: number;
+  completed_reviews_today: number;
+  average_duration_seconds?: number | null;
+  form_volume: BatchFormVolume[];
+}
 
 export type EvalReferenceKind = "R1" | "R2";
 export type EvalReferencePolicy = "prefer_r2" | "r1" | "r2" | "all";

@@ -8,6 +8,7 @@ from app.models.audit import AuditFormResult
 ReviewStatus = Literal["queued", "running", "completed", "failed"]
 ReviewSource = Literal["api", "chat_tool", "batch", "eval"]
 BatchInputMode = Literal["manual", "upload", "synthetic"]
+BatchStatus = Literal["queued", "running", "paused", "completed", "failed", "canceled"]
 
 
 class ReviewCreate(BaseModel):
@@ -81,11 +82,14 @@ class BatchRecord(BaseModel):
     template_id: str | None = None
     name: str = ""
     description: str = ""
-    status: ReviewStatus = "queued"
+    status: BatchStatus = "queued"
     source: str = "batch"
     total_count: int = 0
     completed_count: int = 0
     failed_count: int = 0
+    running_count: int = 0
+    queued_count: int = 0
+    progress_percent: float = 0
     input_json: dict[str, Any] | None = None
     error_message: str | None = None
     started_at: datetime | None = None
@@ -93,6 +97,30 @@ class BatchRecord(BaseModel):
     duration_seconds: float | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class BatchFormVolume(BaseModel):
+    form_id: str
+    form_version: str
+    total_count: int = 0
+    completed_count: int = 0
+    failed_count: int = 0
+
+
+class BatchSummary(BaseModel):
+    active_batches: int = 0
+    queued_batches: int = 0
+    paused_batches: int = 0
+    failed_batches: int = 0
+    completed_batches: int = 0
+    total_reviews: int = 0
+    completed_reviews: int = 0
+    failed_reviews: int = 0
+    running_reviews: int = 0
+    queued_reviews: int = 0
+    completed_reviews_today: int = 0
+    average_duration_seconds: float | None = None
+    form_volume: list[BatchFormVolume] = Field(default_factory=list)
 
 
 class BatchTemplateCreate(BaseModel):

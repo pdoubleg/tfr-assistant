@@ -1,4 +1,3 @@
-import asyncio
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -299,23 +298,27 @@ class BatchReviewGenerationService:
         return await self.repository.refresh_batch_counts(batch.id)
 
     async def run_batch(self, batch_id: str) -> None:
-        reviews = await self.repository.list_reviews(batch_id=batch_id)
-        semaphore = asyncio.Semaphore(max(1, self.settings.batch_concurrency))
+        await self.repository.mark_batch_running(batch_id)
 
-        async def run_review(review: ReviewRecord) -> None:
-            if review.status != "queued":
-                return
-            async with semaphore:
-                async with AsyncSessionLocal() as session:
-                    repository = ReviewRepository(session)
-                    fresh = await repository.get_review(review.id)
-                    if fresh.status != "queued":
-                        return
-                    request = ReviewGenerateRequest.model_validate(fresh.input_json or {})
-                    service = AuditGenerationService(session, self.settings)
-                    await service.generate_for_review(fresh.id, request)
+        while True:
+            async with AsyncSessionLocal() as session:
+                repository = ReviewRepository(session)
+                batch = await repository.get_batch(batch_id)
+                if batch.status != "running":
+                    return
+                review = await repository.next_queued_batch_review(batch_id)
+                if not review:
+                    await repository.refresh_batch_counts(batch_id)
+                    return
 
-        await asyncio.gather(*(run_review(review) for review in reviews))
+            async with AsyncSessionLocal() as session:
+                fresh_repository = ReviewRepository(session)
+                fresh = await fresh_repository.get_review(review.id)
+                if fresh.status != "running":
+                    continue
+                request = ReviewGenerateRequest.model_validate(fresh.input_json or {})
+                service = AuditGenerationService(session, self.settings)
+                await service.generate_for_review(fresh.id, request)
 
     def _request_from_item(
         self,

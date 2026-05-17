@@ -2,6 +2,7 @@ import type {
   AuditFormDefinition,
   AuditFormResult,
   BatchRecord,
+  BatchSummary,
   BatchTemplatePayload,
   BatchTemplateRecord,
   EvalDatasetRecord,
@@ -180,6 +181,20 @@ export async function listBatchTemplates(): Promise<BatchTemplateRecord[]> {
   return parseJsonResponse<BatchTemplateRecord[]>(response);
 }
 
+export async function listBatches(): Promise<BatchRecord[]> {
+  const response = await fetch(`${apiBaseUrl}/api/batches`, {
+    cache: "no-store",
+  });
+  return parseJsonResponse<BatchRecord[]>(response);
+}
+
+export async function getBatchSummary(): Promise<BatchSummary> {
+  const response = await fetch(`${apiBaseUrl}/api/batches/summary`, {
+    cache: "no-store",
+  });
+  return parseJsonResponse<BatchSummary>(response);
+}
+
 export async function createBatchTemplate(
   payload: BatchTemplatePayload,
 ): Promise<BatchTemplateRecord> {
@@ -222,6 +237,34 @@ export async function listBatchReviews(batchId: string): Promise<ReviewRecord[]>
     cache: "no-store",
   });
   return parseJsonResponse<ReviewRecord[]>(response);
+}
+
+export async function pauseBatch(batchId: string): Promise<BatchRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/batches/${batchId}/pause`, {
+    method: "POST",
+  });
+  return parseJsonResponse<BatchRecord>(response);
+}
+
+export async function resumeBatch(batchId: string): Promise<BatchRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/batches/${batchId}/resume`, {
+    method: "POST",
+  });
+  return parseJsonResponse<BatchRecord>(response);
+}
+
+export async function retryFailedBatch(batchId: string): Promise<BatchRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/batches/${batchId}/retry-failed`, {
+    method: "POST",
+  });
+  return parseJsonResponse<BatchRecord>(response);
+}
+
+export async function cancelBatch(batchId: string): Promise<BatchRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/batches/${batchId}/cancel`, {
+    method: "POST",
+  });
+  return parseJsonResponse<BatchRecord>(response);
 }
 
 export async function listEvalDatasets(): Promise<EvalDatasetRecord[]> {

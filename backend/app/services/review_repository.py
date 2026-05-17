@@ -5,7 +5,7 @@ from typing import Any
 from uuid import uuid4
 
 from pydantic import ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -23,8 +23,10 @@ from app.db.models import (
 from app.models.audit import AuditFormResult
 from app.schemas.evaluations import EvaluationCreate, EvaluationRecord, FeedbackCreate
 from app.schemas.reviews import (
+    BatchFormVolume,
     BatchRecord,
     BatchReviewInput,
+    BatchSummary,
     BatchTemplateCreate,
     BatchTemplateRecord,
     BatchTemplateUpdate,
@@ -134,6 +136,116 @@ class ReviewRepository:
         statement = select(AuditBatchTemplateORM).order_by(AuditBatchTemplateORM.updated_at.desc())
         templates = (await self.session.scalars(statement)).all()
         return [await self._batch_template_to_schema(template) for template in templates]
+
+    async def list_batches(self) -> list[BatchRecord]:
+        statement = select(AuditBatchORM).order_by(AuditBatchORM.created_at.desc())
+        batches = (await self.session.scalars(statement)).all()
+        return [await self.refresh_batch_counts(batch.id) for batch in batches]
+
+    async def batch_summary(self) -> BatchSummary:
+        batches = await self.list_batches()
+        total_reviews = (
+            await self.session.scalar(
+                select(func.count(AuditReviewORM.id)).where(AuditReviewORM.source == "batch")
+            )
+            or 0
+        )
+        completed_reviews = (
+            await self.session.scalar(
+                select(func.count(AuditReviewORM.id)).where(
+                    AuditReviewORM.source == "batch",
+                    AuditReviewORM.status == "completed",
+                )
+            )
+            or 0
+        )
+        failed_reviews = (
+            await self.session.scalar(
+                select(func.count(AuditReviewORM.id)).where(
+                    AuditReviewORM.source == "batch",
+                    AuditReviewORM.status == "failed",
+                )
+            )
+            or 0
+        )
+        running_reviews = (
+            await self.session.scalar(
+                select(func.count(AuditReviewORM.id)).where(
+                    AuditReviewORM.source == "batch",
+                    AuditReviewORM.status == "running",
+                )
+            )
+            or 0
+        )
+        queued_reviews = (
+            await self.session.scalar(
+                select(func.count(AuditReviewORM.id)).where(
+                    AuditReviewORM.source == "batch",
+                    AuditReviewORM.status == "queued",
+                )
+            )
+            or 0
+        )
+        today = _now().date()
+        completed_reviews_today = (
+            await self.session.scalar(
+                select(func.count(AuditReviewORM.id)).where(
+                    AuditReviewORM.source == "batch",
+                    AuditReviewORM.status == "completed",
+                    func.date(AuditReviewORM.updated_at) == today.isoformat(),
+                )
+            )
+            or 0
+        )
+        form_volume_rows = (
+            await self.session.execute(
+                select(
+                    AuditReviewORM.form_id,
+                    AuditReviewORM.form_version,
+                    func.count(AuditReviewORM.id),
+                    func.sum(case((AuditReviewORM.status == "completed", 1), else_=0)),
+                    func.sum(case((AuditReviewORM.status == "failed", 1), else_=0)),
+                )
+                .where(AuditReviewORM.source == "batch")
+                .group_by(AuditReviewORM.form_id, AuditReviewORM.form_version)
+                .order_by(func.count(AuditReviewORM.id).desc())
+            )
+        ).all()
+        durations = [
+            batch.duration_seconds
+            for batch in batches
+            if batch.duration_seconds is not None and batch.status in {"completed", "failed"}
+        ]
+        return BatchSummary(
+            active_batches=sum(1 for batch in batches if batch.status == "running"),
+            queued_batches=sum(1 for batch in batches if batch.status == "queued"),
+            paused_batches=sum(1 for batch in batches if batch.status == "paused"),
+            failed_batches=sum(1 for batch in batches if batch.status == "failed"),
+            completed_batches=sum(1 for batch in batches if batch.status == "completed"),
+            total_reviews=total_reviews,
+            completed_reviews=completed_reviews,
+            failed_reviews=failed_reviews,
+            running_reviews=running_reviews,
+            queued_reviews=queued_reviews,
+            completed_reviews_today=completed_reviews_today,
+            average_duration_seconds=(sum(durations) / len(durations) if durations else None),
+            form_volume=[
+                BatchFormVolume(
+                    form_id=form_id,
+                    form_version=form_version,
+                    total_count=total_count,
+                    completed_count=completed_count or 0,
+                    failed_count=failed_count or 0,
+                )
+                for (
+                    form_id,
+                    form_version,
+                    total_count,
+                    completed_count,
+                    failed_count,
+                ) in form_volume_rows
+            ],
+        )
 
     async def get_batch_template(self, template_id: str) -> BatchTemplateRecord:
         template = await self._get_batch_template_orm(template_id)
@@ -321,6 +433,102 @@ class ReviewRepository:
             raise KeyError(f"Unknown batch: {batch_id}")
         return await self.refresh_batch_counts(batch_id)
 
+    async def mark_batch_running(self, batch_id: str) -> BatchRecord:
+        batch = await self._get_batch_orm(batch_id)
+        if batch.status in {"completed", "canceled"}:
+            return await self.refresh_batch_counts(batch_id)
+        batch.status = "running"
+        batch.started_at = batch.started_at or _now()
+        batch.completed_at = None
+        batch.error_message = None
+        batch.updated_at = _now()
+        await self.session.commit()
+        await self.session.refresh(batch)
+        return await self.refresh_batch_counts(batch_id)
+
+    async def pause_batch(self, batch_id: str) -> BatchRecord:
+        batch = await self._get_batch_orm(batch_id)
+        if batch.status not in {"completed", "failed", "canceled"}:
+            batch.status = "paused"
+            batch.completed_at = None
+            batch.updated_at = _now()
+            await self.session.commit()
+            await self.session.refresh(batch)
+        return await self.refresh_batch_counts(batch_id)
+
+    async def resume_batch(self, batch_id: str) -> BatchRecord:
+        batch = await self._get_batch_orm(batch_id)
+        if batch.status in {"completed", "canceled"}:
+            return await self.refresh_batch_counts(batch_id)
+        batch.status = "running"
+        batch.started_at = batch.started_at or _now()
+        batch.completed_at = None
+        batch.error_message = None
+        batch.updated_at = _now()
+        await self.session.commit()
+        await self.session.refresh(batch)
+        return await self.refresh_batch_counts(batch_id)
+
+    async def cancel_batch(self, batch_id: str) -> BatchRecord:
+        batch = await self._get_batch_orm(batch_id)
+        if batch.status != "completed":
+            batch.status = "canceled"
+            batch.completed_at = batch.completed_at or _now()
+            batch.updated_at = _now()
+            await self.session.commit()
+            await self.session.refresh(batch)
+        return await self.refresh_batch_counts(batch_id)
+
+    async def retry_failed_batch_reviews(self, batch_id: str) -> BatchRecord:
+        await self._get_batch_orm(batch_id)
+        failed_reviews = (
+            await self.session.scalars(
+                select(AuditReviewORM).where(
+                    AuditReviewORM.batch_id == batch_id,
+                    AuditReviewORM.status == "failed",
+                )
+            )
+        ).all()
+        for review in failed_reviews:
+            review.status = "queued"
+            review.error_message = None
+            review.updated_at = _now()
+        await self.session.commit()
+        return await self.resume_batch(batch_id)
+
+    async def requeue_running_reviews(self, batch_id: str) -> None:
+        running_reviews = (
+            await self.session.scalars(
+                select(AuditReviewORM).where(
+                    AuditReviewORM.batch_id == batch_id,
+                    AuditReviewORM.status == "running",
+                )
+            )
+        ).all()
+        for review in running_reviews:
+            review.status = "queued"
+            review.updated_at = _now()
+        await self.session.commit()
+
+    async def next_queued_batch_review(self, batch_id: str) -> ReviewRecord | None:
+        batch = await self._get_batch_orm(batch_id)
+        if batch.status != "running":
+            return None
+        review = await self.session.scalar(
+            select(AuditReviewORM)
+            .where(AuditReviewORM.batch_id == batch_id, AuditReviewORM.status == "queued")
+            .order_by(AuditReviewORM.created_at.asc())
+            .limit(1)
+        )
+        if not review:
+            return None
+        review.status = "running"
+        review.error_message = None
+        review.updated_at = _now()
+        await self.session.commit()
+        await self.session.refresh(review)
+        return await self._review_to_schema(review)
+
     async def refresh_batch_counts(self, batch_id: str) -> BatchRecord:
         batch = await self.session.get(AuditBatchORM, batch_id)
         if not batch:
@@ -330,26 +538,34 @@ class ReviewRepository:
         completed = await self._count_reviews(batch_id, "completed")
         failed = await self._count_reviews(batch_id, "failed")
         running = await self._count_reviews(batch_id, "running")
+        queued = await self._count_reviews(batch_id, "queued")
         batch.total_count = total
         batch.completed_count = completed
         batch.failed_count = failed
-        if total == 0:
-            batch.status = "queued"
-        elif completed + failed >= total:
-            batch.status = "failed" if failed else "completed"
-            batch.completed_at = batch.completed_at or _now()
-        elif running:
-            batch.status = "running"
-            batch.completed_at = None
-        else:
-            batch.status = "queued"
-            batch.completed_at = None
+
+        if batch.status != "canceled":
+            if total == 0:
+                batch.status = "queued"
+            elif completed + failed >= total:
+                batch.status = "failed" if failed else "completed"
+                batch.completed_at = batch.completed_at or _now()
+            elif batch.status == "paused":
+                batch.completed_at = None
+            elif running:
+                batch.status = "running"
+                batch.completed_at = None
+            elif queued:
+                batch.status = "running" if batch.started_at else "queued"
+                batch.completed_at = None
+            else:
+                batch.status = "queued"
+                batch.completed_at = None
         if batch.status == "running" and not batch.started_at:
             batch.started_at = _now()
         batch.updated_at = _now()
         await self.session.commit()
         await self.session.refresh(batch)
-        return self._batch_to_schema(batch)
+        return self._batch_to_schema(batch, running_count=running, queued_count=queued)
 
     async def add_feedback(self, feedback: FeedbackCreate) -> FeedbackCreate:
         await self._get_review_orm(feedback.review_id)
@@ -556,6 +772,12 @@ class ReviewRepository:
             raise KeyError(f"Unknown batch template: {template_id}")
         return record
 
+    async def _get_batch_orm(self, batch_id: str) -> AuditBatchORM:
+        batch = await self.session.get(AuditBatchORM, batch_id)
+        if not batch:
+            raise KeyError(f"Unknown batch: {batch_id}")
+        return batch
+
     async def _count_reviews(self, batch_id: str, status: str | None = None) -> int:
         statement = select(func.count(AuditReviewORM.id)).where(AuditReviewORM.batch_id == batch_id)
         if status:
@@ -603,13 +825,23 @@ class ReviewRepository:
             updated_at=template.updated_at,
         )
 
-    def _batch_to_schema(self, batch: AuditBatchORM) -> BatchRecord:
+    def _batch_to_schema(
+        self,
+        batch: AuditBatchORM,
+        *,
+        running_count: int = 0,
+        queued_count: int = 0,
+    ) -> BatchRecord:
         input_json = batch.input_json or {}
         started_at = batch.started_at or batch.created_at
         completed_at = batch.completed_at
         duration_seconds = None
         if completed_at:
             duration_seconds = max(0.0, (completed_at - started_at).total_seconds())
+        completed = batch.completed_count
+        failed = batch.failed_count
+        total = batch.total_count
+        progress_percent = round(((completed + failed) / total) * 100, 1) if total else 0
         return BatchRecord(
             id=batch.id,
             template_id=batch.template_id,
@@ -620,6 +852,9 @@ class ReviewRepository:
             total_count=batch.total_count,
             completed_count=batch.completed_count,
             failed_count=batch.failed_count,
+            running_count=running_count,
+            queued_count=queued_count,
+            progress_percent=progress_percent,
             input_json=batch.input_json,
             error_message=batch.error_message,
             started_at=started_at,

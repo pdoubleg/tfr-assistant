@@ -8,6 +8,7 @@ from app.db.session import get_session
 from app.schemas.reviews import (
     BatchCreateRequest,
     BatchRecord,
+    BatchSummary,
     BatchTemplateCreate,
     BatchTemplateRecord,
     BatchTemplateUpdate,
@@ -56,6 +57,20 @@ async def list_batch_templates(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> list[BatchTemplateRecord]:
     return await ReviewRepository(session).list_batch_templates()
+
+
+@router.get("/summary", response_model=BatchSummary)
+async def get_batch_summary(
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> BatchSummary:
+    return await ReviewRepository(session).batch_summary()
+
+
+@router.get("", response_model=list[BatchRecord])
+async def list_batches(
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[BatchRecord]:
+    return await ReviewRepository(session).list_batches()
 
 
 @router.post("/templates", response_model=BatchTemplateRecord, status_code=201)
@@ -173,6 +188,58 @@ async def get_batch(
 ) -> BatchRecord:
     try:
         return await ReviewRepository(session).get_batch(batch_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/{batch_id}/pause", response_model=BatchRecord)
+async def pause_batch(
+    batch_id: str,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> BatchRecord:
+    try:
+        return await ReviewRepository(session).pause_batch(batch_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/{batch_id}/resume", response_model=BatchRecord)
+async def resume_batch(
+    batch_id: str,
+    background_tasks: BackgroundTasks,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> BatchRecord:
+    try:
+        batch = await ReviewRepository(session).resume_batch(batch_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if batch.status == "running":
+        background_tasks.add_task(run_batch_job, batch.id)
+    return batch
+
+
+@router.post("/{batch_id}/retry-failed", response_model=BatchRecord)
+async def retry_failed_batch_reviews(
+    batch_id: str,
+    background_tasks: BackgroundTasks,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> BatchRecord:
+    try:
+        batch = await ReviewRepository(session).retry_failed_batch_reviews(batch_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if batch.status == "running":
+        background_tasks.add_task(run_batch_job, batch.id)
+    return batch
+
+
+@router.post("/{batch_id}/cancel", response_model=BatchRecord)
+async def cancel_batch(
+    batch_id: str,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> BatchRecord:
+    try:
+        return await ReviewRepository(session).cancel_batch(batch_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
