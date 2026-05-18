@@ -146,14 +146,14 @@ class ReviewRepository:
         batches = await self.list_batches()
         total_reviews = (
             await self.session.scalar(
-                select(func.count(AuditReviewORM.id)).where(AuditReviewORM.source == "batch")
+                select(func.count(AuditReviewORM.id)).where(AuditReviewORM.batch_id.is_not(None))
             )
             or 0
         )
         completed_reviews = (
             await self.session.scalar(
                 select(func.count(AuditReviewORM.id)).where(
-                    AuditReviewORM.source == "batch",
+                    AuditReviewORM.batch_id.is_not(None),
                     AuditReviewORM.status == "completed",
                 )
             )
@@ -162,7 +162,7 @@ class ReviewRepository:
         failed_reviews = (
             await self.session.scalar(
                 select(func.count(AuditReviewORM.id)).where(
-                    AuditReviewORM.source == "batch",
+                    AuditReviewORM.batch_id.is_not(None),
                     AuditReviewORM.status == "failed",
                 )
             )
@@ -171,7 +171,7 @@ class ReviewRepository:
         running_reviews = (
             await self.session.scalar(
                 select(func.count(AuditReviewORM.id)).where(
-                    AuditReviewORM.source == "batch",
+                    AuditReviewORM.batch_id.is_not(None),
                     AuditReviewORM.status == "running",
                 )
             )
@@ -180,7 +180,7 @@ class ReviewRepository:
         queued_reviews = (
             await self.session.scalar(
                 select(func.count(AuditReviewORM.id)).where(
-                    AuditReviewORM.source == "batch",
+                    AuditReviewORM.batch_id.is_not(None),
                     AuditReviewORM.status == "queued",
                 )
             )
@@ -190,7 +190,7 @@ class ReviewRepository:
         completed_reviews_today = (
             await self.session.scalar(
                 select(func.count(AuditReviewORM.id)).where(
-                    AuditReviewORM.source == "batch",
+                    AuditReviewORM.batch_id.is_not(None),
                     AuditReviewORM.status == "completed",
                     func.date(AuditReviewORM.updated_at) == today.isoformat(),
                 )
@@ -206,7 +206,7 @@ class ReviewRepository:
                     func.sum(case((AuditReviewORM.status == "completed", 1), else_=0)),
                     func.sum(case((AuditReviewORM.status == "failed", 1), else_=0)),
                 )
-                .where(AuditReviewORM.source == "batch")
+                .where(AuditReviewORM.batch_id.is_not(None))
                 .group_by(AuditReviewORM.form_id, AuditReviewORM.form_version)
                 .order_by(func.count(AuditReviewORM.id).desc())
             )
@@ -253,15 +253,17 @@ class ReviewRepository:
 
     async def create_batch_template(self, request: BatchTemplateCreate) -> BatchTemplateRecord:
         _ensure_registered_form(request.form_id, request.form_version)
+        synthetic = request.synthetic or request.input_mode == "synthetic"
         record = AuditBatchTemplateORM(
             id=str(uuid4()),
             name=request.name.strip(),
             description=request.description.strip(),
             form_id=request.form_id,
             form_version=request.form_version,
-            synthetic=request.synthetic,
+            synthetic=synthetic,
             synthetic_count=request.synthetic_count,
             input_mode=request.input_mode,
+            generation_prompt=request.generation_prompt,
             excel_column_map=request.excel_column_map,
             items_json=[item.model_dump(mode="json") for item in request.items],
         )
@@ -284,9 +286,10 @@ class ReviewRepository:
         record.description = request.description.strip()
         record.form_id = request.form_id
         record.form_version = request.form_version
-        record.synthetic = request.synthetic
+        record.synthetic = request.synthetic or request.input_mode == "synthetic"
         record.synthetic_count = request.synthetic_count
         record.input_mode = request.input_mode
+        record.generation_prompt = request.generation_prompt
         record.excel_column_map = request.excel_column_map
         record.items_json = [item.model_dump(mode="json") for item in request.items]
         record.updated_at = _now()
@@ -411,13 +414,14 @@ class ReviewRepository:
         total_count: int,
         template_id: str | None = None,
         input_json: dict[str, Any] | None = None,
+        source: str = "batch",
     ) -> BatchRecord:
         now = _now()
         batch = AuditBatchORM(
             id=str(uuid4()),
             template_id=template_id,
             status="queued",
-            source="batch",
+            source=source,
             total_count=total_count,
             input_json=input_json,
             started_at=now,
@@ -495,6 +499,18 @@ class ReviewRepository:
             review.updated_at = _now()
         await self.session.commit()
         return await self.resume_batch(batch_id)
+
+    async def merge_review_input_json(
+        self,
+        review_id: str,
+        updates: dict[str, Any],
+    ) -> ReviewRecord:
+        record = await self._get_review_orm(review_id)
+        record.input_json = {**(record.input_json or {}), **updates}
+        record.updated_at = _now()
+        await self.session.commit()
+        await self.session.refresh(record)
+        return await self._review_to_schema(record)
 
     async def requeue_running_reviews(self, batch_id: str) -> None:
         running_reviews = (
@@ -816,9 +832,14 @@ class ReviewRepository:
             synthetic=template.synthetic,
             synthetic_count=template.synthetic_count,
             input_mode=template.input_mode,  # type: ignore[arg-type]
+            generation_prompt=template.generation_prompt or "",
             excel_column_map=template.excel_column_map or {},
             items=items,
-            item_count=template.synthetic_count if template.synthetic else len(items),
+            item_count=(
+                template.synthetic_count
+                if template.synthetic or template.input_mode == "synthetic"
+                else len(items)
+            ),
             latest_run=latest_run_schema,
             run_count=run_count,
             created_at=template.created_at,

@@ -377,7 +377,13 @@ export function BatchQueuePanel({ onBatchCompleted }: BatchQueuePanelProps) {
                   <div className="flex flex-wrap gap-1.5">
                     <Badge variant="outline">{template.form_id}@{template.form_version}</Badge>
                     <Badge variant="outline">
-                      {template.synthetic ? "Synthetic" : template.input_mode === "upload" ? "Spreadsheet" : "Direct"}
+                      {template.synthetic
+                        ? "Synthetic"
+                        : template.input_mode === "completed_intake"
+                          ? "Completed Intake"
+                          : template.input_mode === "upload"
+                            ? "Spreadsheet"
+                            : "Direct"}
                     </Badge>
                     <Badge variant="outline">{template.item_count} reviews</Badge>
                     <Badge variant="outline">{template.run_count} runs</Badge>

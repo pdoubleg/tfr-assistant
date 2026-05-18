@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///data/tfr_assistant.db"
     form_catalog_dir: Path = Path("data/form_catalog")
     default_questionnaire_path: Path = Path("data/form_catalog/tfr_default__v0.1.json")
+    completed_intake_docs_dir: Path = Path("data/intake_docs")
     batch_concurrency: int = 2
     image_model: str = "gpt-image-2"
     generated_images_dir: Path = Path("data/generated_images")

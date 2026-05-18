@@ -10,6 +10,7 @@ import type {
   EvalRunPayload,
   EvalRunRecord,
   FormCatalogEntry,
+  IntakeDocumentRecord,
   ReviewRecord,
 } from "@/lib/types";
 
@@ -195,6 +196,13 @@ export async function getBatchSummary(): Promise<BatchSummary> {
   return parseJsonResponse<BatchSummary>(response);
 }
 
+export async function listIntakeDocuments(): Promise<IntakeDocumentRecord[]> {
+  const response = await fetch(`${apiBaseUrl}/api/batches/intake-documents`, {
+    cache: "no-store",
+  });
+  return parseJsonResponse<IntakeDocumentRecord[]>(response);
+}
+
 export async function createBatchTemplate(
   payload: BatchTemplatePayload,
 ): Promise<BatchTemplateRecord> {
@@ -272,13 +280,6 @@ export async function listEvalDatasets(): Promise<EvalDatasetRecord[]> {
     cache: "no-store",
   });
   return parseJsonResponse<EvalDatasetRecord[]>(response);
-}
-
-export async function createSmokeEvalDataset(): Promise<EvalDatasetRecord> {
-  const response = await fetch(`${apiBaseUrl}/api/evaluations/datasets/smoke-test`, {
-    method: "POST",
-  });
-  return parseJsonResponse<EvalDatasetRecord>(response);
 }
 
 export async function getEvalDataset(datasetId: string): Promise<EvalDatasetRecord> {

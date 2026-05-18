@@ -4,9 +4,12 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import {
   AlertTriangle,
   BarChart3,
+  ChevronDown,
+  ChevronRight,
   Clock3,
   Eye,
   FileText,
+  FileInput,
   FolderArchive,
   Loader2,
   Pause,
@@ -15,6 +18,7 @@ import {
   RefreshCw,
   RotateCcw,
   Search,
+  Sparkles,
   Square,
   SquarePen,
   X,
@@ -25,6 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   cancelBatch,
   createBatchTemplate,
@@ -35,6 +40,7 @@ import {
   listBatchReviews,
   listBatchTemplates,
   listFormCatalog,
+  listIntakeDocuments,
   pauseBatch,
   resumeBatch,
   retryFailedBatch,
@@ -50,6 +56,7 @@ import type {
   BatchTemplateRecord,
   FormCatalogEntry,
   FormQuestion,
+  IntakeDocumentRecord,
   ReviewRecord,
 } from "@/lib/types";
 
@@ -121,11 +128,31 @@ function templateFormKey(template: BatchTemplateRecord): string {
   return `${template.form_id}@${template.form_version}`;
 }
 
-function inputModeLabel(inputMode?: string, synthetic?: boolean): string {
-  if (synthetic) return "Synthetic";
-  if (inputMode === "upload") return "Spreadsheet";
-  if (inputMode === "manual") return "Direct";
-  return "Batch";
+function sourceLabel(source?: string, inputMode?: string, synthetic?: boolean): string {
+  if (source === "synthetic" || synthetic || inputMode === "synthetic") return "Synthetic";
+  if (source === "completed_intake" || inputMode === "completed_intake") return "Completed Intake";
+  if (source === "batch_upload" || inputMode === "upload") return "Spreadsheet";
+  if (source === "batch_manual" || inputMode === "manual") return "Manual";
+  if (source === "batch") return "Legacy Batch";
+  return source ? source.replace(/_/g, " ") : "Batch";
+}
+
+function batchSourceLabel(batch: BatchRecord): string {
+  const input = batch.input_json ?? {};
+  const inputMode = typeof input.input_mode === "string" ? input.input_mode : undefined;
+  const synthetic = typeof input.synthetic === "boolean" ? input.synthetic : false;
+  return sourceLabel(batch.source, inputMode, synthetic);
+}
+
+function templateSourceLabel(template: BatchTemplateRecord): string {
+  return sourceLabel(undefined, template.input_mode, template.synthetic);
+}
+
+function reviewSourceLabel(review: ReviewRecord): string {
+  const input = review.input_json ?? {};
+  const inputMode = typeof input.input_mode === "string" ? input.input_mode : undefined;
+  const synthetic = typeof input.synthetic === "boolean" ? input.synthetic : false;
+  return sourceLabel(review.source, inputMode, synthetic);
 }
 
 function progressCounts(batch: BatchRecord): string {
@@ -215,6 +242,10 @@ export function BatchAuditsWorkspace() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogTemplate, setDialogTemplate] = useState<BatchTemplateRecord | null>(null);
   const [dialogQueueItemId, setDialogQueueItemId] = useState("");
+  const [syntheticDialogOpen, setSyntheticDialogOpen] = useState(false);
+  const [intakeDialogOpen, setIntakeDialogOpen] = useState(false);
+  const [intakeDocuments, setIntakeDocuments] = useState<IntakeDocumentRecord[]>([]);
+  const [loadingIntakeDocuments, setLoadingIntakeDocuments] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState<BatchRecord | null>(null);
   const [selectedForm, setSelectedForm] = useState<AuditFormDefinition | null>(null);
   const [summaryReviews, setSummaryReviews] = useState<ReviewRecord[]>([]);
@@ -333,7 +364,7 @@ export function BatchAuditsWorkspace() {
     const filtered = completedBatches.filter((batch) => {
       if (statusFilter !== "all" && batch.status !== statusFilter) return false;
       if (!query) return true;
-      return [batch.name, batch.description, batch.status, batchFormKey(batch)]
+      return [batch.name, batch.description, batch.status, batchFormKey(batch), batchSourceLabel(batch)]
         .join(" ")
         .toLowerCase()
         .includes(query);
@@ -392,6 +423,66 @@ export function BatchAuditsWorkspace() {
     }
   };
 
+  const createLaunchItems = async (payloads: BatchTemplatePayload[]): Promise<ProductionQueueItem[]> => {
+    const launchedItems: ProductionQueueItem[] = [];
+    for (const payload of payloads) {
+      const template = await createBatchTemplate(payload);
+      const run = await launchBatchTemplate(template.id);
+      launchedItems.push({
+        id: `batch:${run.id}`,
+        batchId: run.id,
+        templateId: template.id,
+        activated: true,
+      });
+    }
+    return launchedItems;
+  };
+
+  const createQueuedConfiguration = async (payload: BatchTemplatePayload): Promise<ProductionQueueItem> => {
+    const template = await createBatchTemplate(payload);
+    return {
+      id: `template:${template.id}`,
+      templateId: template.id,
+      activated: true,
+    };
+  };
+
+  const saveSyntheticBatch = async (payload: BatchTemplatePayload) => {
+    setSaving(true);
+    setError("");
+    try {
+      const queuedItem = await createQueuedConfiguration(payload);
+      setQueueItems((current) => [
+        queuedItem,
+        ...current.filter((item) => item.templateId !== queuedItem.templateId),
+      ]);
+      setSyntheticDialogOpen(false);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save synthetic data configuration.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveIntakeBatch = async (payload: BatchTemplatePayload) => {
+    setSaving(true);
+    setError("");
+    try {
+      const queuedItem = await createQueuedConfiguration(payload);
+      setQueueItems((current) => [
+        queuedItem,
+        ...current.filter((item) => item.templateId !== queuedItem.templateId),
+      ]);
+      setIntakeDialogOpen(false);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save completed intake configuration.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const launchTemplate = async (queueItem: ProductionQueueItem, template: BatchTemplateRecord) => {
     if (!queueItem.activated) return;
     setLaunchingTemplateId(template.id);
@@ -433,6 +524,19 @@ export function BatchAuditsWorkspace() {
     setDialogTemplate(null);
     setDialogQueueItemId("");
     setDialogOpen(true);
+  };
+
+  const openCompletedIntake = async () => {
+    setIntakeDialogOpen(true);
+    setLoadingIntakeDocuments(true);
+    setError("");
+    try {
+      setIntakeDocuments(await listIntakeDocuments());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to list completed intake documents.");
+    } finally {
+      setLoadingIntakeDocuments(false);
+    }
   };
 
   const openProductionConfig = (item: ProductionQueueItem, template: BatchTemplateRecord) => {
@@ -490,6 +594,14 @@ export function BatchAuditsWorkspace() {
           <Button type="button" variant="outline" size="sm" onClick={() => void refresh({ manual: true })} disabled={loading || refreshing}>
             {loading || refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             Refresh
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setSyntheticDialogOpen(true)}>
+            <Sparkles className="h-4 w-4" />
+            Synthetic Data
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => void openCompletedIntake()}>
+            <FileInput className="h-4 w-4" />
+            Completed Intake
           </Button>
           <Button type="button" size="sm" onClick={() => openNewBatch()}>
             <PlayCircle className="h-4 w-4" />
@@ -557,6 +669,31 @@ export function BatchAuditsWorkspace() {
         onSave={saveBatchConfiguration}
       />
 
+      <SyntheticDataDialog
+        open={syntheticDialogOpen}
+        forms={forms}
+        saving={saving}
+        onPreviewForm={previewForm}
+        onClose={() => {
+          if (!saving) setSyntheticDialogOpen(false);
+        }}
+        onSave={saveSyntheticBatch}
+      />
+
+      <CompletedIntakeDialog
+        open={intakeDialogOpen}
+        forms={forms}
+        documents={intakeDocuments}
+        loadingDocuments={loadingIntakeDocuments}
+        saving={saving}
+        onPreviewForm={previewForm}
+        onRefreshDocuments={() => void openCompletedIntake()}
+        onClose={() => {
+          if (!saving) setIntakeDialogOpen(false);
+        }}
+        onSave={saveIntakeBatch}
+      />
+
       <BatchSummaryDrawer
         batch={selectedBatch}
         reviews={summaryReviews}
@@ -568,6 +705,437 @@ export function BatchAuditsWorkspace() {
 
       <ReadOnlyFormDialog formDefinition={selectedForm} onClose={() => setSelectedForm(null)} />
       <ReviewFormDialog review={viewingReview} onClose={() => setViewingReview(null)} />
+    </div>
+  );
+}
+
+function formKeyFor(form: FormCatalogEntry): string {
+  return `${form.id}@${form.version}`;
+}
+
+function splitFormKey(formKey: string): { form_id: string; form_version: string } {
+  const [form_id, form_version] = formKey.split("@");
+  return {
+    form_id: form_id || "tfr_default",
+    form_version: form_version || "v0.1",
+  };
+}
+
+function defaultFormKey(): string {
+  return "";
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+interface SyntheticRunRow {
+  id: string;
+  generationPrompt: string;
+  syntheticCount: number;
+}
+
+function newSyntheticRow(): SyntheticRunRow {
+  return {
+    id: Math.random().toString(36).slice(2),
+    generationPrompt: "",
+    syntheticCount: 3,
+  };
+}
+
+function SelectedFormPreview({
+  form,
+  onPreview,
+}: {
+  form: FormCatalogEntry;
+  onPreview: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-md border bg-secondary/25 px-3 py-2">
+      <span className="text-xs font-semibold uppercase text-muted-foreground">Selected Form</span>
+      <Badge variant="outline">{form.id}@{form.version}</Badge>
+      <button
+        type="button"
+        className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+        onClick={onPreview}
+      >
+        {form.title}
+      </button>
+    </div>
+  );
+}
+
+function SyntheticDataDialog({
+  open,
+  forms,
+  saving,
+  onPreviewForm,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  forms: FormCatalogEntry[];
+  saving: boolean;
+  onPreviewForm: (formId: string, formVersion: string) => void;
+  onClose: () => void;
+  onSave: (payload: BatchTemplatePayload) => Promise<void> | void;
+}) {
+  const [formKey, setFormKey] = useState(defaultFormKey());
+  const [name, setName] = useState("Synthetic data");
+  const [description, setDescription] = useState("");
+  const [rows, setRows] = useState<SyntheticRunRow[]>(() => [newSyntheticRow()]);
+  const [formError, setFormError] = useState("");
+  useBodyScrollLock(open);
+
+  useEffect(() => {
+    if (!open) return;
+    setFormKey(defaultFormKey());
+    setName("Synthetic data");
+    setDescription("");
+    setRows([newSyntheticRow()]);
+    setFormError("");
+  }, [forms, open]);
+
+  if (!open) return null;
+
+  const selectedForm = forms.find((form) => formKeyFor(form) === formKey);
+
+  const updateRow = (id: string, patch: Partial<SyntheticRunRow>) => {
+    setRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+  };
+
+  const removeRow = (id: string) => {
+    setRows((current) => (current.length === 1 ? current : current.filter((row) => row.id !== id)));
+  };
+
+  const save = async () => {
+    const baseName = name.trim();
+    if (!baseName) {
+      setFormError("Run name is required.");
+      return;
+    }
+    if (!formKey) {
+      setFormError("Select a registered form.");
+      return;
+    }
+    const invalidCount = rows.find((row) => row.syntheticCount <= 0);
+    if (invalidCount) {
+      setFormError("Each synthetic row needs a review count.");
+      return;
+    }
+    const missingPrompt = rows.find((row) => !row.generationPrompt.trim());
+    if (missingPrompt) {
+      setFormError("Each synthetic row needs generation instructions.");
+      return;
+    }
+    const { form_id, form_version } = splitFormKey(formKey);
+    const items = rows.flatMap((row) =>
+      Array.from({ length: row.syntheticCount }, () => ({
+        claim_number: "",
+        effective_date: "",
+        instructions: row.generationPrompt.trim(),
+        prompt: row.generationPrompt.trim(),
+        generation_prompt: row.generationPrompt.trim(),
+        source_file_ids: [],
+        synthetic: true,
+      })),
+    );
+    setFormError("");
+    await onSave({
+      name: baseName,
+      description: description.trim(),
+      form_id,
+      form_version,
+      synthetic: true,
+      synthetic_count: items.length,
+      input_mode: "synthetic",
+      generation_prompt: rows.map((row) => row.generationPrompt.trim()).join("\n\n"),
+      excel_column_map: {},
+      items,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border bg-card shadow-2xl">
+        <DialogHeader title="Synthetic Data" subtitle="Create a batch for the agent to generate" onClose={onClose} />
+        <div className="chat-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-6">
+          <div className="grid gap-2">
+            <span className="text-sm font-medium">Registered Form</span>
+            <select
+              value={formKey}
+              onChange={(event) => setFormKey(event.target.value)}
+              disabled={saving}
+              className="h-10 min-w-0 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="">None</option>
+              {forms.map((form) => (
+                <option key={formKeyFor(form)} value={formKeyFor(form)}>
+                  {form.title} - {form.id}@{form.version}
+                </option>
+              ))}
+            </select>
+            {selectedForm ? (
+              <SelectedFormPreview
+                form={selectedForm}
+                onPreview={() => onPreviewForm(selectedForm.id, selectedForm.version)}
+              />
+            ) : null}
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+            <label className="grid gap-2">
+              <span className="text-sm font-medium">Run Name</span>
+              <Input value={name} onChange={(event) => setName(event.target.value)} disabled={saving} />
+            </label>
+            <label className="grid gap-2">
+              <span className="text-sm font-medium">Description</span>
+              <Input value={description} onChange={(event) => setDescription(event.target.value)} disabled={saving} />
+            </label>
+          </div>
+
+          <div className="overflow-hidden rounded-lg border">
+            <div className="grid gap-3 border-b bg-secondary/35 px-4 py-3 text-xs font-medium text-muted-foreground md:grid-cols-[120px_minmax(260px,1fr)_40px]">
+              <span>Count</span>
+              <span>Instructions</span>
+              <span />
+            </div>
+            <div className="divide-y">
+              {rows.map((row) => (
+                <div key={row.id} className="grid gap-3 px-4 py-3 md:grid-cols-[120px_minmax(260px,1fr)_40px]">
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={row.syntheticCount ? String(row.syntheticCount) : ""}
+                    onChange={(event) => {
+                      const digits = event.target.value.replace(/\D/g, "");
+                      updateRow(row.id, { syntheticCount: digits ? Number(digits) : 0 });
+                    }}
+                    disabled={saving}
+                  />
+                  <Textarea
+                    value={row.generationPrompt}
+                    onChange={(event) => updateRow(row.id, { generationPrompt: event.target.value })}
+                    disabled={saving}
+                    className="min-h-20"
+                    placeholder="Invent a hail claim scenario with a few issues"
+                  />
+                  <Button type="button" variant="ghost" size="icon" className="h-9 w-9" onClick={() => removeRow(row.id)} disabled={saving || rows.length === 1}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <div className="border-t px-4 py-3">
+              <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => setRows((current) => [...current, newSyntheticRow()])} disabled={saving}>
+                <Sparkles className="h-3.5 w-3.5" />
+                Add Row
+              </Button>
+            </div>
+          </div>
+          {formError ? <p className="text-sm text-destructive">{formError}</p> : null}
+        </div>
+        <div className="flex shrink-0 justify-end gap-2 border-t bg-secondary/35 px-6 py-5">
+          <Button type="button" variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button type="button" className="min-w-36 gap-2" onClick={() => void save()} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+            Save Configuration
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CompletedIntakeDialog({
+  open,
+  forms,
+  documents,
+  loadingDocuments,
+  saving,
+  onPreviewForm,
+  onRefreshDocuments,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  forms: FormCatalogEntry[];
+  documents: IntakeDocumentRecord[];
+  loadingDocuments: boolean;
+  saving: boolean;
+  onPreviewForm: (formId: string, formVersion: string) => void;
+  onRefreshDocuments: () => void;
+  onClose: () => void;
+  onSave: (payload: BatchTemplatePayload) => Promise<void> | void;
+}) {
+  const [name, setName] = useState("Completed intake");
+  const [description, setDescription] = useState("");
+  const [formKey, setFormKey] = useState(defaultFormKey());
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
+  const [formError, setFormError] = useState("");
+  useBodyScrollLock(open);
+
+  useEffect(() => {
+    if (!open) return;
+    setName("Completed intake");
+    setDescription("");
+    setFormKey(defaultFormKey());
+    setSelectedDocumentIds(documents.map((document) => document.id));
+    setFormError("");
+  }, [documents, forms, open]);
+
+  if (!open) return null;
+
+  const selectedForm = forms.find((form) => formKeyFor(form) === formKey);
+  const selectedIds = new Set(selectedDocumentIds);
+  const allSelected = documents.length > 0 && selectedDocumentIds.length === documents.length;
+
+  const toggleDocument = (documentId: string) => {
+    setSelectedDocumentIds((current) =>
+      current.includes(documentId)
+        ? current.filter((candidate) => candidate !== documentId)
+        : [...current, documentId],
+    );
+  };
+
+  const save = async () => {
+    const runName = name.trim();
+    if (!runName) {
+      setFormError("Run name is required.");
+      return;
+    }
+    if (!formKey) {
+      setFormError("Select a registered form.");
+      return;
+    }
+    const selectedDocuments = documents.filter((document) => selectedIds.has(document.id));
+    if (!selectedDocuments.length) {
+      setFormError("Select at least one completed audit document.");
+      return;
+    }
+    const { form_id, form_version } = splitFormKey(formKey);
+    setFormError("");
+    await onSave({
+      name: runName,
+      description: description.trim(),
+      form_id,
+      form_version,
+      synthetic: false,
+      synthetic_count: 0,
+      input_mode: "completed_intake",
+      generation_prompt: "",
+      excel_column_map: {},
+      items: selectedDocuments.map((document) => ({
+        claim_number: "",
+        effective_date: "",
+        instructions: "",
+        prompt: "",
+        generation_prompt: "",
+        source_file_ids: [document.id],
+      })),
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border bg-card shadow-2xl">
+        <DialogHeader title="Completed Intake" subtitle="Queue one generated form per selected document" onClose={onClose} />
+        <div className="chat-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-6">
+          <div className="grid gap-4 md:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+            <label className="grid gap-2">
+              <span className="text-sm font-medium">Run Name</span>
+              <Input value={name} onChange={(event) => setName(event.target.value)} disabled={saving} />
+            </label>
+            <div className="grid gap-2">
+              <span className="text-sm font-medium">Registered Form</span>
+              <select
+                value={formKey}
+                onChange={(event) => setFormKey(event.target.value)}
+                disabled={saving}
+                className="h-10 min-w-0 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="">None</option>
+                {forms.map((form) => (
+                  <option key={formKeyFor(form)} value={formKeyFor(form)}>
+                    {form.title} - {form.id}@{form.version}
+                  </option>
+                ))}
+              </select>
+              {selectedForm ? (
+                <SelectedFormPreview
+                  form={selectedForm}
+                  onPreview={() => onPreviewForm(selectedForm.id, selectedForm.version)}
+                />
+              ) : null}
+            </div>
+            <label className="grid gap-2 md:col-span-2">
+              <span className="text-sm font-medium">Description</span>
+              <Input value={description} onChange={(event) => setDescription(event.target.value)} disabled={saving} />
+            </label>
+          </div>
+
+          <div className="overflow-hidden rounded-lg border">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-secondary/35 px-4 py-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-semibold">Documents</p>
+                <Badge variant="outline">{selectedDocumentIds.length}/{documents.length} selected</Badge>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={onRefreshDocuments} disabled={saving || loadingDocuments}>
+                  {loadingDocuments ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                  Refresh
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedDocumentIds(allSelected ? [] : documents.map((document) => document.id))}
+                  disabled={saving || loadingDocuments || documents.length === 0}
+                >
+                  {allSelected ? "Clear All" : "Select All"}
+                </Button>
+              </div>
+            </div>
+            <div className="max-h-80 overflow-y-auto">
+              {loadingDocuments ? <LoadingState label="Scanning intake documents" /> : null}
+              {!loadingDocuments && documents.length === 0 ? (
+                <EmptyState icon={<FileText className="h-8 w-8 text-muted-foreground/40" />} title="No intake documents found" />
+              ) : null}
+              {!loadingDocuments && documents.map((document) => (
+                <label key={document.id} className="grid cursor-pointer gap-2 border-b px-4 py-3 last:border-b-0 hover:bg-secondary/35 md:grid-cols-[24px_minmax(220px,0.8fr)_120px_minmax(240px,1fr)]">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(document.id)}
+                    onChange={() => toggleDocument(document.id)}
+                    disabled={saving}
+                    className="mt-1 h-4 w-4"
+                  />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{document.filename}</p>
+                    <p className="truncate text-xs text-muted-foreground">{document.id}</p>
+                  </div>
+                  <div className="flex flex-wrap items-start gap-1.5">
+                    <Badge variant="outline">{document.file_type.toUpperCase()}</Badge>
+                    <Badge variant="secondary">{formatFileSize(document.size_bytes)}</Badge>
+                  </div>
+                  <p className="line-clamp-2 text-xs text-muted-foreground">{document.preview || "No preview available"}</p>
+                </label>
+              ))}
+            </div>
+          </div>
+          {formError ? <p className="text-sm text-destructive">{formError}</p> : null}
+        </div>
+        <div className="flex shrink-0 justify-end gap-2 border-t bg-secondary/35 px-6 py-5">
+          <Button type="button" variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button type="button" className="min-w-36 gap-2" onClick={() => void save()} disabled={saving || loadingDocuments}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+            Save Configuration
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -673,7 +1241,7 @@ function SavedConfigurationsCard({
                   <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{template.description || "No description"}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <Badge variant="secondary">{inputModeLabel(template.input_mode, template.synthetic)}</Badge>
+                  <Badge variant="secondary">{templateSourceLabel(template)}</Badge>
                   <Badge variant={statusVariant(latest?.status)}>{latest?.status ?? "ready"}</Badge>
                   <Badge variant="outline">{template.item_count} reviews</Badge>
                   <Badge variant="outline">{template.run_count} runs</Badge>
@@ -737,6 +1305,7 @@ function ActiveQueueCard({
                       <p className="truncate font-medium">{batch?.name || template?.name || "Untitled batch"}</p>
                       <Badge variant={statusVariant(batch?.status)}>{batch?.status ?? (item.activated ? "ready" : "configure")}</Badge>
                       <Badge variant="outline">{batch ? batchFormKey(batch) : template ? templateFormKey(template) : "-"}</Badge>
+                      <Badge variant="secondary">{batch ? batchSourceLabel(batch) : template ? templateSourceLabel(template) : "Batch"}</Badge>
                     </div>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {batch
@@ -770,7 +1339,7 @@ function ActiveQueueCard({
                       </>
                     ) : template ? (
                       <>
-                        <span>{inputModeLabel(template.input_mode, template.synthetic)}</span>
+                        <span>{templateSourceLabel(template)}</span>
                         <span>{template.item_count} reviews</span>
                         <span>{template.run_count} prior runs</span>
                       </>
@@ -1021,11 +1590,12 @@ function CompletedBatchesTable({
       </CardHeader>
       <CardContent className="p-0">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-sm">
+          <table className="w-full min-w-[980px] text-sm">
             <thead className="border-b bg-secondary/60 text-xs text-muted-foreground">
               <tr>
                 <SortableHead label="Batch" sortId="name" active={sortKey} desc={sortDesc} onSort={onSort} />
                 <SortableHead label="Form" sortId="form" active={sortKey} desc={sortDesc} onSort={onSort} />
+                <th className="px-4 py-3 text-left font-medium">Source</th>
                 <SortableHead label="Status" sortId="status" active={sortKey} desc={sortDesc} onSort={onSort} />
                 <SortableHead label="Completed" sortId="completed" active={sortKey} desc={sortDesc} onSort={onSort} />
                 <SortableHead label="Runtime" sortId="runtime" active={sortKey} desc={sortDesc} onSort={onSort} />
@@ -1036,13 +1606,13 @@ function CompletedBatchesTable({
             <tbody>
               {loading && batches.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="h-24 text-center text-muted-foreground">
+                  <td colSpan={8} className="h-24 text-center text-muted-foreground">
                     Loading completed batches
                   </td>
                 </tr>
               ) : batches.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="h-24 text-center text-muted-foreground">
+                  <td colSpan={8} className="h-24 text-center text-muted-foreground">
                     No completed batches match the current filters.
                   </td>
                 </tr>
@@ -1055,6 +1625,9 @@ function CompletedBatchesTable({
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant="outline">{batchFormKey(batch)}</Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant="secondary">{batchSourceLabel(batch)}</Badge>
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant={statusVariant(batch.status)}>{batch.status}</Badge>
@@ -1142,6 +1715,7 @@ function BatchSummaryDrawer({
               <h2 className="text-xl font-semibold">{batch.name || "Batch Summary"}</h2>
               <Badge variant={statusVariant(batch.status)}>{batch.status}</Badge>
               <Badge variant="outline">{batchFormKey(batch)}</Badge>
+              <Badge variant="secondary">{batchSourceLabel(batch)}</Badge>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">{batch.description || batch.id}</p>
           </div>
@@ -1172,6 +1746,7 @@ function BatchSummaryDrawer({
                     <th className="px-4 py-3 text-left font-medium">Claim</th>
                     <th className="px-4 py-3 text-left font-medium">Status</th>
                     <th className="px-4 py-3 text-left font-medium">Form</th>
+                    <th className="px-4 py-3 text-left font-medium">Source</th>
                     <th className="px-4 py-3 text-left font-medium">Updated</th>
                     <th className="px-4 py-3 text-right font-medium">Actions</th>
                   </tr>
@@ -1179,7 +1754,7 @@ function BatchSummaryDrawer({
                 <tbody>
                   {reviews.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="h-20 text-center text-muted-foreground">
+                      <td colSpan={6} className="h-20 text-center text-muted-foreground">
                         No forms loaded for this batch yet.
                       </td>
                     </tr>
@@ -1192,6 +1767,9 @@ function BatchSummaryDrawer({
                         </td>
                         <td className="px-4 py-3">
                           <Badge variant="outline">{review.form_id}@{review.form_version}</Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge variant="secondary">{reviewSourceLabel(review)}</Badge>
                         </td>
                         <td className="px-4 py-3">{formatDate(review.updated_at)}</td>
                         <td className="px-4 py-3 text-right">
@@ -1282,7 +1860,7 @@ function ReadOnlyFormDialog({
       <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg border bg-card shadow-2xl">
         <DialogHeader title={formDefinition.title} subtitle={`${formDefinition.id}@${formDefinition.version}`} onClose={onClose} />
         <div className="chat-scrollbar min-h-0 flex-1 overflow-y-auto p-5">
-          <ReadOnlyFormPanel form={formDefinition.canonical} />
+          <FormDefinitionPreviewPanel form={formDefinition.canonical} />
         </div>
       </div>
     </div>
@@ -1318,6 +1896,82 @@ function DialogHeader({ title, subtitle, onClose }: { title: string; subtitle: s
       <Button type="button" variant="ghost" size="icon" className="ml-auto h-9 w-9" onClick={onClose}>
         <X className="h-4 w-4" />
       </Button>
+    </div>
+  );
+}
+
+function FormDefinitionPreviewPanel({ form }: { form: AuditFormResult }) {
+  return (
+    <div className="space-y-5">
+      <div className="rounded-lg border bg-background p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="font-semibold">{form.title}</p>
+          <Badge variant="outline" className="font-mono text-[10px]">
+            {form.form_id}@{form.form_version}
+          </Badge>
+        </div>
+        <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
+          {form.description || "No description"}
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <FileText className="h-4 w-4 text-primary" />
+          <h3 className="text-sm font-semibold">Audit Form Questions</h3>
+        </div>
+        {form.questions.map((question) => (
+          <FormQuestionPreview key={question.id} question={question} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FormQuestionPreview({ question }: { question: FormQuestion }) {
+  const [expanded, setExpanded] = useState(true);
+  const subQuestions = question.sub_questions ?? [];
+  const hasSubQuestions = subQuestions.length > 0;
+
+  return (
+    <div className="rounded-lg border bg-background">
+      <button
+        type="button"
+        onClick={() => hasSubQuestions && setExpanded((current) => !current)}
+        className={`flex w-full items-start gap-3 p-3 text-left ${hasSubQuestions ? "hover:bg-secondary/40" : ""}`}
+      >
+        <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-muted-foreground">
+          {hasSubQuestions ? (
+            expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />
+          ) : null}
+        </span>
+        <span className="mt-0.5 shrink-0 rounded border border-primary/15 bg-primary/10 px-2 py-0.5 font-mono text-[11px] font-bold text-primary">
+          {question.id}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm leading-relaxed md:text-[15px]">{question.text}</p>
+          {question.help_text ? (
+            <p className="mt-1 text-xs italic text-muted-foreground">{question.help_text}</p>
+          ) : null}
+        </div>
+      </button>
+      {expanded ? (
+        <div className="divide-y border-t bg-secondary/25">
+          {subQuestions.map((subQuestion) => (
+            <div key={subQuestion.id} className="flex items-start gap-3 px-4 py-3">
+              <span className="mt-0.5 shrink-0 rounded border bg-background px-1.5 py-0.5 font-mono text-[10px] font-bold text-muted-foreground">
+                {subQuestion.id}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm">{subQuestion.text}</p>
+                {subQuestion.help_text ? (
+                  <p className="mt-1 text-xs italic text-muted-foreground">{subQuestion.help_text}</p>
+                ) : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

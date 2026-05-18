@@ -1,9 +1,15 @@
 from dataclasses import dataclass, field
 from typing import Protocol
+from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.review_agent import run_file_review_agent
+from app.agents.review_agent import (
+    AuditIntakeFailure,
+    run_completed_intake_agent,
+    run_file_review_agent,
+    run_synthetic_review_agent,
+)
 from app.core.config import Settings, get_settings
 from app.db.session import AsyncSessionLocal
 from app.models.audit import AuditFormResult, merge_with_canonical
@@ -16,8 +22,15 @@ from app.schemas.reviews import (
     ReviewRecord,
 )
 from app.services.catalog import FormCatalog
+from app.services.intake_documents import IntakeDocumentStore
 from app.services.review_repository import ReviewRepository
 from app.services.status_reporter import NullStatusReporter, StatusReporter
+
+
+@dataclass(slots=True)
+class GeneratedAuditResult:
+    result: AuditFormResult
+    input_json_updates: dict[str, object] = field(default_factory=dict)
 
 
 class AuditFormGenerator(Protocol):
@@ -25,7 +38,7 @@ class AuditFormGenerator(Protocol):
         self,
         request: ReviewGenerateRequest,
         canonical: AuditFormDefinition,
-    ) -> AuditFormResult: ...
+    ) -> GeneratedAuditResult: ...
 
 
 class AuditResultValidator:
@@ -44,98 +57,86 @@ class AuditResultValidator:
         )
 
 
-class SyntheticAuditFormGenerator:
-    async def generate(
-        self,
-        request: ReviewGenerateRequest,
-        canonical: AuditFormDefinition,
-    ) -> AuditFormResult:
-        result = canonical.canonical.model_copy(deep=True)
-        questions = []
-        for index, question in enumerate(result.questions, start=1):
-            if question.sub_questions:
-                sub_questions = [
-                    sub_question.model_copy(
-                        update={
-                            "answer": sub_index == 1,
-                            "reasoning": (
-                                "Synthetic review evidence supports this opportunity."
-                                if sub_index == 1
-                                else ""
-                            ),
-                            "citations": (
-                                f"Synthetic file note {index}; photo set {index:02d}."
-                                if sub_index == 1
-                                else ""
-                            ),
-                        }
-                    )
-                    for sub_index, sub_question in enumerate(question.sub_questions, start=1)
-                ]
-                questions.append(
-                    question.model_copy(
-                        update={
-                            "comments": None,
-                            "citations": None,
-                            "sub_questions": sub_questions,
-                        }
-                    )
-                )
-            else:
-                questions.append(
-                    question.model_copy(
-                        update={
-                            "comments": (
-                                question.comments
-                                or "Synthetic review evidence supports this question answer."
-                            ),
-                            "citations": (
-                                question.citations
-                                or f"Synthetic file note {index}; document set {index:02d}."
-                            ),
-                            "sub_questions": None,
-                        }
-                    )
-                )
-
-        outcome = (
-            "Does Not Meet" if any(question.answer == "No" for question in questions) else "Meets"
-        )
-        return result.model_copy(
-            update={
-                "title": self._title_for(request, canonical),
-                "questions": questions,
-                "overall_outcome": outcome,
-                "outcome_justification": (
-                    "Synthetic review generated for local development and smoke testing."
-                ),
-            }
-        )
-
-    def _title_for(self, request: ReviewGenerateRequest, canonical: AuditFormDefinition) -> str:
-        if request.claim_number:
-            return f"Claim {request.claim_number} {canonical.title}"
-        return f"Synthetic {canonical.title}"
-
-
 @dataclass(slots=True)
 class AgentAuditFormGenerator:
     catalog: FormCatalog
+    mode: str = "review"
 
     async def generate(
         self,
         request: ReviewGenerateRequest,
         canonical: AuditFormDefinition,
-    ) -> AuditFormResult:
+    ) -> GeneratedAuditResult:
         form_path = self.catalog.path_for(canonical.id, canonical.version)
-        return await run_file_review_agent(
-            claim_number=request.claim_number,
-            effective_date=request.effective_date,
-            instructions=request.instructions,
+        if self.mode == "synthetic":
+            result = await run_synthetic_review_agent(
+                claim_number=request.claim_number,
+                effective_date=request.effective_date,
+                instructions=request.instructions or request.generation_prompt,
+                path_to_questionnaire=str(form_path),
+                user_prompt=request.prompt or request.generation_prompt,
+                knowledge_docs=canonical.knowledge_docs,
+            )
+        else:
+            result = await run_file_review_agent(
+                claim_number=request.claim_number,
+                effective_date=request.effective_date,
+                instructions=request.instructions,
+                path_to_questionnaire=str(form_path),
+                user_prompt=request.prompt,
+                tools=canonical.tools,
+                knowledge_docs=canonical.knowledge_docs,
+            )
+        return GeneratedAuditResult(result=result)
+
+
+class AuditIntakeFailureError(RuntimeError):
+    def __init__(self, failure: AuditIntakeFailure) -> None:
+        message = failure.reason
+        if failure.details:
+            message = f"{message}\n\n{failure.details}"
+        super().__init__(message)
+        self.failure = failure
+
+
+@dataclass(slots=True)
+class CompletedIntakeAuditFormGenerator:
+    catalog: FormCatalog
+    settings: Settings
+
+    async def generate(
+        self,
+        request: ReviewGenerateRequest,
+        canonical: AuditFormDefinition,
+    ) -> GeneratedAuditResult:
+        document_id = request.source_file_ids[0] if request.source_file_ids else ""
+        if not document_id:
+            raise ValueError("Completed intake reviews require one source document.")
+        document_store = IntakeDocumentStore(self.settings)
+        document_path = document_store.resolve(document_id)
+        document = document_store.read_document(document_id)
+        if not document.content.strip():
+            raise ValueError(f"Intake document has no extractable text: {document_id}")
+        form_path = self.catalog.path_for(canonical.id, canonical.version)
+        output = await run_completed_intake_agent(
+            document_text=document.content,
+            document_name=document_path.name,
             path_to_questionnaire=str(form_path),
-            user_prompt=request.prompt,
-            tools=canonical.tools,
+            instructions=request.instructions,
             knowledge_docs=canonical.knowledge_docs,
+        )
+        if isinstance(output, AuditIntakeFailure):
+            raise AuditIntakeFailureError(output)
+        updates = {
+            "claim_number": output.claim_number.strip(),
+            "form_metadata": output.form_metadata,
+            "intake_document_id": document_id,
+            "intake_document_name": document_path.name,
+            "intake_document_type": document.file_type,
+        }
+        return GeneratedAuditResult(
+            result=output.result,
+            input_json_updates=updates,
         )
 
 
@@ -190,9 +191,14 @@ class AuditGenerationService:
             reporter.in_progress("Running audit form generator...", progress=45)
             generator = self._generator_for(request)
             generated = await generator.generate(request, canonical)
+            if generated.input_json_updates:
+                await self.repository.merge_review_input_json(
+                    review_id,
+                    generated.input_json_updates,
+                )
 
             reporter.in_progress("Validating generated audit output...", progress=75)
-            aligned = self.validator.align_to_canonical(generated, canonical)
+            aligned = self.validator.align_to_canonical(generated.result, canonical)
 
             reporter.in_progress(
                 "Saving immutable original and editable user version...",
@@ -206,8 +212,10 @@ class AuditGenerationService:
             return await self.repository.mark_review_failed(review_id, str(exc))
 
     def _generator_for(self, request: ReviewGenerateRequest) -> AuditFormGenerator:
-        if request.synthetic:
-            return SyntheticAuditFormGenerator()
+        if request.input_mode == "completed_intake":
+            return CompletedIntakeAuditFormGenerator(self.catalog, self.settings)
+        if request.synthetic or request.input_mode == "synthetic":
+            return AgentAuditFormGenerator(self.catalog, mode="synthetic")
         return AgentAuditFormGenerator(self.catalog)
 
 
@@ -242,9 +250,11 @@ class BatchReviewGenerationService:
     async def create_batch(self, request: BatchCreateRequest) -> BatchRecord:
         self._validate_registered_forms(request)
         items = self._items_for_request(request)
+        source = self._source_for_request(request)
         batch = await self.repository.create_batch(
             total_count=len(items),
             input_json=request.model_dump(mode="json"),
+            source=source,
         )
         for item in items:
             review_request = self._request_from_item(item, request)
@@ -255,7 +265,7 @@ class BatchReviewGenerationService:
             await self.repository.create_review_placeholder(
                 form_id=review_request.form_id,
                 form_version=review_request.form_version,
-                source="batch",
+                source=source,
                 batch_id=batch.id,
                 input_json=input_json,
             )
@@ -271,15 +281,18 @@ class BatchReviewGenerationService:
             synthetic=template.synthetic,
             synthetic_count=template.synthetic_count,
             input_mode=template.input_mode,
+            generation_prompt=template.generation_prompt,
             excel_column_map=template.excel_column_map,
             items=template.items,
         )
         self._validate_registered_forms(request)
         items = self._items_for_request(request)
+        source = self._source_for_request(request)
         batch = await self.repository.create_batch(
             total_count=len(items),
             template_id=template.id,
             input_json=request.model_dump(mode="json"),
+            source=source,
         )
         for item in items:
             review_request = self._request_from_item(item, request)
@@ -291,7 +304,7 @@ class BatchReviewGenerationService:
             await self.repository.create_review_placeholder(
                 form_id=review_request.form_id,
                 form_version=review_request.form_version,
-                source="batch",
+                source=source,
                 batch_id=batch.id,
                 input_json=input_json,
             )
@@ -318,7 +331,10 @@ class BatchReviewGenerationService:
                     continue
                 request = ReviewGenerateRequest.model_validate(fresh.input_json or {})
                 service = AuditGenerationService(session, self.settings)
-                await service.generate_for_review(fresh.id, request)
+                completed = await service.generate_for_review(fresh.id, request)
+                if completed.status == "failed" and request.input_mode == "completed_intake":
+                    await ReviewRepository(session).pause_batch(batch_id)
+                    return
 
     def _request_from_item(
         self,
@@ -326,57 +342,74 @@ class BatchReviewGenerationService:
         batch_request: BatchCreateRequest,
     ) -> ReviewGenerateRequest:
         return ReviewGenerateRequest(
-            prompt=item.prompt,
+            prompt=item.prompt or item.generation_prompt or batch_request.generation_prompt,
             claim_number=item.claim_number,
             effective_date=item.effective_date,
-            instructions=item.instructions,
-            form_id=item.form_id or batch_request.form_id,
-            form_version=item.form_version or batch_request.form_version,
+            instructions=(
+                item.instructions or item.generation_prompt or batch_request.generation_prompt
+            ),
+            form_id=batch_request.form_id,
+            form_version=batch_request.form_version,
             source_file_ids=item.source_file_ids,
-            synthetic=batch_request.synthetic if item.synthetic is None else item.synthetic,
+            synthetic=(
+                batch_request.synthetic or batch_request.input_mode == "synthetic"
+                if item.synthetic is None
+                else item.synthetic
+            ),
+            input_mode=batch_request.input_mode,
+            generation_prompt=item.generation_prompt or batch_request.generation_prompt,
         )
 
     def _items_for_request(self, request: BatchCreateRequest) -> list[BatchReviewInput]:
-        if request.synthetic:
+        if request.synthetic or request.input_mode == "synthetic":
             count = request.synthetic_count or len(request.items)
             if count <= 0:
                 return request.items
+            source_items = request.items or [BatchReviewInput(synthetic=True) for _ in range(count)]
             return [
                 BatchReviewInput(
-                    claim_number=item.claim_number,
+                    claim_number=item.claim_number or f"SYNTH_{uuid4().hex[:8].upper()}",
                     effective_date=item.effective_date,
-                    instructions=item.instructions,
-                    prompt=item.prompt,
+                    instructions=item.instructions or request.generation_prompt,
+                    prompt=item.prompt or request.generation_prompt,
+                    generation_prompt=item.generation_prompt or request.generation_prompt,
                     source_file_ids=item.source_file_ids,
-                    form_id=item.form_id,
-                    form_version=item.form_version,
                     synthetic=item.synthetic,
                 )
-                for item in (
-                    request.items
-                    if request.items
-                    else [BatchReviewInput(synthetic=True) for _ in range(count)]
-                )
+                for item in source_items
             ][:count]
         return request.items
 
     def _validate_registered_forms(self, request: BatchCreateRequest) -> None:
         catalog = FormCatalog(self.settings.form_catalog_dir)
-        pairs = [(request.form_id, request.form_version)]
-        pairs.extend(
-            (
-                item.form_id or request.form_id,
-                item.form_version or request.form_version,
-            )
-            for item in request.items
-        )
-        for form_id, form_version in pairs:
-            try:
-                catalog.get_form(form_id, form_version)
-            except KeyError as exc:
+        for index, item in enumerate(request.items, start=1):
+            if item.form_id and item.form_id != request.form_id:
                 raise ValueError(
-                    f"Registered form {form_id}@{form_version} was not found in the form catalog."
-                ) from exc
+                    f"Review row {index} uses {item.form_id}, but batches must use one form."
+                )
+            if item.form_version and item.form_version != request.form_version:
+                raise ValueError(
+                    f"Review row {index} uses {item.form_version}, "
+                    "but batches must use one form version."
+                )
+            if request.input_mode == "completed_intake" and len(item.source_file_ids) != 1:
+                raise ValueError("Completed intake reviews require exactly one selected document.")
+        try:
+            catalog.get_form(request.form_id, request.form_version)
+        except KeyError as exc:
+            raise ValueError(
+                f"Registered form {request.form_id}@{request.form_version} was not "
+                "found in the form catalog."
+            ) from exc
+
+    def _source_for_request(self, request: BatchCreateRequest) -> str:
+        if request.input_mode == "completed_intake":
+            return "completed_intake"
+        if request.synthetic or request.input_mode == "synthetic":
+            return "synthetic"
+        if request.input_mode == "upload":
+            return "batch_upload"
+        return "batch_manual"
 
 
 async def run_batch_job(batch_id: str, settings: Settings | None = None) -> None:

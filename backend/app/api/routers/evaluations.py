@@ -67,13 +67,6 @@ async def create_eval_dataset(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post("/datasets/smoke-test", response_model=EvalDatasetDetail, status_code=201)
-async def create_smoke_eval_dataset(
-    session: Annotated[AsyncSession, Depends(get_session)],
-) -> EvalDatasetDetail:
-    return await EvaluationRepository(session).create_smoke_dataset()
-
-
 @router.get("/datasets/{dataset_id}", response_model=EvalDatasetDetail)
 async def get_eval_dataset(
     dataset_id: str,

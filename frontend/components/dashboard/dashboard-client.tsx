@@ -115,7 +115,7 @@ function buildEvalGroundTruthReviews(
           eval_result_role: "ground_truth",
           eval_reference_kind: truth.reference_kind,
           eval_config_version: run.config_version,
-          synthetic: run.synthetic,
+          synthetic: false,
         },
         original: truth.result,
         user_version: truth.result,

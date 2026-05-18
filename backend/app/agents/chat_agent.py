@@ -87,9 +87,10 @@ def build_chat_agent(settings: Settings | None = None) -> Agent[TFRChatDeps, str
             "Use the Python repl files collection for files in the dedicated workspace "
             "folder; inspect directories before reading unknown paths, and treat Mermaid "
             "diagrams as text that the frontend can render and download. "
-            "When the user asks "
-            "you to create, generate, run, or smoke-test an audit form review, call "
-            "generate_audit_form_review so the result is persisted and rendered for review."
+            "When the user asks you to create or generate a one-off audit form review, call "
+            "generate_audit_form_review so the result is persisted and rendered for review. "
+            "For synthetic data, smoke-style data, or completed audit intake, direct the user "
+            "to Batch Audits instead of generating it from chat."
         ),
         capabilities=[SQLDatabaseCapability(), MontyPythonCapability()],
     )
@@ -106,13 +107,8 @@ async def generate_audit_form_review(
     effective_date: str = "",
     form_id: str = "tfr_default",
     form_version: str = "v0.1",
-    synthetic: bool = True,
 ) -> ToolReturn:
-    """Spawn a sub-agent to generate an AuditFormResult review.
-
-    Use synthetic=True for quick examples and smoke tests not involving the sub-agent. Use
-    synthetic=False to employ the sub-agent.
-    """
+    """Spawn a sub-agent to generate one AuditFormResult review."""
 
     state = ctx.deps.state
     reporter = ChatStateStatusReporter(state)
@@ -125,7 +121,7 @@ async def generate_audit_form_review(
         instructions=prompt,
         form_id=form_id,
         form_version=form_version,
-        synthetic=synthetic,
+        synthetic=False,
     )
     async with AsyncSessionLocal() as session:
         review = await ChatReviewGenerationService(session).generate(

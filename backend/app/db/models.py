@@ -65,6 +65,7 @@ class AuditBatchTemplateORM(Base):
     synthetic: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     synthetic_count: Mapped[int] = mapped_column(Integer, default=0)
     input_mode: Mapped[str] = mapped_column(String(24), default="manual")
+    generation_prompt: Mapped[str] = mapped_column(Text, default="")
     excel_column_map: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
     items_json: Mapped[list[dict[str, Any]]] = mapped_column(
         PortableJSON,

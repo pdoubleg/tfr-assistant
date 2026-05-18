@@ -52,6 +52,7 @@ interface DialogState {
   synthetic: boolean;
   synthetic_count: number;
   input_mode: BatchInputMode;
+  generation_prompt: string;
   excel_column_map: ColumnMap;
   items: BatchReviewInput[];
 }
@@ -79,6 +80,7 @@ const initialState = (forms: FormCatalogEntry[], template?: BatchTemplateRecord 
     synthetic: template?.synthetic ?? false,
     synthetic_count: template?.synthetic_count || 3,
     input_mode: template?.input_mode ?? (template?.synthetic ? "synthetic" : "manual"),
+    generation_prompt: template?.generation_prompt ?? "",
     excel_column_map: template?.excel_column_map ?? {},
     items: template?.items?.length ? template.items : [emptyItem()],
   };
@@ -414,6 +416,7 @@ export function BatchRunDialog({
       synthetic: state.synthetic,
       synthetic_count: state.synthetic ? state.synthetic_count : 0,
       input_mode: inputMode,
+      generation_prompt: state.synthetic ? state.generation_prompt.trim() : "",
       excel_column_map: inputMode === "upload" ? state.excel_column_map : {},
       items: state.synthetic ? [] : usableItems,
     });
@@ -538,7 +541,8 @@ export function BatchRunDialog({
 
             {state.synthetic ? (
               <div className="rounded-lg border bg-background p-4">
-                <div className="grid max-w-xs gap-2">
+                <div className="grid gap-4 md:grid-cols-[240px_minmax(0,1fr)]">
+                  <div className="grid gap-2">
                   <label htmlFor="synthetic-count" className="text-sm font-medium">
                     Number of Reviews
                   </label>
@@ -558,6 +562,22 @@ export function BatchRunDialog({
                     disabled={disabled}
                     placeholder="10"
                   />
+                  </div>
+                  <div className="grid gap-2">
+                    <label htmlFor="synthetic-prompt" className="text-sm font-medium">
+                      Generation Instructions
+                    </label>
+                    <Textarea
+                      id="synthetic-prompt"
+                      value={state.generation_prompt}
+                      onChange={(event) =>
+                        setState((current) => ({ ...current, generation_prompt: event.target.value }))
+                      }
+                      disabled={disabled}
+                      className="min-h-24"
+                      placeholder="Make this a Meets rating with all Yes"
+                    />
+                  </div>
                 </div>
               </div>
             ) : state.input_mode === "upload" ? (

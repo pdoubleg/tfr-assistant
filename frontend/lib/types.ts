@@ -50,7 +50,15 @@ export interface ReviewRecord {
   form_id?: string;
   form_version?: string;
   status?: "queued" | "running" | "completed" | "failed";
-  source?: "api" | "chat_tool" | "batch" | "eval";
+  source?:
+    | "api"
+    | "chat_tool"
+    | "batch"
+    | "batch_manual"
+    | "batch_upload"
+    | "synthetic"
+    | "completed_intake"
+    | "eval";
   batch_id?: string | null;
   input_json?: {
     claim_number?: string;
@@ -80,7 +88,7 @@ export interface ReviewRecord {
   updated_at?: string;
 }
 
-export type BatchInputMode = "manual" | "upload" | "synthetic";
+export type BatchInputMode = "manual" | "upload" | "synthetic" | "completed_intake";
 export type BatchStatus = "queued" | "running" | "paused" | "completed" | "failed" | "canceled";
 
 export interface BatchReviewInput {
@@ -88,6 +96,7 @@ export interface BatchReviewInput {
   effective_date?: string;
   instructions?: string;
   prompt?: string;
+  generation_prompt?: string;
   source_file_ids?: string[];
   form_id?: string | null;
   form_version?: string | null;
@@ -125,6 +134,7 @@ export interface BatchTemplateRecord {
   synthetic: boolean;
   synthetic_count: number;
   input_mode: BatchInputMode;
+  generation_prompt: string;
   excel_column_map: Record<string, string>;
   items: BatchReviewInput[];
   item_count: number;
@@ -161,6 +171,15 @@ export interface BatchSummary {
   completed_reviews_today: number;
   average_duration_seconds?: number | null;
   form_volume: BatchFormVolume[];
+}
+
+export interface IntakeDocumentRecord {
+  id: string;
+  filename: string;
+  file_type: string;
+  size_bytes: number;
+  modified_at: string;
+  preview?: string;
 }
 
 export type EvalReferenceKind = "R1" | "R2";
@@ -215,7 +234,6 @@ export interface EvalRunPayload {
   concurrency?: number;
   retry_limit: number;
   enable_mlflow: boolean;
-  synthetic: boolean;
   base_run_id?: string | null;
 }
 
@@ -234,7 +252,6 @@ export interface EvalRunRecord {
   retry_limit: number;
   enable_mlflow: boolean;
   mlflow_run_id?: string | null;
-  synthetic: boolean;
   total_count: number;
   completed_count: number;
   failed_count: number;

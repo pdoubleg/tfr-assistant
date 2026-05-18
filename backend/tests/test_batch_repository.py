@@ -2,6 +2,8 @@ import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.db.models import Base
+from app.schemas.reviews import BatchCreateRequest, BatchReviewInput
+from app.services.audit_generation import BatchReviewGenerationService
 from app.services.review_repository import ReviewRepository
 
 
@@ -94,3 +96,60 @@ async def test_batch_summary_tracks_review_volume_by_form(session):
     assert summary.failed_reviews == 1
     assert summary.form_volume[0].form_id == "water"
     assert summary.form_volume[0].total_count == 2
+
+
+@pytest.mark.anyio
+async def test_synthetic_batch_creates_synth_claims_and_source(session):
+    service = BatchReviewGenerationService(session)
+    batch = await service.create_batch(
+        BatchCreateRequest(
+            name="Synthetic pilot",
+            form_id="tfr_default",
+            form_version="v0.1",
+            synthetic=True,
+            synthetic_count=2,
+            input_mode="synthetic",
+            generation_prompt="Make both reviews Meets with all Yes answers.",
+        )
+    )
+    reviews = await ReviewRepository(session).list_reviews(batch_id=batch.id)
+
+    assert batch.source == "synthetic"
+    assert len(reviews) == 2
+    assert {review.source for review in reviews} == {"synthetic"}
+    assert all(
+        (review.input_json or {}).get("claim_number", "").startswith("SYNTH_") for review in reviews
+    )
+    assert all((review.input_json or {}).get("generation_prompt") for review in reviews)
+
+
+@pytest.mark.anyio
+async def test_batch_validation_rejects_mixed_forms_and_bad_intake_rows(session):
+    service = BatchReviewGenerationService(session)
+
+    with pytest.raises(ValueError, match="must use one form"):
+        await service.create_batch(
+            BatchCreateRequest(
+                name="Mixed forms",
+                form_id="tfr_default",
+                form_version="v0.1",
+                items=[
+                    BatchReviewInput(
+                        claim_number="123",
+                        form_id="interior_water",
+                        form_version="v0.1",
+                    )
+                ],
+            )
+        )
+
+    with pytest.raises(ValueError, match="exactly one selected document"):
+        await service.create_batch(
+            BatchCreateRequest(
+                name="Intake",
+                form_id="tfr_default",
+                form_version="v0.1",
+                input_mode="completed_intake",
+                items=[BatchReviewInput(source_file_ids=[])],
+            )
+        )

@@ -117,116 +117,6 @@ class EvaluationRepository:
         await self.session.commit()
         return await self.get_dataset(dataset.id)
 
-    async def create_smoke_dataset(self) -> EvalDatasetDetail:
-        catalog = FormCatalog(get_settings().form_catalog_dir)
-        canonical = catalog.get_form("tfr_default", "v0.1").canonical
-
-        case_one_truth = canonical.model_copy(
-            deep=True,
-            update={
-                "title": "Smoke claim EVAL-001",
-                "outcome_justification": "R2 confirms documentation and scope opportunities.",
-            },
-        )
-
-        mixed_questions = []
-        for question in canonical.questions:
-            if question.id == "Q2":
-                mixed_questions.append(
-                    question.model_copy(
-                        deep=True,
-                        update={
-                            "answer": "Yes",
-                            "comments": (
-                                "Smoke reference found no repair-scope risk for this question."
-                            ),
-                            "citations": "Smoke reference file.",
-                            "sub_questions": None,
-                        },
-                    )
-                )
-            else:
-                mixed_questions.append(question.model_copy(deep=True))
-        case_two_r1 = canonical.model_copy(
-            deep=True,
-            update={
-                "title": "Smoke claim EVAL-002",
-                "questions": mixed_questions,
-                "overall_outcome": "Does Not Meet",
-                "outcome_justification": "R1 found documentation risk but not repair-scope risk.",
-            },
-        )
-
-        clean_questions = [
-            question.model_copy(
-                deep=True,
-                update={
-                    "answer": "Yes",
-                    "comments": "Smoke reference found no audit issue for this question.",
-                    "citations": "Smoke reference file.",
-                    "sub_questions": None,
-                },
-            )
-            for question in canonical.questions
-        ]
-        case_two_r2 = canonical.model_copy(
-            deep=True,
-            update={
-                "title": "Smoke claim EVAL-002 R2",
-                "questions": clean_questions,
-                "overall_outcome": "Meets",
-                "outcome_justification": "R2 found no audit opportunity on this smoke case.",
-            },
-        )
-
-        stamp = _now().strftime("%Y-%m-%d %H:%M:%S UTC")
-        return await self.create_dataset(
-            EvalDatasetCreate(
-                name=f"Smoke Ground Truth Eval {stamp}",
-                description="Small synthetic ground-truth dataset for validating eval execution.",
-                form_id="tfr_default",
-                form_version="v0.1",
-                source_kind="smoke_test",
-                source_metadata={"created_by": "evaluation_service.create_smoke_dataset"},
-                cases=[
-                    EvalCaseCreate(
-                        claim_number="EVAL-001",
-                        effective_date="2026-05-01",
-                        instructions="Synthetic eval case expected to match the default generator.",
-                        ground_truths=[
-                            {
-                                "reference_kind": "R1",
-                                "result": case_one_truth,
-                                "reviewer": "smoke-r1",
-                            },
-                            {
-                                "reference_kind": "R2",
-                                "result": case_one_truth,
-                                "reviewer": "smoke-r2",
-                            },
-                        ],
-                    ),
-                    EvalCaseCreate(
-                        claim_number="EVAL-002",
-                        effective_date="2026-05-02",
-                        instructions="Synthetic eval case intentionally differs between R1 and R2.",
-                        ground_truths=[
-                            {
-                                "reference_kind": "R1",
-                                "result": case_two_r1,
-                                "reviewer": "smoke-r1",
-                            },
-                            {
-                                "reference_kind": "R2",
-                                "result": case_two_r2,
-                                "reviewer": "smoke-r2",
-                            },
-                        ],
-                    ),
-                ],
-            )
-        )
-
     async def list_datasets(self) -> list[EvalDatasetRecord]:
         records = (
             await self.session.scalars(
@@ -578,7 +468,6 @@ class EvaluationRepository:
         failed = run.failed_count
         progress_percent = round(((completed + failed) / total) * 100, 1) if total else 0
         primary_score = await self._primary_score_for_run(run)
-        input_json = run.input_json or {}
         return EvalRunRecord(
             id=run.id,
             dataset_id=run.dataset_id,
@@ -594,7 +483,6 @@ class EvaluationRepository:
             retry_limit=run.retry_limit,
             enable_mlflow=run.enable_mlflow,
             mlflow_run_id=run.mlflow_run_id,
-            synthetic=bool(input_json.get("synthetic")),
             total_count=total,
             completed_count=completed,
             failed_count=failed,
@@ -603,7 +491,7 @@ class EvaluationRepository:
             progress_percent=progress_percent,
             primary_score=primary_score,
             metrics=run.metrics_json or {},
-            input=input_json,
+            input=run.input_json or {},
             error_message=run.error_message,
             started_at=run.started_at,
             completed_at=run.completed_at,
@@ -906,7 +794,6 @@ class EvaluationRunService:
                     instructions=case.instructions,
                     form_id=dataset.form_id,
                     form_version=dataset.form_version,
-                    synthetic=bool((run.input_json or {}).get("synthetic")),
                     eval_run_id=run.id,
                     eval_run_name=run.name,
                     eval_dataset_id=dataset.id,
@@ -964,7 +851,6 @@ class EvaluationRunService:
                     "dataset_name": run.dataset_name,
                     "model_name": run.model_name,
                     "reference_policy": run.reference_policy,
-                    "synthetic": run.synthetic,
                 }
             )
         except Exception:

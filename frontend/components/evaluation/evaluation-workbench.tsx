@@ -4,7 +4,6 @@ import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useS
 import {
   ChevronDown,
   ChevronRight,
-  Database,
   Eye,
   FileText,
   FlaskConical,
@@ -32,7 +31,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   cancelEvalRun,
   createEvalRun,
-  createSmokeEvalDataset,
   listEvalDatasets,
   listEvalRunItems,
   listEvalRuns,
@@ -67,7 +65,6 @@ interface EvalRunDialogState {
   reference_policy: EvalReferencePolicy;
   retry_limit: number;
   enable_mlflow: boolean;
-  synthetic: boolean;
 }
 
 interface HierarchyMetricRow {
@@ -179,7 +176,6 @@ function initialDialogState(datasets: EvalDatasetRecord[], run?: EvalRunRecord |
     reference_policy: run?.reference_policy ?? "prefer_r2",
     retry_limit: run?.retry_limit ?? 0,
     enable_mlflow: run?.enable_mlflow ?? false,
-    synthetic: run?.synthetic ?? true,
   };
 }
 
@@ -405,7 +401,6 @@ export function EvaluationWorkbench() {
   const [viewingPair, setViewingPair] = useState<PairResultRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [creatingDataset, setCreatingDataset] = useState(false);
   const [savingRun, setSavingRun] = useState(false);
   const [actioningRun, setActioningRun] = useState("");
   const [error, setError] = useState("");
@@ -537,19 +532,6 @@ export function EvaluationWorkbench() {
     setQueueRunIds((current) => current.filter((candidate) => candidate !== runId));
   };
 
-  const seedSmokeDataset = async () => {
-    setCreatingDataset(true);
-    setError("");
-    try {
-      await createSmokeEvalDataset();
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create smoke dataset.");
-    } finally {
-      setCreatingDataset(false);
-    }
-  };
-
   const saveRun = async (payload: EvalRunPayload) => {
     setSavingRun(true);
     setError("");
@@ -612,12 +594,10 @@ export function EvaluationWorkbench() {
           runStatusFilter={runStatusFilter}
           loading={loading}
           refreshing={refreshing}
-          creatingDataset={creatingDataset}
           onRunSearchChange={setRunSearch}
           onRunStatusFilterChange={setRunStatusFilter}
           onRefresh={() => void refresh({ manual: true })}
           onCreateRun={openCreateDialog}
-          onCreateSmokeDataset={() => void seedSmokeDataset()}
           onAddRun={addToQueue}
         />
         <EvalQueuePanel
@@ -666,12 +646,10 @@ function EvalRunSetupCard({
   runStatusFilter,
   loading,
   refreshing,
-  creatingDataset,
   onRunSearchChange,
   onRunStatusFilterChange,
   onRefresh,
   onCreateRun,
-  onCreateSmokeDataset,
   onAddRun,
 }: {
   runs: EvalRunRecord[];
@@ -680,12 +658,10 @@ function EvalRunSetupCard({
   runStatusFilter: string;
   loading: boolean;
   refreshing: boolean;
-  creatingDataset: boolean;
   onRunSearchChange: (value: string) => void;
   onRunStatusFilterChange: (value: string) => void;
   onRefresh: () => void;
   onCreateRun: () => void;
-  onCreateSmokeDataset: () => void;
   onAddRun: (run: EvalRunRecord) => void;
 }) {
   return (
@@ -771,13 +747,6 @@ function EvalRunSetupCard({
               );
             })
           )}
-        </div>
-
-        <div className="border-t p-3">
-          <Button type="button" variant="outline" className="w-full gap-2" onClick={onCreateSmokeDataset} disabled={creatingDataset}>
-            {creatingDataset ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
-            Create Smoke Dataset
-          </Button>
         </div>
       </CardContent>
     </Card>
@@ -1707,7 +1676,6 @@ function EvalRunDialog({
       reference_policy: state.reference_policy,
       retry_limit: state.retry_limit,
       enable_mlflow: state.enable_mlflow,
-      synthetic: state.synthetic,
       base_run_id: editingRun?.id ?? null,
     });
   };
@@ -1797,16 +1765,6 @@ function EvalRunDialog({
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm">
-              <input
-                type="checkbox"
-                checked={state.synthetic}
-                onChange={(event) => setState((current) => ({ ...current, synthetic: event.target.checked }))}
-                disabled={saving}
-                className="h-4 w-4"
-              />
-              Synthetic generator
-            </label>
             <label className="flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm">
               <input
                 type="checkbox"

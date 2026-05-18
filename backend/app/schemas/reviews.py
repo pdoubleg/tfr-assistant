@@ -6,9 +6,32 @@ from pydantic import BaseModel, Field
 from app.models.audit import AuditFormResult
 
 ReviewStatus = Literal["queued", "running", "completed", "failed"]
-ReviewSource = Literal["api", "chat_tool", "batch", "eval"]
-BatchInputMode = Literal["manual", "upload", "synthetic"]
+ReviewSource = Literal[
+    "api",
+    "chat_tool",
+    "batch",
+    "batch_manual",
+    "batch_upload",
+    "synthetic",
+    "completed_intake",
+    "eval",
+]
+BatchInputMode = Literal["manual", "upload", "synthetic", "completed_intake"]
 BatchStatus = Literal["queued", "running", "paused", "completed", "failed", "canceled"]
+BatchReviewSource = Literal[
+    "batch",
+    "batch_manual",
+    "batch_upload",
+    "synthetic",
+    "completed_intake",
+]
+BATCH_REVIEW_SOURCES: tuple[BatchReviewSource, ...] = (
+    "batch",
+    "batch_manual",
+    "batch_upload",
+    "synthetic",
+    "completed_intake",
+)
 
 
 class ReviewCreate(BaseModel):
@@ -27,6 +50,9 @@ class ReviewGenerateRequest(BaseModel):
     form_version: str = "v0.1"
     source_file_ids: list[str] = Field(default_factory=list)
     synthetic: bool = False
+    input_mode: BatchInputMode = "manual"
+    generation_prompt: str = ""
+    form_metadata: dict[str, str] = Field(default_factory=dict)
     eval_run_id: str = ""
     eval_run_name: str = ""
     eval_dataset_id: str = ""
@@ -59,6 +85,7 @@ class BatchReviewInput(BaseModel):
     effective_date: str = ""
     instructions: str = ""
     prompt: str = ""
+    generation_prompt: str = ""
     source_file_ids: list[str] = Field(default_factory=list)
     form_id: str | None = None
     form_version: str | None = None
@@ -73,6 +100,7 @@ class BatchCreateRequest(BaseModel):
     synthetic: bool = False
     synthetic_count: int = Field(default=0, ge=0)
     input_mode: BatchInputMode = "manual"
+    generation_prompt: str = ""
     excel_column_map: dict[str, str] = Field(default_factory=dict)
     items: list[BatchReviewInput] = Field(default_factory=list)
 
@@ -131,6 +159,7 @@ class BatchTemplateCreate(BaseModel):
     synthetic: bool = False
     synthetic_count: int = Field(default=0, ge=0)
     input_mode: BatchInputMode = "manual"
+    generation_prompt: str = ""
     excel_column_map: dict[str, str] = Field(default_factory=dict)
     items: list[BatchReviewInput] = Field(default_factory=list)
 
@@ -142,6 +171,7 @@ class BatchTemplateUpdate(BaseModel):
     synthetic: bool = False
     synthetic_count: int = Field(default=0, ge=0)
     input_mode: BatchInputMode = "manual"
+    generation_prompt: str = ""
     excel_column_map: dict[str, str] = Field(default_factory=dict)
     items: list[BatchReviewInput] = Field(default_factory=list)
 
@@ -155,6 +185,7 @@ class BatchTemplateRecord(BaseModel):
     synthetic: bool = False
     synthetic_count: int = 0
     input_mode: BatchInputMode = "manual"
+    generation_prompt: str = ""
     excel_column_map: dict[str, str] = Field(default_factory=dict)
     items: list[BatchReviewInput] = Field(default_factory=list)
     item_count: int = 0
@@ -162,3 +193,12 @@ class BatchTemplateRecord(BaseModel):
     run_count: int = 0
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class IntakeDocumentRecord(BaseModel):
+    id: str
+    filename: str
+    file_type: str
+    size_bytes: int
+    modified_at: datetime
+    preview: str = ""

@@ -112,7 +112,6 @@ class EvalRunCreate(BaseModel):
     concurrency: int = Field(default=1, ge=1, le=10)
     retry_limit: int = Field(default=0, ge=0, le=3)
     enable_mlflow: bool = False
-    synthetic: bool = False
     base_run_id: str | None = None
 
 
@@ -187,7 +186,6 @@ class EvalRunRecord(BaseModel):
     retry_limit: int = 0
     enable_mlflow: bool = False
     mlflow_run_id: str | None = None
-    synthetic: bool = False
     total_count: int = 0
     completed_count: int = 0
     failed_count: int = 0

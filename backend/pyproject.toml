@@ -24,6 +24,7 @@ dependencies = [
     "gepadantic",
     "python-docx>=1.2.0",
     "openpyxl>=3.1.5",
+    "gepa>=0.1.1",
 ]
 
 [dependency-groups]
