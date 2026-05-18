@@ -242,6 +242,22 @@
     height: auto;
   }
 
+  .chat-mermaid-actions {
+    position: absolute;
+    right: 0.55rem;
+    top: 0.55rem;
+    z-index: 1;
+    display: flex;
+    gap: 0.35rem;
+    opacity: 0;
+    transition: opacity 150ms ease;
+  }
+
+  .chat-mermaid-block:hover .chat-mermaid-actions,
+  .chat-mermaid-actions:focus-within {
+    opacity: 1;
+  }
+
   .chat-code-header {
     display: flex;
     align-items: center;

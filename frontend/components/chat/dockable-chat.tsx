@@ -12,6 +12,7 @@ import {
   Copy,
   CircleAlert,
   Loader2,
+  Download,
   Maximize2,
   MessageSquareText,
   Minimize2,
@@ -1840,11 +1841,93 @@ function MermaidBlock({
   }
 
   return (
-    <div
-      className="chat-mermaid-block"
-      dangerouslySetInnerHTML={{ __html: svg }}
-    />
+    <div className="chat-mermaid-block group/mermaid relative">
+      <div className="chat-mermaid-actions">
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="h-7 gap-1 px-2 text-[10px]"
+          onClick={() => downloadMermaidSvg(svg)}
+          aria-label="Download Mermaid SVG"
+          title="Download SVG"
+        >
+          <Download className="h-3 w-3" />
+          SVG
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="h-7 gap-1 px-2 text-[10px]"
+          onClick={() => void downloadMermaidPng(svg)}
+          aria-label="Download Mermaid PNG"
+          title="Download PNG"
+        >
+          <Download className="h-3 w-3" />
+          PNG
+        </Button>
+      </div>
+      <div dangerouslySetInnerHTML={{ __html: svg }} />
+    </div>
   );
+}
+
+function downloadMermaidSvg(svg: string) {
+  triggerBlobDownload(
+    new Blob([svg], { type: "image/svg+xml;charset=utf-8" }),
+    mermaidFilename("svg"),
+  );
+}
+
+async function downloadMermaidPng(svg: string) {
+  const svgUrl = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
+  try {
+    const image = await loadImage(svgUrl);
+    const width = image.naturalWidth || 1200;
+    const height = image.naturalHeight || 800;
+    const scale = 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.scale(scale, scale);
+    context.drawImage(image, 0, 0, width, height);
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, "image/png");
+    });
+    if (blob) {
+      triggerBlobDownload(blob, mermaidFilename("png"));
+    }
+  } finally {
+    URL.revokeObjectURL(svgUrl);
+  }
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Unable to prepare Mermaid image download."));
+    image.src = src;
+  });
+}
+
+function triggerBlobDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function mermaidFilename(extension: "svg" | "png") {
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  return `mermaid-diagram-${stamp}.${extension}`;
 }
 
 type ResizeDirection = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
