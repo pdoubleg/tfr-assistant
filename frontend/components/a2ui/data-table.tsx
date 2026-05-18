@@ -34,7 +34,7 @@ export function DataTable({
   const [columnFilterIndex, setColumnFilterIndex] = useState(0);
   const [columnFilterValue, setColumnFilterValue] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(5);
   const [copyStatus, setCopyStatus] = useState<"idle" | "success" | "error">("idle");
   const tableScrollerRef = useRef<HTMLDivElement | null>(null);
   const [tableViewportWidth, setTableViewportWidth] = useState(0);
