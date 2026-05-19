@@ -1,20 +1,27 @@
-from pydantic_ai.models.openai import OpenAIResponsesModel
+import pytest
+from openai import AsyncOpenAI
+from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
 from pydantic_ai.models.test import TestModel
 
 from app.agents.chat_agent import build_chat_model
 from app.core.config import Settings
+from app.core.llm import LLMModelAPI, LLMModelConfig, build_llm_model
 
 
 def test_build_chat_model_uses_test_model_for_local_mode() -> None:
-    model = build_chat_model(Settings(chat_model="test"))
+    model = build_chat_model(Settings(chat_model_api=LLMModelAPI.TEST))
 
     assert isinstance(model, TestModel)
 
 
-def test_build_chat_model_uses_responses_model_for_responses_spec() -> None:
+def test_build_chat_model_uses_responses_model_for_responses_api(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     model = build_chat_model(
         Settings(
-            chat_model="openai-responses:gpt-5.4-mini",
+            chat_model="gpt-5.4-mini",
+            chat_model_api=LLMModelAPI.RESPONSES,
             chat_model_reasoning_effort="low",
             chat_model_reasoning_summary="detailed",
             chat_model_timeout_seconds=45,
@@ -29,9 +36,32 @@ def test_build_chat_model_uses_responses_model_for_responses_spec() -> None:
         "openai_reasoning_effort": "low",
         "openai_reasoning_summary": "detailed",
     }
+    assert model.client is model.provider.client
 
 
-def test_build_chat_model_leaves_legacy_string_specs_to_pydantic_ai() -> None:
-    model = build_chat_model(Settings(chat_model="openai:gpt-5.4-mini"))
+def test_build_llm_model_uses_chat_model_for_chat_api() -> None:
+    model = build_llm_model(
+        LLMModelConfig(
+            model_name="gpt-5.4-mini",
+            api=LLMModelAPI.CHAT,
+            timeout_seconds=30,
+            reasoning_effort="high",
+            reasoning_summary="auto",
+        ),
+        openai_client=AsyncOpenAI(api_key="test-key"),
+    )
 
-    assert model == "openai:gpt-5.4-mini"
+    assert isinstance(model, OpenAIChatModel)
+    assert model.model_name == "gpt-5.4-mini"
+    assert model.settings == {"timeout": 30}
+
+
+def test_build_llm_model_rejects_legacy_openai_prefixes() -> None:
+    with pytest.raises(ValueError, match="underlying model name only"):
+        build_llm_model(
+            LLMModelConfig(
+                model_name="openai-responses:gpt-5.4-mini",
+                api=LLMModelAPI.RESPONSES,
+            ),
+            openai_client=AsyncOpenAI(api_key="test-key"),
+        )

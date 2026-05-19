@@ -6,7 +6,6 @@ import asyncio
 
 import pandas as pd
 from pydantic_ai import Agent
-from pydantic_ai.models.test import TestModel
 
 from app.capabilities.monty.collections.base import (
     DEFAULT_RLM_BATCH_SIZE,
@@ -16,6 +15,7 @@ from app.capabilities.monty.collections.base import (
     _dataset_handle,
 )
 from app.capabilities.monty.registry import ToolCollection, tool
+from app.core.llm import LLMModelConfig, build_llm_model
 
 
 class RLMCollection(ToolCollection):
@@ -36,9 +36,10 @@ class RLMCollection(ToolCollection):
         return self.context.store.load_dataset(self.context.state, handle).to_dataframe()
 
     @property
-    def _model_name(self) -> str:
-        configured = getattr(self.context.settings, "monty_rlm_model", None)
-        return str(configured or self.context.settings.chat_model)
+    def _llm_config(self) -> LLMModelConfig:
+        return self.context.settings.monty_rlm_llm_config(
+            test_output_text="RLM test response",
+        )
 
     @property
     def _max_batch_size(self) -> int:
@@ -59,13 +60,8 @@ class RLMCollection(ToolCollection):
         )
 
     def _build_agent(self) -> Agent[None, str]:
-        model = (
-            TestModel(custom_output_text="RLM test response")
-            if self._model_name == "test"
-            else self._model_name
-        )
         return Agent(
-            model,
+            build_llm_model(self._llm_config),
             output_type=str,
             instructions=(
                 "You are a focused sub-LLM for semantic analysis of text snippets. "

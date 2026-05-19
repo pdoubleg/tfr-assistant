@@ -2,14 +2,13 @@ import json
 
 from ag_ui.core import EventType, StateSnapshotEvent
 from pydantic_ai import Agent, RunContext, ToolReturn
-from pydantic_ai.models.openai import OpenAIResponsesModel
-from pydantic_ai.models.test import TestModel
-from pydantic_ai.settings import ModelSettings
+from pydantic_ai.models import Model
 
 from app.capabilities.deps import TFRChatDeps
 from app.capabilities.monty import MontyPythonCapability
 from app.capabilities.sql import SQLDatabaseCapability
 from app.core.config import Settings, get_settings
+from app.core.llm import build_llm_model
 from app.db.session import AsyncSessionLocal
 from app.presenters.a2ui import generate_image_card
 from app.schemas.reviews import ReviewGenerateRequest
@@ -23,41 +22,23 @@ from app.services.image_generation import (
 )
 from app.services.status_reporter import ChatStateStatusReporter
 
+CHAT_TEST_OUTPUT = (
+    "### TFR assistant is connected\n\n"
+    "I received your message through the Pydantic-AI chat agent. "
+    "The AG-UI endpoint is ready for CopilotKit-style streaming, shared state, "
+    "and frontend tools as we wire in the real review context.\n\n"
+    "| Signal | Status |\n"
+    "| --- | --- |\n"
+    "| Shared state | Ready |\n"
+    "| Tool status | Ready |\n\n"
+    "- Review batches can route through the worker agent.\n"
+    "- Audit forms can stay structured as original and user-edited versions.\n"
+    "- Evaluation findings can become prompt-optimization data."
+)
 
-def build_chat_model(settings: Settings) -> str | OpenAIResponsesModel | TestModel:
-    model_name = settings.chat_model.strip()
-    if model_name == "test":
-        return TestModel(
-            custom_output_text=(
-                "### TFR assistant is connected\n\n"
-                "I received your message through the Pydantic-AI chat agent. "
-                "The AG-UI endpoint is ready for CopilotKit-style streaming, shared state, "
-                "and frontend tools as we wire in the real review context.\n\n"
-                "| Signal | Status |\n"
-                "| --- | --- |\n"
-                "| Shared state | Ready |\n"
-                "| Tool status | Ready |\n\n"
-                "- Review batches can route through the worker agent.\n"
-                "- Audit forms can stay structured as original and user-edited versions.\n"
-                "- Evaluation findings can become prompt-optimization data."
-            )
-        )
 
-    if model_name.startswith("openai-responses:"):
-        responses_model_name = model_name.removeprefix("openai-responses:").strip()
-        model_settings: ModelSettings = {
-            "timeout": settings.chat_model_timeout_seconds,
-            # AG-UI reconstructs prior messages from frontend state. Do not send
-            # Responses item IDs unless the exact provider history is preserved.
-            "openai_send_reasoning_ids": False,
-        }
-        if settings.chat_model_reasoning_effort:
-            model_settings["openai_reasoning_effort"] = settings.chat_model_reasoning_effort
-        if settings.chat_model_reasoning_summary:
-            model_settings["openai_reasoning_summary"] = settings.chat_model_reasoning_summary
-        return OpenAIResponsesModel(responses_model_name, settings=model_settings)
-
-    return model_name
+def build_chat_model(settings: Settings) -> Model[object]:
+    return build_llm_model(settings.chat_llm_config(test_output_text=CHAT_TEST_OUTPUT))
 
 
 def build_chat_agent(settings: Settings | None = None) -> Agent[TFRChatDeps, str]:

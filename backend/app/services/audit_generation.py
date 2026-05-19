@@ -65,6 +65,7 @@ class AuditResultValidator:
 @dataclass(slots=True)
 class AgentAuditFormGenerator:
     catalog: FormCatalog
+    settings: Settings
     mode: str = "review"
 
     async def generate(
@@ -81,6 +82,7 @@ class AgentAuditFormGenerator:
                 path_to_questionnaire=str(form_path),
                 user_prompt=request.prompt or request.generation_prompt,
                 knowledge_docs=canonical.knowledge_docs,
+                active_settings=self.settings,
             )
         else:
             result = await run_file_review_agent(
@@ -91,6 +93,7 @@ class AgentAuditFormGenerator:
                 user_prompt=request.prompt,
                 tools=canonical.tools,
                 knowledge_docs=canonical.knowledge_docs,
+                active_settings=self.settings,
             )
         return GeneratedAuditResult(result=result)
 
@@ -129,6 +132,7 @@ class CompletedIntakeAuditFormGenerator:
             path_to_questionnaire=str(form_path),
             instructions=request.instructions,
             knowledge_docs=canonical.knowledge_docs,
+            active_settings=self.settings,
         )
         if isinstance(output, AuditIntakeFailure):
             raise AuditIntakeFailureError(output)
@@ -249,8 +253,8 @@ class AuditGenerationService:
         if request.input_mode == "completed_intake":
             return CompletedIntakeAuditFormGenerator(self.catalog, self.settings)
         if request.synthetic or request.input_mode == "synthetic":
-            return AgentAuditFormGenerator(self.catalog, mode="synthetic")
-        return AgentAuditFormGenerator(self.catalog)
+            return AgentAuditFormGenerator(self.catalog, self.settings, mode="synthetic")
+        return AgentAuditFormGenerator(self.catalog, self.settings)
 
 
 @dataclass(slots=True)

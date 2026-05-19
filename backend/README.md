@@ -17,7 +17,7 @@ uv sync
 uv run uvicorn app.main:app --reload
 ```
 
-The chat agent defaults to the OpenAI Responses API via `openai-responses:gpt-5.4-mini`. Set `CHAT_MODEL=test` for local streaming without external credentials, or set `CHAT_MODEL`/`TFR_CHAT_MODEL` to another Pydantic-AI model spec. For Responses models, tune `CHAT_MODEL_REASONING_EFFORT`, `CHAT_MODEL_REASONING_SUMMARY`, and `CHAT_MODEL_TIMEOUT_SECONDS` as needed.
+The chat agent defaults to the OpenAI Responses API with `CHAT_MODEL=gpt-5.4-mini` and `CHAT_MODEL_API=responses`. Set `CHAT_MODEL_API=test` for local streaming without external credentials, or set `CHAT_MODEL_API=chat` to use Chat Completions. Model names should be the underlying OpenAI model name only, not Pydantic-AI prefixes such as `openai-responses:`. For Responses models, tune `CHAT_MODEL_REASONING_EFFORT`, `CHAT_MODEL_REASONING_SUMMARY`, and `CHAT_MODEL_TIMEOUT_SECONDS` as needed.
 
 ## Database
 

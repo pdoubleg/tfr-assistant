@@ -6,7 +6,8 @@ from typing import Any
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
 
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
+from app.core.llm import LLMModelConfig, build_llm_model
 from app.models.audit import AuditFormResult
 from app.schemas.forms import AuditFormDefinition
 
@@ -112,9 +113,12 @@ def load_form_definition(path: str | Path) -> AuditFormDefinition:
         )
 
 
-def build_file_review_agent() -> Agent[FileReviewAgentDeps, AuditFormResult]:
+def build_file_review_agent(
+    active_settings: Settings | None = None,
+) -> Agent[FileReviewAgentDeps, AuditFormResult]:
+    active_settings = active_settings or settings
     agent = Agent(
-        settings.audit_model,
+        build_llm_model(active_settings.audit_llm_config()),
         output_type=AuditFormResult,
         deps_type=FileReviewAgentDeps,
         validation_context=lambda ctx: ctx.deps,
@@ -180,6 +184,8 @@ def _exception_chain(exc: BaseException) -> list[str]:
 
 
 def _model_label(model: object) -> str:
+    if isinstance(model, LLMModelConfig):
+        return model.label
     if isinstance(model, str):
         return model
     model_name = getattr(model, "model_name", None)
@@ -200,10 +206,11 @@ def _agent_failure_message(
     *,
     deps: FileReviewAgentDeps,
     prompt: str,
+    model_config: LLMModelConfig,
 ) -> str:
     lines = [
         "File review agent failed.",
-        f"Model: {_model_label(settings.audit_model)}",
+        f"Model: {_model_label(model_config)}",
         f"Questionnaire: {deps.form_definition.id}@{deps.form_definition.version}",
         f"Questionnaire path: {deps.form_path}",
         f"Prompt preview: {_truncate(prompt, 800)}",
@@ -221,8 +228,11 @@ async def run_file_review_agent(
     user_prompt: str = "",
     tools: list[str] | None = None,
     knowledge_docs: list[str] | None = None,
+    active_settings: Settings | None = None,
 ) -> AuditFormResult:
-    agent = build_file_review_agent()
+    active_settings = active_settings or settings
+    model_config = active_settings.audit_llm_config()
+    agent = build_file_review_agent(active_settings)
     deps = FileReviewAgentDeps(
         path_to_questionnaire=path_to_questionnaire,
         claim_number=claim_number,
@@ -245,7 +255,9 @@ async def run_file_review_agent(
             deps.form_definition.id,
             deps.form_definition.version,
         )
-        raise RuntimeError(_agent_failure_message(exc, deps=deps, prompt=prompt)) from exc
+        raise RuntimeError(
+            _agent_failure_message(exc, deps=deps, prompt=prompt, model_config=model_config)
+        ) from exc
     return result.output
 
 
@@ -256,8 +268,11 @@ async def run_synthetic_review_agent(
     path_to_questionnaire: str = "",
     user_prompt: str = "",
     knowledge_docs: list[str] | None = None,
+    active_settings: Settings | None = None,
 ) -> AuditFormResult:
-    agent = build_file_review_agent()
+    active_settings = active_settings or settings
+    model_config = active_settings.audit_llm_config()
+    agent = build_file_review_agent(active_settings)
     deps = FileReviewAgentDeps(
         path_to_questionnaire=path_to_questionnaire,
         claim_number=claim_number,
@@ -286,7 +301,9 @@ async def run_synthetic_review_agent(
             deps.form_definition.id,
             deps.form_definition.version,
         )
-        raise RuntimeError(_agent_failure_message(exc, deps=deps, prompt=prompt)) from exc
+        raise RuntimeError(
+            _agent_failure_message(exc, deps=deps, prompt=prompt, model_config=model_config)
+        ) from exc
     return result.output
 
 
@@ -297,8 +314,11 @@ async def run_completed_intake_agent(
     path_to_questionnaire: str,
     instructions: str = "",
     knowledge_docs: list[str] | None = None,
+    active_settings: Settings | None = None,
 ) -> CompletedAuditIntakeResult | AuditIntakeFailure:
-    agent = build_file_review_agent()
+    active_settings = active_settings or settings
+    model_config = active_settings.audit_llm_config()
+    agent = build_file_review_agent(active_settings)
     deps = FileReviewAgentDeps(
         path_to_questionnaire=path_to_questionnaire,
         instructions=instructions,
@@ -333,7 +353,9 @@ async def run_completed_intake_agent(
             deps.form_definition.id,
             deps.form_definition.version,
         )
-        raise RuntimeError(_agent_failure_message(exc, deps=deps, prompt=prompt)) from exc
+        raise RuntimeError(
+            _agent_failure_message(exc, deps=deps, prompt=prompt, model_config=model_config)
+        ) from exc
     return result.output
 
 

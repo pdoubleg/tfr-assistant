@@ -12,4 +12,5 @@ def health_check() -> dict[str, str]:
         "status": "ok",
         "environment": settings.environment,
         "chat_model": settings.chat_model,
+        "chat_model_api": settings.chat_model_api,
     }
