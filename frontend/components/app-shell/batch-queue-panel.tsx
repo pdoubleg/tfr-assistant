@@ -381,9 +381,11 @@ export function BatchQueuePanel({ onBatchCompleted }: BatchQueuePanelProps) {
                         ? "Synthetic"
                         : template.input_mode === "completed_intake"
                           ? "Completed Intake"
-                          : template.input_mode === "upload"
-                            ? "Spreadsheet"
-                            : "Direct"}
+                          : template.input_mode === "manual_entry"
+                            ? "Manual Entry"
+                            : template.input_mode === "upload"
+                              ? "Spreadsheet"
+                              : "Direct"}
                     </Badge>
                     <Badge variant="outline">{template.item_count} reviews</Badge>
                     <Badge variant="outline">{template.run_count} runs</Badge>

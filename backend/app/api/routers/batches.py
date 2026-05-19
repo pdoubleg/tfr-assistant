@@ -58,6 +58,22 @@ def validate_registered_forms(
                 status_code=400,
                 detail="Completed intake reviews require exactly one selected document.",
             )
+        if request.input_mode == "manual_entry":
+            if item.manual_result is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Manual entry row {index} needs a completed audit form.",
+                )
+            if item.manual_result.form_id != request.form_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Manual entry row {index} uses a different form.",
+                )
+            if item.manual_result.form_version != request.form_version:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Manual entry row {index} uses a different form version.",
+                )
 
 
 @router.get("/templates", response_model=list[BatchTemplateRecord])

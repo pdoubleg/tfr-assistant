@@ -23,8 +23,12 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { AuditFormResult, FormQuestion, FormSubQuestion, QuestionAnswer } from "@/lib/types";
+import { Toast } from "@/components/ui/toast";
+import type { AuditFormResult, FormQuestion, FormSubQuestion, OverallOutcome, QuestionAnswer } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+type DraftQuestionAnswer = QuestionAnswer | "";
+type DraftOverallOutcome = OverallOutcome | "";
 
 interface AuditFormMetadata {
   claimNumber?: string;
@@ -82,6 +86,14 @@ function normalizeFormForSubmit(form: AuditFormResult): AuditFormResult {
       sub_questions: question.sub_questions?.length ? question.sub_questions : null,
     })),
   };
+}
+
+function getQuestionAnswer(question: FormQuestion): DraftQuestionAnswer {
+  return (question.answer ?? "") as DraftQuestionAnswer;
+}
+
+function getOverallOutcome(form: AuditFormResult): DraftOverallOutcome {
+  return (form.overall_outcome ?? "") as DraftOverallOutcome;
 }
 
 function AutoResizeTextarea({
@@ -145,7 +157,7 @@ function AnswerButtons({
   value,
   onChange,
 }: {
-  value: QuestionAnswer;
+  value: DraftQuestionAnswer;
   onChange: (answer: QuestionAnswer) => void;
 }) {
   return (
@@ -180,14 +192,55 @@ function AnswerButtons({
   );
 }
 
+function OutcomeButtons({
+  value,
+  onChange,
+}: {
+  value: DraftOverallOutcome;
+  onChange: (outcome: OverallOutcome) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <button
+        type="button"
+        onClick={() => onChange("Meets")}
+        className={cn(
+          "inline-flex h-8 items-center gap-1 rounded-md border px-3 text-xs font-semibold transition-all active:scale-[0.98]",
+          value === "Meets"
+            ? "border-emerald-500/40 bg-emerald-600 text-white shadow-sm"
+            : "border-emerald-500/35 text-emerald-700 hover:bg-emerald-500/12 dark:text-emerald-300",
+        )}
+      >
+        <CheckCircle2 className="h-3.5 w-3.5" />
+        Meets
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("Does Not Meet")}
+        className={cn(
+          "inline-flex h-8 items-center gap-1 rounded-md border px-3 text-xs font-semibold transition-all active:scale-[0.98]",
+          value === "Does Not Meet"
+            ? "border-rose-500/40 bg-rose-600 text-white shadow-sm"
+            : "border-rose-500/35 text-rose-700 hover:bg-rose-500/12 dark:text-rose-300",
+        )}
+      >
+        <XCircle className="h-3.5 w-3.5" />
+        Does Not Meet
+      </button>
+    </div>
+  );
+}
+
 function SubQuestionRow({
   subQuestion,
   expanded,
+  disabled = false,
   onToggleExpanded,
   onChange,
 }: {
   subQuestion: FormSubQuestion;
   expanded: boolean;
+  disabled?: boolean;
   onToggleExpanded: () => void;
   onChange: (subQuestion: FormSubQuestion) => void;
 }) {
@@ -197,7 +250,11 @@ function SubQuestionRow({
     <div
       className={cn(
         "border-l-[3px] bg-background transition-colors",
-        selected ? "border-l-rose-500/70" : "border-l-emerald-500/60",
+        disabled
+          ? "border-l-muted bg-secondary/25 opacity-70"
+          : selected
+            ? "border-l-rose-500/70"
+            : "border-l-emerald-500/60",
       )}
     >
       <button
@@ -214,7 +271,7 @@ function SubQuestionRow({
           {subQuestion.id}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm leading-relaxed text-foreground/90">{subQuestion.text}</p>
+          <p className={cn("text-sm leading-relaxed", disabled ? "text-muted-foreground" : "text-foreground/90")}>{subQuestion.text}</p>
           {subQuestion.help_text ? (
             <p className="mt-1 text-xs italic text-muted-foreground">{subQuestion.help_text}</p>
           ) : null}
@@ -225,10 +282,15 @@ function SubQuestionRow({
         <div className="space-y-3 px-10 pb-4 pr-4">
           <button
             type="button"
-            onClick={() => onChange({ ...subQuestion, answer: !selected })}
+            onClick={() => {
+              if (!disabled) onChange({ ...subQuestion, answer: !selected });
+            }}
+            disabled={disabled}
             className={cn(
-              "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
-              selected
+              "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+              disabled
+                ? "border-border bg-secondary/35 text-muted-foreground"
+                : selected
                 ? "border-rose-500/35 bg-rose-500/12 text-rose-700 dark:text-rose-300"
                 : "border-border bg-secondary/45 text-muted-foreground hover:bg-secondary",
             )}
@@ -243,6 +305,7 @@ function SubQuestionRow({
               <AutoResizeTextarea
                 value={subQuestion.reasoning}
                 onChange={(event) => onChange({ ...subQuestion, reasoning: event.target.value })}
+                disabled={disabled}
                 placeholder="Explain why this driver does or does not apply..."
               />
               <CopyButton text={subQuestion.reasoning} />
@@ -255,6 +318,7 @@ function SubQuestionRow({
               <AutoResizeTextarea
                 value={subQuestion.citations}
                 onChange={(event) => onChange({ ...subQuestion, citations: event.target.value })}
+                disabled={disabled}
                 placeholder="Reference supporting evidence..."
               />
               <CopyButton text={subQuestion.citations} />
@@ -271,22 +335,33 @@ function QuestionRow({
   onChange,
   expandAllSignal,
   collapseAllSignal,
+  blankEntryMode = false,
 }: {
   question: FormQuestion;
   onChange: (question: FormQuestion) => void;
   expandAllSignal: number;
   collapseAllSignal: number;
+  blankEntryMode?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(question.answer === "No");
+  const questionAnswer = getQuestionAnswer(question);
+  const [expanded, setExpanded] = useState(questionAnswer === "No");
   const [expandedSubs, setExpandedSubs] = useState<Set<string>>(new Set());
+  const [driverClearNotice, setDriverClearNotice] = useState(false);
   const subQuestions = question.sub_questions ?? [];
   const driverCount = subQuestions.filter((subQuestion) => subQuestion.answer).length;
+  const subQuestionsDisabled = subQuestions.length > 0 && questionAnswer !== "No";
 
   useEffect(() => {
-    if (question.answer === "No" && subQuestions.length > 0) {
+    if (questionAnswer === "No" && subQuestions.length > 0) {
       setExpanded(true);
+      setDriverClearNotice(false);
+      return;
     }
-  }, [question.answer, subQuestions.length]);
+    if (blankEntryMode && subQuestions.length > 0) {
+      setExpanded(false);
+      setExpandedSubs(new Set());
+    }
+  }, [blankEntryMode, questionAnswer, subQuestions.length]);
 
   useEffect(() => {
     if (expandAllSignal === 0) return;
@@ -301,6 +376,7 @@ function QuestionRow({
   }, [collapseAllSignal]);
 
   const updateSubQuestion = (subQuestion: FormSubQuestion) => {
+    if (subQuestionsDisabled) return;
     onChange({
       ...question,
       sub_questions: subQuestions.map((candidate) =>
@@ -309,11 +385,28 @@ function QuestionRow({
     });
   };
 
+  const updateAnswer = (answer: QuestionAnswer) => {
+    const hadDrivers = driverCount > 0;
+    const nextSubQuestions = answer === "Yes" && subQuestions.length > 0
+      ? subQuestions.map((subQuestion) => ({ ...subQuestion, answer: false }))
+      : subQuestions;
+    setDriverClearNotice(answer === "Yes" && hadDrivers);
+    onChange({
+      ...question,
+      answer,
+      sub_questions: subQuestions.length > 0 ? nextSubQuestions : question.sub_questions,
+    });
+  };
+
   return (
     <div
       className={cn(
         "overflow-hidden rounded-lg border border-border/70 border-l-[3px] bg-card shadow-sm transition-shadow hover:shadow-md",
-        question.answer === "Yes" ? "border-l-emerald-500/70" : "border-l-rose-500/70",
+        questionAnswer === "Yes"
+          ? "border-l-emerald-500/70"
+          : questionAnswer === "No"
+            ? "border-l-rose-500/70"
+            : "border-l-muted",
       )}
     >
       <div className="flex flex-col gap-3 p-4 xl:flex-row xl:items-start">
@@ -329,23 +422,35 @@ function QuestionRow({
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <button
                 type="button"
+                disabled={blankEntryMode && questionAnswer !== "No"}
                 onClick={() => setExpanded((current) => !current)}
-                className="inline-flex items-center gap-1.5 rounded-md border bg-secondary/50 px-2.5 py-1.5 text-xs font-semibold text-foreground/75 transition-colors hover:bg-secondary"
+                className="inline-flex items-center gap-1.5 rounded-md border bg-secondary/50 px-2.5 py-1.5 text-xs font-semibold text-foreground/75 transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                 {subQuestions.length} option{subQuestions.length === 1 ? "" : "s"}
               </button>
-              {driverCount ? (
+              {driverCount && questionAnswer === "No" ? (
                 <Badge variant="danger" className="text-[11px]">
                   {driverCount} driver{driverCount === 1 ? "" : "s"}
                 </Badge>
               ) : null}
+              {subQuestionsDisabled ? (
+                <Badge variant="outline" className="text-[11px]">
+                  drivers off
+                </Badge>
+              ) : null}
             </div>
+          ) : null}
+          {driverClearNotice && questionAnswer === "Yes" ? (
+            <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-300">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Driver selections were cleared for this Yes answer.
+            </p>
           ) : null}
         </div>
         <AnswerButtons
-          value={question.answer}
-          onChange={(answer) => onChange({ ...question, answer })}
+          value={questionAnswer}
+          onChange={updateAnswer}
         />
       </div>
 
@@ -391,6 +496,7 @@ function QuestionRow({
                   return next;
                 })
               }
+              disabled={subQuestionsDisabled}
               onChange={updateSubQuestion}
             />
           ))}
@@ -407,6 +513,9 @@ export function AuditQuestionForm({
   onClose,
   collapsed = false,
   metadata,
+  submitLabel = "Submit Form",
+  allowSubmitWhenPristine = false,
+  blankEntryMode = false,
 }: {
   reviewId: string;
   form: AuditFormResult;
@@ -414,6 +523,9 @@ export function AuditQuestionForm({
   onClose?: () => void;
   collapsed?: boolean;
   metadata?: AuditFormMetadata;
+  submitLabel?: string;
+  allowSubmitWhenPristine?: boolean;
+  blankEntryMode?: boolean;
 }) {
   const [draft, setDraft] = useState(() => cloneForm(form));
   const [baseline, setBaseline] = useState(() => cloneForm(form));
@@ -425,6 +537,7 @@ export function AuditQuestionForm({
   const [nestedExpanded, setNestedExpanded] = useState(false);
   const [saveNotice, setSaveNotice] = useState<{
     type: "error" | "success";
+    title: string;
     message: string;
   } | null>(null);
 
@@ -441,12 +554,17 @@ export function AuditQuestionForm({
     () => JSON.stringify(draft) !== JSON.stringify(baseline),
     [draft, baseline],
   );
-  const yesCount = draft.questions.filter((question) => question.answer === "Yes").length;
-  const noCount = draft.questions.filter((question) => question.answer === "No").length;
+  const yesCount = draft.questions.filter((question) => getQuestionAnswer(question) === "Yes").length;
+  const noCount = draft.questions.filter((question) => getQuestionAnswer(question) === "No").length;
+  const unansweredCount = draft.questions.filter((question) => !getQuestionAnswer(question)).length;
   const driverCount = draft.questions.reduce(
-    (count, question) => count + (question.sub_questions ?? []).filter((subQuestion) => subQuestion.answer).length,
+    (count, question) =>
+      count + (getQuestionAnswer(question) === "No"
+        ? (question.sub_questions ?? []).filter((subQuestion) => subQuestion.answer).length
+        : 0),
     0,
   );
+  const overallOutcome = getOverallOutcome(draft);
   const metadataItems = useMemo(
     () => buildMetadataItems(reviewId, metadata),
     [metadata, reviewId],
@@ -463,9 +581,16 @@ export function AuditQuestionForm({
   };
 
   const save = async () => {
-    const localValidationError = validateFormForSubmit(draft);
+    const localValidationError = validateFormForSubmit(draft, {
+      manualEntryMode: blankEntryMode,
+      requireOutcomeJustification: blankEntryMode,
+    });
     if (localValidationError) {
-      setSaveNotice({ type: "error", message: localValidationError });
+      setSaveNotice({
+        type: "error",
+        title: "Form needs attention",
+        message: localValidationError,
+      });
       return;
     }
 
@@ -478,12 +603,14 @@ export function AuditQuestionForm({
       setSavedPulse(true);
       setSaveNotice({
         type: "success",
-        message: "Form saved.",
+        title: "Form saved",
+        message: "This entry is ready in the batch configuration.",
       });
       window.setTimeout(() => setSavedPulse(false), 1800);
     } catch (error) {
       setSaveNotice({
         type: "error",
+        title: "Unable to save form",
         message: error instanceof Error ? error.message : "Unable to save the form.",
       });
     } finally {
@@ -493,34 +620,13 @@ export function AuditQuestionForm({
 
   return (
     <article className="relative overflow-hidden rounded-lg border bg-card shadow-sm">
-      {saveNotice ? (
-        <div
-          className={cn(
-            "absolute right-4 top-4 z-20 max-w-md rounded-lg border px-4 py-3 text-sm shadow-lg backdrop-blur",
-            saveNotice.type === "error"
-              ? "border-destructive/35 bg-destructive/95 text-destructive-foreground"
-              : "border-emerald-500/35 bg-emerald-600 text-white",
-          )}
-        >
-          <div className="flex items-start gap-2">
-            {saveNotice.type === "error" ? (
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            ) : (
-              <CheckCheck className="mt-0.5 h-4 w-4 shrink-0" />
-            )}
-            <p className="leading-relaxed">{saveNotice.message}</p>
-            <button
-              type="button"
-              onClick={() => setSaveNotice(null)}
-              className="ml-1 rounded p-0.5 opacity-80 transition-opacity hover:opacity-100"
-              aria-label="Dismiss save message"
-              title="Dismiss"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
-      ) : null}
+      <Toast
+        open={Boolean(saveNotice)}
+        variant={saveNotice?.type ?? "info"}
+        title={saveNotice?.title ?? ""}
+        message={saveNotice?.message}
+        onClose={() => setSaveNotice(null)}
+      />
       <div className="relative border-b bg-secondary/45 px-4 py-3 pr-36">
         <div className="flex flex-wrap items-start gap-3">
           <div className="min-w-0">
@@ -585,12 +691,17 @@ export function AuditQuestionForm({
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Badge variant={draft.overall_outcome === "Meets" ? "success" : "danger"}>
-            {draft.overall_outcome}
-          </Badge>
+          {overallOutcome ? (
+            <Badge variant={overallOutcome === "Meets" ? "success" : "danger"}>
+              {overallOutcome}
+            </Badge>
+          ) : (
+            <Badge variant="outline">Outcome not selected</Badge>
+          )}
           <Badge variant="outline">{draft.questions.length} questions</Badge>
           <Badge variant="success">{yesCount} Yes</Badge>
           <Badge variant="danger">{noCount} No</Badge>
+          {unansweredCount ? <Badge variant="outline">{unansweredCount} unanswered</Badge> : null}
           {driverCount ? <Badge variant="warning">{driverCount} drivers</Badge> : null}
           <span className="ml-auto inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             {saving ? (
@@ -628,6 +739,7 @@ export function AuditQuestionForm({
                 onChange={updateQuestion}
                 expandAllSignal={expandAllSignal}
                 collapseAllSignal={collapseAllSignal}
+                blankEntryMode={blankEntryMode}
               />
             ))}
           </div>
@@ -638,32 +750,19 @@ export function AuditQuestionForm({
                 <label className="text-[11px] font-semibold uppercase text-muted-foreground">
                   Overall Rating
                 </label>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <Badge variant={draft.overall_outcome === "Meets" ? "success" : "danger"}>
-                    {draft.overall_outcome}
-                  </Badge>
+                <div className="mt-2">
+                  <OutcomeButtons
+                    value={overallOutcome}
+                    onChange={(overall_outcome) => {
+                      setSaveNotice(null);
+                      setDraft((current) => ({
+                        ...current,
+                        overall_outcome,
+                      }));
+                    }}
+                  />
                 </div>
               </div>
-              <Button
-                type="button"
-                variant={draft.overall_outcome === "Meets" ? "destructive" : "default"}
-                size="sm"
-                className="gap-1.5"
-                onClick={() => {
-                  setSaveNotice(null);
-                  setDraft((current) => ({
-                    ...current,
-                    overall_outcome: current.overall_outcome === "Meets" ? "Does Not Meet" : "Meets",
-                  }));
-                }}
-              >
-                {draft.overall_outcome === "Meets" ? (
-                  <XCircle className="h-3.5 w-3.5" />
-                ) : (
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                )}
-                Update to {draft.overall_outcome === "Meets" ? "Does Not Meet" : "Meets"}
-              </Button>
             </div>
 
             <div className="mt-4">
@@ -710,9 +809,9 @@ export function AuditQuestionForm({
                   Close
                 </Button>
               ) : null}
-              <Button type="button" size="sm" onClick={save} disabled={saving || !dirty}>
+              <Button type="button" size="sm" onClick={save} disabled={saving || (!dirty && !allowSubmitWhenPristine)}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                Submit Form
+                {submitLabel}
               </Button>
             </div>
           </div>
@@ -722,26 +821,49 @@ export function AuditQuestionForm({
   );
 }
 
-function validateFormForSubmit(form: AuditFormResult): string {
+function validateFormForSubmit(
+  form: AuditFormResult,
+  {
+    manualEntryMode = false,
+    requireOutcomeJustification = false,
+  }: {
+    manualEntryMode?: boolean;
+    requireOutcomeJustification?: boolean;
+  } = {},
+): string {
+  if (!getOverallOutcome(form)) {
+    return "Choose an overall rating before submitting.";
+  }
+  if (requireOutcomeJustification && !form.outcome_justification.trim()) {
+    return "Add an outcome justification before submitting.";
+  }
   for (const question of form.questions) {
+    const answer = getQuestionAnswer(question);
+    if (!answer) {
+      return `${question.id} needs a Yes or No answer before submitting.`;
+    }
     const subQuestions = question.sub_questions ?? [];
     if (subQuestions.length === 0) {
-      if (!question.comments?.trim()) {
+      const needsQuestionReasoning = !manualEntryMode || answer === "No";
+      if (needsQuestionReasoning && !question.comments?.trim()) {
         return `${question.id} needs question-level comments before submitting.`;
       }
-      if (!question.citations?.trim()) {
+      if (!manualEntryMode && !question.citations?.trim()) {
         return `${question.id} needs question-level citations before submitting.`;
       }
     }
-    if (subQuestions.length > 0 && !subQuestions.some((subQuestion) => subQuestion.answer)) {
+    if (answer === "No" && subQuestions.length > 0 && !subQuestions.some((subQuestion) => subQuestion.answer)) {
       return `${question.id} has driver options. Select at least one driver before submitting.`;
+    }
+    if (answer === "Yes" && subQuestions.some((subQuestion) => subQuestion.answer)) {
+      return `${question.id} is Yes, so its driver options must be off before submitting.`;
     }
     for (const subQuestion of subQuestions) {
       if (!subQuestion.answer) continue;
       if (!subQuestion.reasoning.trim()) {
         return `${subQuestion.id} is selected and needs reasoning before submitting.`;
       }
-      if (!subQuestion.citations.trim()) {
+      if (!manualEntryMode && !subQuestion.citations.trim()) {
         return `${subQuestion.id} is selected and needs citations before submitting.`;
       }
     }

@@ -2,8 +2,9 @@ import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.db.models import Base
-from app.schemas.reviews import BatchCreateRequest, BatchReviewInput
-from app.services.audit_generation import BatchReviewGenerationService
+from app.schemas.reviews import BatchCreateRequest, BatchReviewInput, ReviewGenerateRequest
+from app.services.audit_generation import AuditGenerationService, BatchReviewGenerationService
+from app.services.catalog import FormCatalog
 from app.services.review_repository import ReviewRepository
 
 
@@ -121,6 +122,118 @@ async def test_synthetic_batch_creates_synth_claims_and_source(session):
         (review.input_json or {}).get("claim_number", "").startswith("SYNTH_") for review in reviews
     )
     assert all((review.input_json or {}).get("generation_prompt") for review in reviews)
+
+
+@pytest.mark.anyio
+async def test_manual_entry_batch_queues_manual_results_and_completes_without_agent(session):
+    service = BatchReviewGenerationService(session)
+    canonical = (
+        FormCatalog(service.settings.form_catalog_dir)
+        .get_form(
+            "tfr_default",
+            "v0.1",
+        )
+        .canonical.model_copy(deep=True)
+    )
+
+    batch = await service.create_batch(
+        BatchCreateRequest(
+            name="Manual entries",
+            form_id="tfr_default",
+            form_version="v0.1",
+            input_mode="manual_entry",
+            items=[
+                BatchReviewInput(
+                    claim_number="MANUAL-001",
+                    effective_date="2026-05-18",
+                    manual_result=canonical,
+                )
+            ],
+        )
+    )
+    reviews = await ReviewRepository(session).list_reviews(batch_id=batch.id)
+
+    assert batch.source == "manual_entry"
+    assert len(reviews) == 1
+    assert reviews[0].source == "manual_entry"
+    assert reviews[0].status == "queued"
+    assert (reviews[0].input_json or {}).get("manual_result")
+
+    completed = await AuditGenerationService(session).generate_for_review(
+        reviews[0].id,
+        ReviewGenerateRequest.model_validate(reviews[0].input_json or {}),
+    )
+
+    assert completed.status == "completed"
+    assert completed.source == "manual_entry"
+    assert completed.original is not None
+    assert completed.original.form_id == "tfr_default"
+    assert (completed.input_json or {}).get("claim_number") == "MANUAL-001"
+
+
+@pytest.mark.anyio
+async def test_manual_entry_allows_yes_without_evidence_and_driver_without_citation(session):
+    service = BatchReviewGenerationService(session)
+    manual_result = (
+        FormCatalog(service.settings.form_catalog_dir)
+        .get_form(
+            "interior_water",
+            "v0.1",
+        )
+        .canonical.model_copy(deep=True)
+    )
+    manual_result.overall_outcome = "Does Not Meet"
+    manual_result.outcome_justification = "Manual reviewer found one room-level support issue."
+
+    manual_result.questions[0].answer = "Yes"
+    manual_result.questions[0].comments = ""
+    manual_result.questions[0].citations = ""
+
+    manual_result.questions[1].answer = "No"
+    manual_result.questions[1].comments = None
+    manual_result.questions[1].citations = None
+    manual_result.questions[1].sub_questions[0].answer = True
+    manual_result.questions[1].sub_questions[
+        0
+    ].reasoning = "Photos do not support the dining room repair area."
+    manual_result.questions[1].sub_questions[0].citations = ""
+    manual_result.questions[1].sub_questions[1].answer = False
+    manual_result.questions[1].sub_questions[1].reasoning = ""
+    manual_result.questions[1].sub_questions[1].citations = ""
+
+    manual_result.questions[2].answer = "Yes"
+    manual_result.questions[2].comments = ""
+    manual_result.questions[2].citations = ""
+
+    batch = await service.create_batch(
+        BatchCreateRequest(
+            name="Flexible manual entry",
+            form_id="interior_water",
+            form_version="v0.1",
+            input_mode="manual_entry",
+            items=[
+                BatchReviewInput(
+                    claim_number="MANUAL-002",
+                    effective_date="2026-05-18",
+                    manual_result=manual_result,
+                )
+            ],
+        )
+    )
+    reviews = await ReviewRepository(session).list_reviews(batch_id=batch.id)
+
+    completed = await AuditGenerationService(session).generate_for_review(
+        reviews[0].id,
+        ReviewGenerateRequest.model_validate(reviews[0].input_json or {}),
+    )
+
+    assert completed.status == "completed"
+    assert completed.original is not None
+    assert completed.original.questions[0].answer == "Yes"
+    assert completed.original.questions[0].comments == ""
+    assert completed.original.questions[1].sub_questions
+    assert completed.original.questions[1].sub_questions[0].answer is True
+    assert completed.original.questions[1].sub_questions[0].citations == ""
 
 
 @pytest.mark.anyio

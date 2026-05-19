@@ -272,6 +272,8 @@ def merge_payload_with_canonical(
     form_version: str | None = None,
     title: str | None = None,
     description: str | None = None,
+    require_citations: bool = True,
+    require_yes_question_evidence: bool = True,
 ) -> dict[str, Any]:
     """Merge a sparse generated payload with a complete canonical form.
 
@@ -418,7 +420,7 @@ def merge_payload_with_canonical(
 
                 if not _has_text(generated_sub_question.get("reasoning")):
                     problems.append(f"{canonical_sub_question.id} needs reasoning.")
-                if not _has_text(generated_sub_question.get("citations")):
+                if require_citations and not _has_text(generated_sub_question.get("citations")):
                     problems.append(f"{canonical_sub_question.id} needs citations.")
                 merged_sub_questions.append(
                     {
@@ -457,9 +459,14 @@ def merge_payload_with_canonical(
                 f"{canonical_question.id} has no canonical sub_questions; use "
                 "question-level comments and citations instead."
             )
-        if not _has_text(generated_question.get("comments")):
+        requires_question_evidence = answer == "No" or require_yes_question_evidence
+        if requires_question_evidence and not _has_text(generated_question.get("comments")):
             problems.append(f"{canonical_question.id} needs question-level comments.")
-        if not _has_text(generated_question.get("citations")):
+        if (
+            requires_question_evidence
+            and require_citations
+            and not _has_text(generated_question.get("citations"))
+        ):
             problems.append(f"{canonical_question.id} needs question-level citations.")
 
         merged_questions.append(
@@ -498,6 +505,8 @@ def merge_with_canonical(
     form_version: str | None = None,
     title: str | None = None,
     description: str | None = None,
+    require_citations: bool = True,
+    require_yes_question_evidence: bool = True,
 ) -> AuditFormResult:
     """Merge sparse generated audit answers with a complete canonical form."""
 
@@ -508,6 +517,8 @@ def merge_with_canonical(
         form_version=form_version,
         title=title,
         description=description,
+        require_citations=require_citations,
+        require_yes_question_evidence=require_yes_question_evidence,
     )
     return AuditFormResult.model_validate(payload)
 

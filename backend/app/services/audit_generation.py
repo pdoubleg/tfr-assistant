@@ -46,6 +46,9 @@ class AuditResultValidator:
         self,
         result: AuditFormResult,
         canonical: AuditFormDefinition,
+        *,
+        require_citations: bool = True,
+        require_yes_question_evidence: bool = True,
     ) -> AuditFormResult:
         return merge_with_canonical(
             result,
@@ -54,6 +57,8 @@ class AuditResultValidator:
             form_version=canonical.version,
             title=canonical.title,
             description=canonical.canonical.description,
+            require_citations=require_citations,
+            require_yes_question_evidence=require_yes_question_evidence,
         )
 
 
@@ -141,6 +146,22 @@ class CompletedIntakeAuditFormGenerator:
 
 
 @dataclass(slots=True)
+class ManualEntryAuditFormGenerator:
+    async def generate(
+        self,
+        request: ReviewGenerateRequest,
+        canonical: AuditFormDefinition,
+    ) -> GeneratedAuditResult:
+        if request.manual_result is None:
+            raise ValueError("Manual entry reviews require a submitted audit form.")
+        if request.manual_result.form_id != canonical.id:
+            raise ValueError("Manual entry form does not match the selected batch form.")
+        if request.manual_result.form_version != canonical.version:
+            raise ValueError("Manual entry form version does not match the selected batch form.")
+        return GeneratedAuditResult(result=request.manual_result)
+
+
+@dataclass(slots=True)
 class AuditGenerationService:
     session: AsyncSession
     settings: Settings = field(default_factory=get_settings)
@@ -198,13 +219,24 @@ class AuditGenerationService:
                 )
 
             reporter.in_progress("Validating generated audit output...", progress=75)
-            aligned = self.validator.align_to_canonical(generated.result, canonical)
+            manual_entry = request.input_mode == "manual_entry"
+            aligned = self.validator.align_to_canonical(
+                generated.result,
+                canonical,
+                require_citations=not manual_entry,
+                require_yes_question_evidence=not manual_entry,
+            )
 
             reporter.in_progress(
                 "Saving immutable original and editable user version...",
                 progress=90,
             )
-            review = await self.repository.complete_review_with_result(review_id, aligned)
+            created_by = "user" if request.input_mode == "manual_entry" else "agent"
+            review = await self.repository.complete_review_with_result(
+                review_id,
+                aligned,
+                created_by=created_by,
+            )
             reporter.completed("Audit review saved.", progress=100)
             return review
         except Exception as exc:
@@ -212,6 +244,8 @@ class AuditGenerationService:
             return await self.repository.mark_review_failed(review_id, str(exc))
 
     def _generator_for(self, request: ReviewGenerateRequest) -> AuditFormGenerator:
+        if request.input_mode == "manual_entry":
+            return ManualEntryAuditFormGenerator()
         if request.input_mode == "completed_intake":
             return CompletedIntakeAuditFormGenerator(self.catalog, self.settings)
         if request.synthetic or request.input_mode == "synthetic":
@@ -351,6 +385,7 @@ class BatchReviewGenerationService:
             form_id=batch_request.form_id,
             form_version=batch_request.form_version,
             source_file_ids=item.source_file_ids,
+            manual_result=item.manual_result,
             synthetic=(
                 batch_request.synthetic or batch_request.input_mode == "synthetic"
                 if item.synthetic is None
@@ -394,6 +429,13 @@ class BatchReviewGenerationService:
                 )
             if request.input_mode == "completed_intake" and len(item.source_file_ids) != 1:
                 raise ValueError("Completed intake reviews require exactly one selected document.")
+            if request.input_mode == "manual_entry":
+                if item.manual_result is None:
+                    raise ValueError(f"Manual entry row {index} needs a completed audit form.")
+                if item.manual_result.form_id != request.form_id:
+                    raise ValueError(f"Manual entry row {index} uses a different form.")
+                if item.manual_result.form_version != request.form_version:
+                    raise ValueError(f"Manual entry row {index} uses a different form version.")
         try:
             catalog.get_form(request.form_id, request.form_version)
         except KeyError as exc:
@@ -403,6 +445,8 @@ class BatchReviewGenerationService:
             ) from exc
 
     def _source_for_request(self, request: BatchCreateRequest) -> str:
+        if request.input_mode == "manual_entry":
+            return "manual_entry"
         if request.input_mode == "completed_intake":
             return "completed_intake"
         if request.synthetic or request.input_mode == "synthetic":

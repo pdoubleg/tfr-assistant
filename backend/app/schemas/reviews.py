@@ -14,9 +14,16 @@ ReviewSource = Literal[
     "batch_upload",
     "synthetic",
     "completed_intake",
+    "manual_entry",
     "eval",
 ]
-BatchInputMode = Literal["manual", "upload", "synthetic", "completed_intake"]
+BatchInputMode = Literal[
+    "manual",
+    "upload",
+    "synthetic",
+    "completed_intake",
+    "manual_entry",
+]
 BatchStatus = Literal["queued", "running", "paused", "completed", "failed", "canceled"]
 BatchReviewSource = Literal[
     "batch",
@@ -24,6 +31,7 @@ BatchReviewSource = Literal[
     "batch_upload",
     "synthetic",
     "completed_intake",
+    "manual_entry",
 ]
 BATCH_REVIEW_SOURCES: tuple[BatchReviewSource, ...] = (
     "batch",
@@ -31,6 +39,7 @@ BATCH_REVIEW_SOURCES: tuple[BatchReviewSource, ...] = (
     "batch_upload",
     "synthetic",
     "completed_intake",
+    "manual_entry",
 )
 
 
@@ -53,6 +62,7 @@ class ReviewGenerateRequest(BaseModel):
     input_mode: BatchInputMode = "manual"
     generation_prompt: str = ""
     form_metadata: dict[str, str] = Field(default_factory=dict)
+    manual_result: AuditFormResult | None = None
     eval_run_id: str = ""
     eval_run_name: str = ""
     eval_dataset_id: str = ""
@@ -90,6 +100,7 @@ class BatchReviewInput(BaseModel):
     form_id: str | None = None
     form_version: str | None = None
     synthetic: bool | None = None
+    manual_result: AuditFormResult | None = None
 
 
 class BatchCreateRequest(BaseModel):

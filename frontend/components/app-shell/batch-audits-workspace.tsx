@@ -6,6 +6,7 @@ import {
   BarChart3,
   ChevronDown,
   ChevronRight,
+  ClipboardList,
   Clock3,
   Eye,
   FileText,
@@ -15,16 +16,19 @@ import {
   Pause,
   Play,
   PlayCircle,
+  Plus,
   RefreshCw,
   RotateCcw,
   Search,
   Sparkles,
   Square,
   SquarePen,
+  Trash2,
   X,
 } from "lucide-react";
 
 import { BatchRunDialog } from "@/components/app-shell/batch-run-dialog";
+import { AuditQuestionForm } from "@/components/output/audit-question-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -131,6 +135,7 @@ function templateFormKey(template: BatchTemplateRecord): string {
 function sourceLabel(source?: string, inputMode?: string, synthetic?: boolean): string {
   if (source === "synthetic" || synthetic || inputMode === "synthetic") return "Synthetic";
   if (source === "completed_intake" || inputMode === "completed_intake") return "Completed Intake";
+  if (source === "manual_entry" || inputMode === "manual_entry") return "Manual Entry";
   if (source === "batch_upload" || inputMode === "upload") return "Spreadsheet";
   if (source === "batch_manual" || inputMode === "manual") return "Manual";
   if (source === "batch") return "Legacy Batch";
@@ -244,6 +249,9 @@ export function BatchAuditsWorkspace() {
   const [dialogQueueItemId, setDialogQueueItemId] = useState("");
   const [syntheticDialogOpen, setSyntheticDialogOpen] = useState(false);
   const [intakeDialogOpen, setIntakeDialogOpen] = useState(false);
+  const [manualEntryDialogOpen, setManualEntryDialogOpen] = useState(false);
+  const [manualEntryTemplate, setManualEntryTemplate] = useState<BatchTemplateRecord | null>(null);
+  const [manualEntryQueueItemId, setManualEntryQueueItemId] = useState("");
   const [intakeDocuments, setIntakeDocuments] = useState<IntakeDocumentRecord[]>([]);
   const [loadingIntakeDocuments, setLoadingIntakeDocuments] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState<BatchRecord | null>(null);
@@ -483,6 +491,31 @@ export function BatchAuditsWorkspace() {
     }
   };
 
+  const saveManualEntryBatch = async (payload: BatchTemplatePayload) => {
+    setSaving(true);
+    setError("");
+    try {
+      const queuedItem = await createQueuedConfiguration(payload);
+      setQueueItems((current) => {
+        if (manualEntryQueueItemId) {
+          return current.map((item) => (item.id === manualEntryQueueItemId ? queuedItem : item));
+        }
+        return [
+          queuedItem,
+          ...current.filter((item) => item.templateId !== queuedItem.templateId),
+        ];
+      });
+      setManualEntryDialogOpen(false);
+      setManualEntryTemplate(null);
+      setManualEntryQueueItemId("");
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save manual entry configuration.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const launchTemplate = async (queueItem: ProductionQueueItem, template: BatchTemplateRecord) => {
     if (!queueItem.activated) return;
     setLaunchingTemplateId(template.id);
@@ -539,12 +572,24 @@ export function BatchAuditsWorkspace() {
     }
   };
 
+  const openManualEntry = () => {
+    setManualEntryTemplate(null);
+    setManualEntryQueueItemId("");
+    setManualEntryDialogOpen(true);
+  };
+
   const openProductionConfig = (item: ProductionQueueItem, template: BatchTemplateRecord) => {
     setQueueItems((current) =>
       current.map((candidate) =>
         candidate.id === item.id ? { ...candidate, activated: true } : candidate,
       ),
     );
+    if (template.input_mode === "manual_entry") {
+      setManualEntryTemplate(template);
+      setManualEntryQueueItemId(item.id);
+      setManualEntryDialogOpen(true);
+      return;
+    }
     setDialogTemplate(template);
     setDialogQueueItemId(item.id);
     setDialogOpen(true);
@@ -602,6 +647,10 @@ export function BatchAuditsWorkspace() {
           <Button type="button" variant="outline" size="sm" onClick={() => void openCompletedIntake()}>
             <FileInput className="h-4 w-4" />
             Completed Intake
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={openManualEntry}>
+            <ClipboardList className="h-4 w-4" />
+            Manual Entry
           </Button>
           <Button type="button" size="sm" onClick={() => openNewBatch()}>
             <PlayCircle className="h-4 w-4" />
@@ -694,6 +743,21 @@ export function BatchAuditsWorkspace() {
         onSave={saveIntakeBatch}
       />
 
+      <ManualEntryDialog
+        open={manualEntryDialogOpen}
+        forms={forms}
+        template={manualEntryTemplate}
+        saving={saving}
+        onPreviewForm={previewForm}
+        onClose={() => {
+          if (saving) return;
+          setManualEntryDialogOpen(false);
+          setManualEntryTemplate(null);
+          setManualEntryQueueItemId("");
+        }}
+        onSave={saveManualEntryBatch}
+      />
+
       <BatchSummaryDrawer
         batch={selectedBatch}
         reviews={summaryReviews}
@@ -743,6 +807,79 @@ function newSyntheticRow(): SyntheticRunRow {
     generationPrompt: "",
     syntheticCount: 3,
   };
+}
+
+interface ManualEntryRecord {
+  id: string;
+  claimNumber: string;
+  effectiveDate: string;
+  result: AuditFormResult;
+}
+
+function newLocalId(prefix: string): string {
+  return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function cloneAuditForm(form: AuditFormResult): AuditFormResult {
+  return JSON.parse(JSON.stringify(form)) as AuditFormResult;
+}
+
+function createManualEntryDraft(form: AuditFormResult): AuditFormResult {
+  const draft = cloneAuditForm(form);
+  return {
+    ...draft,
+    overall_outcome: "" as AuditFormResult["overall_outcome"],
+    outcome_justification: "",
+    questions: draft.questions.map((question) => {
+      const subQuestions = question.sub_questions ?? [];
+      if (subQuestions.length === 0) {
+        return {
+          ...question,
+          answer: "" as AuditFormResult["questions"][number]["answer"],
+          comments: "",
+          citations: "",
+        };
+      }
+      return {
+        ...question,
+        answer: "" as AuditFormResult["questions"][number]["answer"],
+        comments: null,
+        citations: null,
+        sub_questions: subQuestions.map((subQuestion) => ({
+          ...subQuestion,
+          reasoning: "",
+          citations: "",
+          answer: false,
+        })),
+      };
+    }),
+  };
+}
+
+function manualEntriesFromTemplate(template?: BatchTemplateRecord | null): ManualEntryRecord[] {
+  if (!template) return [];
+  return template.items.flatMap((item, index) => {
+    if (!item.manual_result) return [];
+    return [
+      {
+        id: item.manual_result.id ?? newLocalId(`manual_${index + 1}`),
+        claimNumber: item.claim_number,
+        effectiveDate: item.effective_date ?? "",
+        result: cloneAuditForm(item.manual_result),
+      },
+    ];
+  });
+}
+
+function manualEntryOutcomeSummary(form: AuditFormResult): string {
+  const noCount = form.questions.filter((question) => question.answer === "No").length;
+  const driverCount = form.questions.reduce(
+    (count, question) => count + (question.sub_questions ?? []).filter((subQuestion) => subQuestion.answer).length,
+    0,
+  );
+  const issueText = noCount === 1 ? "1 issue" : `${noCount} issues`;
+  const driverText = driverCount === 1 ? "1 driver" : `${driverCount} drivers`;
+  return `${form.overall_outcome} · ${issueText} · ${driverText}`;
 }
 
 function SelectedFormPreview({
@@ -1134,6 +1271,353 @@ function CompletedIntakeDialog({
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
             Save Configuration
           </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ManualEntryDialog({
+  open,
+  forms,
+  template,
+  saving,
+  onPreviewForm,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  forms: FormCatalogEntry[];
+  template?: BatchTemplateRecord | null;
+  saving: boolean;
+  onPreviewForm: (formId: string, formVersion: string) => void;
+  onClose: () => void;
+  onSave: (payload: BatchTemplatePayload) => Promise<void> | void;
+}) {
+  const [name, setName] = useState("Manual entry");
+  const [description, setDescription] = useState("");
+  const [formKey, setFormKey] = useState(defaultFormKey());
+  const [entries, setEntries] = useState<ManualEntryRecord[]>([]);
+  const [formDefinition, setFormDefinition] = useState<AuditFormDefinition | null>(null);
+  const [loadingForm, setLoadingForm] = useState(false);
+  const [definitionError, setDefinitionError] = useState("");
+  const [formError, setFormError] = useState("");
+  const [editorEntry, setEditorEntry] = useState<ManualEntryRecord | null>(null);
+  useBodyScrollLock(open);
+
+  useEffect(() => {
+    if (!open) return;
+    setName(template?.name ?? "Manual entry");
+    setDescription(template?.description ?? "");
+    setFormKey(template ? `${template.form_id}@${template.form_version}` : defaultFormKey());
+    setEntries(manualEntriesFromTemplate(template));
+    setFormDefinition(null);
+    setDefinitionError("");
+    setFormError("");
+    setEditorEntry(null);
+  }, [open, template]);
+
+  useEffect(() => {
+    if (!open || !formKey) {
+      setFormDefinition(null);
+      setLoadingForm(false);
+      setDefinitionError("");
+      return;
+    }
+
+    let canceled = false;
+    const { form_id, form_version } = splitFormKey(formKey);
+    setLoadingForm(true);
+    setDefinitionError("");
+    void getFormDefinition(form_id, form_version)
+      .then((definition) => {
+        if (!canceled) setFormDefinition(definition);
+      })
+      .catch((error) => {
+        if (!canceled) {
+          setFormDefinition(null);
+          setDefinitionError(error instanceof Error ? error.message : "Unable to load the selected form.");
+        }
+      })
+      .finally(() => {
+        if (!canceled) setLoadingForm(false);
+      });
+
+    return () => {
+      canceled = true;
+    };
+  }, [formKey, open]);
+
+  if (!open) return null;
+
+  const selectedForm = forms.find((form) => formKeyFor(form) === formKey);
+  const headerSubtitle = selectedForm
+    ? `${selectedForm.title} · ${selectedForm.questionCount} questions`
+    : "Save manually completed forms to the production queue";
+
+  const changeForm = (nextFormKey: string) => {
+    setFormKey(nextFormKey);
+    setEntries([]);
+    setEditorEntry(null);
+    setFormError("");
+  };
+
+  const openEditor = (entry?: ManualEntryRecord) => {
+    if (!formKey) {
+      setFormError("Select a registered form before adding a manual entry.");
+      return;
+    }
+    if (!formDefinition) {
+      setFormError(loadingForm ? "The selected form is still loading." : "Unable to load the selected form.");
+      return;
+    }
+    setFormError("");
+    setEditorEntry(
+      entry
+        ? { ...entry, result: cloneAuditForm(entry.result) }
+        : {
+            id: newLocalId("manual"),
+            claimNumber: "",
+            effectiveDate: "",
+            result: createManualEntryDraft(formDefinition.canonical),
+          },
+    );
+  };
+
+  const saveEntry = (entry: ManualEntryRecord) => {
+    const nextEntry = { ...entry, result: cloneAuditForm(entry.result) };
+    setEntries((current) =>
+      current.some((candidate) => candidate.id === nextEntry.id)
+        ? current.map((candidate) => (candidate.id === nextEntry.id ? nextEntry : candidate))
+        : [...current, nextEntry],
+    );
+    setEditorEntry(null);
+    setFormError("");
+  };
+
+  const removeEntry = (entryId: string) => {
+    setEntries((current) => current.filter((entry) => entry.id !== entryId));
+  };
+
+  const save = async () => {
+    const runName = name.trim();
+    if (!runName) {
+      setFormError("Run name is required.");
+      return;
+    }
+    if (!formKey) {
+      setFormError("Select a registered form.");
+      return;
+    }
+    if (!entries.length) {
+      setFormError("Add at least one submitted audit form before saving this configuration.");
+      return;
+    }
+    const missingClaim = entries.find((entry) => !entry.claimNumber.trim());
+    if (missingClaim) {
+      setFormError("Each manual entry needs a claim number.");
+      return;
+    }
+    const { form_id, form_version } = splitFormKey(formKey);
+    setFormError("");
+    await onSave({
+      name: runName,
+      description: description.trim(),
+      form_id,
+      form_version,
+      synthetic: false,
+      synthetic_count: 0,
+      input_mode: "manual_entry",
+      generation_prompt: "",
+      excel_column_map: {},
+      items: entries.map((entry) => ({
+        claim_number: entry.claimNumber.trim(),
+        effective_date: entry.effectiveDate.trim(),
+        instructions: "",
+        prompt: "",
+        generation_prompt: "",
+        source_file_ids: [],
+        synthetic: false,
+        manual_result: {
+          ...cloneAuditForm(entry.result),
+          form_id,
+          form_version,
+        },
+      })),
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border bg-card shadow-2xl">
+        <DialogHeader title={selectedForm ? `Manual Entry: ${selectedForm.title}` : "Manual Entry"} subtitle={headerSubtitle} onClose={onClose} />
+        <div className="chat-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-6">
+          <div className="grid gap-2">
+            <span className="text-sm font-medium">Registered Form</span>
+            <select
+              value={formKey}
+              onChange={(event) => changeForm(event.target.value)}
+              disabled={saving}
+              className="h-10 min-w-0 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="">None</option>
+              {forms.map((form) => (
+                <option key={formKeyFor(form)} value={formKeyFor(form)}>
+                  {form.title} - {form.id}@{form.version}
+                </option>
+              ))}
+            </select>
+            {selectedForm ? (
+              <SelectedFormPreview
+                form={selectedForm}
+                onPreview={() => onPreviewForm(selectedForm.id, selectedForm.version)}
+              />
+            ) : null}
+            {loadingForm ? (
+              <p className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Loading form editor
+              </p>
+            ) : null}
+            {definitionError ? <p className="text-sm text-destructive">{definitionError}</p> : null}
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+            <label className="grid gap-2">
+              <span className="text-sm font-medium">Run Name</span>
+              <Input value={name} onChange={(event) => setName(event.target.value)} disabled={saving} />
+            </label>
+            <label className="grid gap-2">
+              <span className="text-sm font-medium">Description</span>
+              <Input value={description} onChange={(event) => setDescription(event.target.value)} disabled={saving} />
+            </label>
+          </div>
+
+          <div className="overflow-hidden rounded-lg border">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-secondary/35 px-4 py-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-semibold">Submitted Forms</p>
+                <Badge variant="outline">{entries.length} saved</Badge>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => openEditor()}
+                disabled={saving || !formKey || loadingForm || Boolean(definitionError)}
+              >
+                {loadingForm ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                Add Form
+              </Button>
+            </div>
+            {entries.length === 0 ? (
+              <EmptyState icon={<ClipboardList className="h-8 w-8 text-muted-foreground/40" />} title="No manual forms submitted yet" />
+            ) : (
+              <div className="divide-y">
+                {entries.map((entry, index) => (
+                  <div key={entry.id} className="grid gap-3 px-4 py-3 md:grid-cols-[56px_minmax(180px,0.7fr)_minmax(220px,1fr)_96px] md:items-center">
+                    <Badge variant="outline">#{index + 1}</Badge>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{entry.claimNumber}</p>
+                      <p className="text-xs text-muted-foreground">{entry.effectiveDate || "No effective date"}</p>
+                    </div>
+                    <p className="text-sm text-muted-foreground">{manualEntryOutcomeSummary(entry.result)}</p>
+                    <div className="flex justify-end gap-1">
+                      <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditor(entry)} disabled={saving}>
+                        <SquarePen className="h-4 w-4" />
+                      </Button>
+                      <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeEntry(entry.id)} disabled={saving}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          {formError ? <p className="text-sm text-destructive">{formError}</p> : null}
+        </div>
+        <div className="flex shrink-0 justify-end gap-2 border-t bg-secondary/35 px-6 py-5">
+          <Button type="button" variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button type="button" className="min-w-36 gap-2" onClick={() => void save()} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+            Save Configuration
+          </Button>
+        </div>
+      </div>
+      <ManualEntryEditorDialog
+        entry={editorEntry}
+        formTitle={selectedForm?.title ?? formDefinition?.title ?? "Manual Entry"}
+        onClose={() => setEditorEntry(null)}
+        onSave={saveEntry}
+      />
+    </div>
+  );
+}
+
+function ManualEntryEditorDialog({
+  entry,
+  formTitle,
+  onClose,
+  onSave,
+}: {
+  entry: ManualEntryRecord | null;
+  formTitle: string;
+  onClose: () => void;
+  onSave: (entry: ManualEntryRecord) => void;
+}) {
+  const [claimNumber, setClaimNumber] = useState("");
+  const [effectiveDate, setEffectiveDate] = useState("");
+
+  useEffect(() => {
+    setClaimNumber(entry?.claimNumber ?? "");
+    setEffectiveDate(entry?.effectiveDate ?? "");
+  }, [entry]);
+
+  if (!entry) return null;
+
+  const submitEntry = async (form: AuditFormResult) => {
+    const trimmedClaimNumber = claimNumber.trim();
+    if (!trimmedClaimNumber) {
+      throw new Error("Enter a claim number before saving this manual form.");
+    }
+    onSave({
+      ...entry,
+      claimNumber: trimmedClaimNumber,
+      effectiveDate: effectiveDate.trim(),
+      result: cloneAuditForm(form),
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg border bg-card shadow-2xl">
+        <DialogHeader title="Manual Audit Form" subtitle={formTitle} onClose={onClose} />
+        <div className="chat-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
+          <div className="grid gap-4 rounded-lg border bg-secondary/25 p-4 md:grid-cols-[minmax(0,260px)_minmax(0,220px)_1fr]">
+            <label className="grid gap-2">
+              <span className="text-sm font-medium">Claim Number</span>
+              <Input value={claimNumber} onChange={(event) => setClaimNumber(event.target.value)} placeholder="Claim number" />
+            </label>
+            <label className="grid gap-2">
+              <span className="text-sm font-medium">Effective Date</span>
+              <Input value={effectiveDate} onChange={(event) => setEffectiveDate(event.target.value)} placeholder="YYYY-MM-DD" />
+            </label>
+            <div className="flex items-end text-sm text-muted-foreground">
+              Validation runs when this form is saved into the batch configuration.
+            </div>
+          </div>
+          <AuditQuestionForm
+            reviewId={entry.id}
+            form={entry.result}
+            onSubmit={submitEntry}
+            onClose={onClose}
+            metadata={{ claimNumber, source: "manual_entry" }}
+            submitLabel="Save Entry"
+            allowSubmitWhenPristine
+            blankEntryMode
+          />
         </div>
       </div>
     </div>

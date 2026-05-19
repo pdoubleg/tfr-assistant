@@ -58,6 +58,7 @@ export interface ReviewRecord {
     | "batch_upload"
     | "synthetic"
     | "completed_intake"
+    | "manual_entry"
     | "eval";
   batch_id?: string | null;
   input_json?: {
@@ -88,7 +89,7 @@ export interface ReviewRecord {
   updated_at?: string;
 }
 
-export type BatchInputMode = "manual" | "upload" | "synthetic" | "completed_intake";
+export type BatchInputMode = "manual" | "upload" | "synthetic" | "completed_intake" | "manual_entry";
 export type BatchStatus = "queued" | "running" | "paused" | "completed" | "failed" | "canceled";
 
 export interface BatchReviewInput {
@@ -101,6 +102,7 @@ export interface BatchReviewInput {
   form_id?: string | null;
   form_version?: string | null;
   synthetic?: boolean | null;
+  manual_result?: AuditFormResult | null;
 }
 
 export interface BatchRecord {
