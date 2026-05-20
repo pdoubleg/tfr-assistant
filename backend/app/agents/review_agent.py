@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_REVIEW_INSTRUCTIONS = (
     "You are a file review worker. Your only job is to complete audit form "
-    "questionnaires from file evidence. The audit form is provided below. Use it "
-    "to guide your focus and output.\n"
+    "questionnaires from file evidence. Use the registered audit form and runtime "
+    "context provided in the additional instructions to guide your focus and output.\n"
     "If user requests an example audit, create a fictitious result as a demonstration.\n"
     "Output must validate exactly as AuditFormResult. Use only Yes or No for question "
     "answers. If the canonical question lists sub_questions, return only the listed "
@@ -130,7 +130,14 @@ def build_file_review_agent(
     @agent.instructions
     def add_tfr_template(ctx: RunContext[FileReviewAgentDeps]) -> str:
         definition = ctx.deps.form_definition
-        sections = [definition.canonical.as_questionnaire_string()]
+        sections = [
+            "Registered Audit Form:",
+            definition.canonical.as_questionnaire_string(),
+        ]
+        if ctx.deps.claim_number:
+            sections.extend(["", f"Claim Number: {ctx.deps.claim_number}"])
+        if ctx.deps.effective_date:
+            sections.extend(["", f"Effective Date: {ctx.deps.effective_date}"])
         if definition.instructions:
             sections.extend(
                 [
@@ -139,6 +146,8 @@ def build_file_review_agent(
                     definition.instructions,
                 ]
             )
+        if ctx.deps.instructions:
+            sections.extend(["", "Additional Runtime Instructions:", ctx.deps.instructions])
         if ctx.deps.tools:
             sections.extend(
                 [

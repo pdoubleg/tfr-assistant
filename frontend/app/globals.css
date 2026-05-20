@@ -1,3 +1,5 @@
+@import "@xyflow/react/dist/style.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -335,5 +337,48 @@
   .chat-code-block pre::-webkit-scrollbar-thumb:hover,
   .chat-mermaid-block::-webkit-scrollbar-thumb:hover {
     background-color: hsl(var(--muted-foreground) / 0.62);
+  }
+
+  .optimization-flow .react-flow__controls {
+    overflow: hidden;
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.5rem;
+    background: hsl(var(--card) / 0.94);
+    box-shadow: 0 12px 28px hsl(var(--background) / 0.45);
+  }
+
+  .optimization-flow .react-flow__controls-button {
+    border: 0;
+    border-bottom: 1px solid hsl(var(--border));
+    background: hsl(var(--card));
+    color: hsl(var(--foreground));
+  }
+
+  .optimization-flow .react-flow__controls-button:last-child {
+    border-bottom: 0;
+  }
+
+  .optimization-flow .react-flow__controls-button:hover {
+    background: hsl(var(--secondary));
+  }
+
+  .optimization-flow .react-flow__controls-button svg {
+    fill: currentColor;
+  }
+
+  .optimization-flow .react-flow__minimap {
+    overflow: hidden;
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.5rem;
+    background: hsl(var(--card) / 0.92);
+    box-shadow: 0 12px 28px hsl(var(--background) / 0.45);
+  }
+
+  .optimization-flow .react-flow__minimap-mask {
+    fill: hsl(var(--secondary) / 0.45);
+  }
+
+  .optimization-flow .react-flow__attribution {
+    display: none;
   }
 }

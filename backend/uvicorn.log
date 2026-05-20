@@ -1,11 +1,20 @@
-INFO:     127.0.0.1:54618 - "GET /api/forms/catalog HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:54623 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54647 - "GET /api/batches/templates HTTP/1.1" 500 Internal Server Error
-INFO:     127.0.0.1:54646 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54649 - "GET /api/batches/summary HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54648 - "GET /api/batches HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54650 - "GET /api/batches/intake-documents HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54680 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54681 - "GET /api/batches/templates HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54682 - "GET /api/batches HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54683 - "GET /api/batches/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51381 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51380 - "GET /api/forms HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51382 - "GET /api/optimizations/cases?form_id=tfr_default&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51380 - "GET /api/optimizations/runs/1d55a242-04ea-46b8-8a5e-e88bd1f1fac8/artifacts/dag HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51380 - "GET /api/optimizations/runs/1d55a242-04ea-46b8-8a5e-e88bd1f1fac8/events HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51382 - "GET /api/optimizations/cases?form_id=demo_receipt_policy&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51381 - "GET /api/optimizations/runs/1d55a242-04ea-46b8-8a5e-e88bd1f1fac8/artifacts/dag HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51382 - "GET /api/optimizations/runs/1d55a242-04ea-46b8-8a5e-e88bd1f1fac8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51383 - "GET /api/optimizations/cases?form_id=demo_receipt_policy&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51401 - "GET /api/optimizations/cases?form_id=demo_receipt_policy&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51407 - "GET /api/optimizations/cases?form_id=demo_receipt_policy&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51422 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51421 - "GET /api/forms HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51423 - "GET /api/optimizations/cases?form_id=tfr_default&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51421 - "GET /api/optimizations/runs/1d55a242-04ea-46b8-8a5e-e88bd1f1fac8/artifacts/dag HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51421 - "GET /api/optimizations/runs/1d55a242-04ea-46b8-8a5e-e88bd1f1fac8/events HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51423 - "GET /api/optimizations/cases?form_id=demo_receipt_policy&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51422 - "GET /api/optimizations/runs/1d55a242-04ea-46b8-8a5e-e88bd1f1fac8/artifacts/dag HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51423 - "GET /api/optimizations/runs/1d55a242-04ea-46b8-8a5e-e88bd1f1fac8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51437 - "GET /api/optimizations/runs/1d55a242-04ea-46b8-8a5e-e88bd1f1fac8/artifacts/native-html HTTP/1.1" 200 OK

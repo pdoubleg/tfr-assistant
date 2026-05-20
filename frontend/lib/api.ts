@@ -11,6 +11,11 @@ import type {
   EvalRunRecord,
   FormCatalogEntry,
   IntakeDocumentRecord,
+  OptimizationCaseRecord,
+  OptimizationDagArtifact,
+  OptimizationDemoFixtureRecord,
+  OptimizationRunPayload,
+  OptimizationRunRecord,
   ReviewRecord,
 } from "@/lib/types";
 
@@ -338,6 +343,78 @@ export async function cancelEvalRun(runId: string): Promise<EvalRunRecord> {
     method: "POST",
   });
   return parseJsonResponse<EvalRunRecord>(response);
+}
+
+export async function listOptimizationCases(
+  formId: string,
+  formVersion: string,
+  search = "",
+  includeDemo = true,
+): Promise<OptimizationCaseRecord[]> {
+  const params = new URLSearchParams({
+    form_id: formId,
+    form_version: formVersion,
+    search,
+    include_demo: String(includeDemo),
+  });
+  const response = await fetch(`${apiBaseUrl}/api/optimizations/cases?${params.toString()}`, {
+    cache: "no-store",
+  });
+  return parseJsonResponse<OptimizationCaseRecord[]>(response);
+}
+
+export async function createOptimizationDemoFixture(): Promise<OptimizationDemoFixtureRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/optimizations/demo-fixture`, {
+    method: "POST",
+  });
+  return parseJsonResponse<OptimizationDemoFixtureRecord>(response);
+}
+
+export async function listOptimizationRuns(): Promise<OptimizationRunRecord[]> {
+  const response = await fetch(`${apiBaseUrl}/api/optimizations/runs`, {
+    cache: "no-store",
+  });
+  return parseJsonResponse<OptimizationRunRecord[]>(response);
+}
+
+export async function createOptimizationRun(
+  payload: OptimizationRunPayload,
+): Promise<OptimizationRunRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/optimizations/runs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<OptimizationRunRecord>(response);
+}
+
+export async function getOptimizationRun(runId: string): Promise<OptimizationRunRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/optimizations/runs/${runId}`, {
+    cache: "no-store",
+  });
+  return parseJsonResponse<OptimizationRunRecord>(response);
+}
+
+export async function cancelOptimizationRun(runId: string): Promise<OptimizationRunRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/optimizations/runs/${runId}/cancel`, {
+    method: "POST",
+  });
+  return parseJsonResponse<OptimizationRunRecord>(response);
+}
+
+export async function getOptimizationDagArtifact(runId: string): Promise<OptimizationDagArtifact> {
+  const response = await fetch(`${apiBaseUrl}/api/optimizations/runs/${runId}/artifacts/dag`, {
+    cache: "no-store",
+  });
+  return parseJsonResponse<OptimizationDagArtifact>(response);
+}
+
+export function optimizationEventsUrl(runId: string): string {
+  return `${apiBaseUrl}/api/optimizations/runs/${runId}/events`;
+}
+
+export function optimizationArtifactUrl(runId: string, artifactType: string): string {
+  return `${apiBaseUrl}/api/optimizations/runs/${runId}/artifacts/${artifactType}`;
 }
 
 export function getUserVersion(review: ReviewRecord): AuditFormResult | null {

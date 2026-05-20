@@ -1,0 +1,86 @@
+{
+  "id": "demo_receipt_policy",
+  "version": "v0.1",
+  "title": "Receipt Reimbursement Policy Audit",
+  "description": "Demo form for GEPA prompt optimization using short receipt notes.",
+  "instructions": "Complete the receipt reimbursement audit from the note. Apply policy carefully.",
+  "tools": null,
+  "knowledge_docs": null,
+  "canonical": {
+    "form_id": "demo_receipt_policy",
+    "form_version": "v0.1",
+    "title": "Receipt Reimbursement Policy Audit",
+    "description": "Determine whether a reimbursement request meets policy.",
+    "questions": [
+      {
+        "id": "Q1",
+        "text": "Is the purchase business related and allowed by policy?",
+        "answer": "Yes",
+        "comments": "Canonical template.",
+        "citations": "Policy note.",
+        "sub_questions": null,
+        "help_text": null
+      },
+      {
+        "id": "Q2",
+        "text": "Is the expense amount within policy limits?",
+        "answer": "Yes",
+        "comments": "Canonical template.",
+        "citations": "Policy note.",
+        "sub_questions": null,
+        "help_text": null
+      },
+      {
+        "id": "Q3",
+        "text": "Does the request avoid prohibited or review-required drivers?",
+        "answer": "Yes",
+        "comments": null,
+        "citations": null,
+        "sub_questions": [
+          {
+            "id": "Q3.1",
+            "text": "Alcohol is present.",
+            "reasoning": "",
+            "citations": "",
+            "answer": false,
+            "help_text": null
+          },
+          {
+            "id": "Q3.2",
+            "text": "Gift card or cash-equivalent purchase is present.",
+            "reasoning": "",
+            "citations": "",
+            "answer": false,
+            "help_text": null
+          },
+          {
+            "id": "Q3.3",
+            "text": "Personal or non-business item is present.",
+            "reasoning": "",
+            "citations": "",
+            "answer": false,
+            "help_text": null
+          },
+          {
+            "id": "Q3.4",
+            "text": "Receipt or required documentation is missing.",
+            "reasoning": "",
+            "citations": "",
+            "answer": false,
+            "help_text": null
+          }
+        ],
+        "help_text": null
+      }
+    ],
+    "overall_outcome": "Meets",
+    "outcome_justification": "Canonical template.",
+    "id": null,
+    "cost": null,
+    "image_cost": null,
+    "latency": null,
+    "ground_truth": null,
+    "extras": null
+  },
+  "created_at": "2026-05-20T00:36:49.888286Z"
+}

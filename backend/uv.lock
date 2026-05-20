@@ -1089,25 +1089,6 @@ wheels = [
 ]
 
 [[package]]
-name = "gepadantic"
-version = "0.1.0"
-source = { git = "https://github.com/pdoubleg/gepadantic.git#9f4b1981a6fb122fd6865fe551fe49d09fc58aca" }
-dependencies = [
-    { name = "cloudpickle" },
-    { name = "gepa" },
-    { name = "mcp-run-python" },
-    { name = "pandas" },
-    { name = "pydantic" },
-    { name = "pydantic-ai-slim", extra = ["cli", "openai", "retries"] },
-    { name = "pydantic-monty" },
-    { name = "pymupdf" },
-    { name = "requests" },
-    { name = "scikit-learn" },
-    { name = "seaborn" },
-    { name = "tqdm" },
-]
-
-[[package]]
 name = "gitdb"
 version = "4.0.12"
 source = { registry = "https://pypi.org/simple" }
@@ -2105,18 +2086,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/38/83/d1efe7c2980d8a3afa476f4e3d42d53dd54c0ab94c27bee5d755b45c8b73/mcp-1.27.1.tar.gz", hash = "sha256:0f47e1820f8f8f941466b39749eb1d1839a04caddca2bc60e9d46e8a99914924", size = 608458 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fd/73/42d9596facebdb533b7f0b86c1b0364ef350d1f8ba78b1052e8a58b48b65/mcp-1.27.1-py3-none-any.whl", hash = "sha256:1af3c4203b329430fde7a87b4fcb6392a041f5cb851fd68fc674016ab4e7c06f", size = 216260 },
-]
-
-[[package]]
-name = "mcp-run-python"
-version = "0.0.22"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "mcp" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/ab/80/cf87c7671ba0d37727d46ebfbab7d91c200ecfabda1c087d28910072eadc/mcp_run_python-0.0.22.tar.gz", hash = "sha256:f4028d231470642f541e39d6fe1ffefcdb5204d3c21bb3bf4aeec53fc5ce7070", size = 23762 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e9/e4/e83ace11c3d189f1dbf0cc5a20d396957b73d072bed6f4cca2fff1874d3f/mcp_run_python-0.0.22-py3-none-any.whl", hash = "sha256:ae756e5c1060c3f9d7707a2705f8e11378775a4730316fd2edce20f9e1fe478b", size = 26601 },
 ]
 
 [[package]]
@@ -3896,20 +3865,6 @@ wheels = [
 ]
 
 [[package]]
-name = "seaborn"
-version = "0.13.2"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "matplotlib" },
-    { name = "numpy" },
-    { name = "pandas" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/86/59/a451d7420a77ab0b98f7affa3a1d78a313d2f7281a57afb1a34bae8ab412/seaborn-0.13.2.tar.gz", hash = "sha256:93e60a40988f4d65e9f4885df477e2fdaff6b73a9ded434c1ab356dd57eefff7", size = 1457696 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/83/11/00d3c3dfc25ad54e731d91449895a79e4bf2384dc3ac01809010ba88f6d5/seaborn-0.13.2-py3-none-any.whl", hash = "sha256:636f8336facf092165e27924f223d3c62ca560b1f2bb5dff7ab7fad265361987", size = 294914 },
-]
-
-[[package]]
 name = "secretstorage"
 version = "3.5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -4093,7 +4048,6 @@ dependencies = [
     { name = "asyncpg" },
     { name = "fastapi" },
     { name = "gepa" },
-    { name = "gepadantic" },
     { name = "mlflow" },
     { name = "openpyxl" },
     { name = "pandas" },
@@ -4124,7 +4078,6 @@ requires-dist = [
     { name = "asyncpg", specifier = ">=0.30.0" },
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "gepa", specifier = ">=0.1.1" },
-    { name = "gepadantic", git = "https://github.com/pdoubleg/gepadantic.git" },
     { name = "mlflow", specifier = ">=3.12.0" },
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "pandas", specifier = ">=2.3.0" },

@@ -1,0 +1,499 @@
+Iteration 0: Base program full valset score: 0.7291666666666666 over 4 / 4 examples
+Iteration 1: Selected program 0 score: 0.7291666666666666
+Iteration 1: Proposed new text for instructions: Complete the receipt reimbursement audit using only the receipt note and the embedded policy. Follow the registered form exactly.
+
+Core policy facts to apply:
+- Business meals up to $60 are allowed.
+- Amounts over $60 need review and should be marked as not within policy limits.
+- Alcohol, gift cards/cash equivalents, personal or non-business items, and missing or unreadable required documentation need review.
+- If the note explicitly says a required item is present (for example, "itemized receipt" or "receipt attached"), do not mark missing documentation.
+- If the note explicitly says a prohibited item is absent (for example, "no alcohol"), do not mark that driver as present.
+- Use only facts stated in the note; do not infer missing issues from silence.
+
+Output rules:
+- Answers must be exactly "Yes" or "No".
+- For Q1 and Q2, you must always provide both question.comments and question.citations, even when the answer is Yes.
+- For Q1 and Q2, put the short reasoning in comments and the supporting note/policy text in citations.
+- For Q3, use the listed sub-questions only when they apply.
+- Do not generate non-applicable sub-questions.
+- Do not include an answer field inside any sub-question.
+- If Q3 is Yes, set sub_questions to null or an empty list.
+- If Q3 is No, include only the applicable driver sub-questions, each with reasoning and citations.
+- Never add duplicate questions or duplicate question ids.
+
+Decision guidance:
+- Q1 = Yes when the purchase is business-related and not prohibited by policy.
+- Q2 = Yes only when the amount is at or below $60 for a business meal; otherwise No.
+- Q3 = Yes only when none of the listed prohibited/review-required drivers are present; otherwise No, with only the matching driver sub-questions included.
+- Overall outcome: "Meets" only if all questions are compliant; otherwise "Does Not Meet".
+
+Keep the response concise, evidence-based, and schema-valid.
+Iteration 1: New subsample score 1.3333333333333333 is not better than old score 2.083333333333333, skipping
+Iteration 2: Selected program 0 score: 0.7291666666666666
+Iteration 2: Proposed new text for instructions: Complete the receipt reimbursement audit from the note using the policy and the evidence only. Apply the questions literally and independently—do not let a failure in one question change another question’s answer.
+
+Key rule interpretations:
+- Q1 asks whether the purchase is business related and generally allowed by policy. Mark Yes for ordinary business meals or vendor/client/team expenses unless the note clearly shows a personal/non-business purchase or a disallowed item type.
+- Q2 asks only whether the amount is within the stated dollar limit for the relevant expense type. For business meals, use the policy threshold of $60: amount <= $60 => Yes; amount > $60 => No. Do not answer No for Q2 just because alcohol, a gift card, or other review-required content is present if the amount itself is within the limit.
+- Q3 is a driver check. Include only the listed sub-question(s) that are actually supported by the note. Do not add non-applicable drivers.
+
+Required policy facts to apply:
+- Business meals up to $60 are allowed; over $60 needs review.
+- Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.
+- If the note says attendee list is missing for a business meal, treat that as missing required documentation and include Q3.4.
+- A Visa prepaid card or similar prepaid card counts as a gift card/cash-equivalent.
+- Alcohol explicitly mentioned on the receipt triggers Q3.1.
+- Team dinner, lunch, or vendor thank-you wording may support business purpose, but only if nothing indicates personal use.
+
+Output formatting rules:
+- Answers must be exactly Yes or No.
+- For questions without sub-questions, put the reasoning in comments and the evidence in citations.
+- For questions with sub-questions, include only applicable sub-questions; omit the others.
+- For Yes answers with sub-questions, omit sub_questions or set them to null/[]. For No answers, include at least one applicable sub-question with reasoning and citations.
+- Keep comments/citations null on sub-question rows unless the field is explicitly used for that row.
+- Overall outcome should be Meets only if the claim satisfies policy; otherwise Does Not Meet.
+
+Common examples:
+- "Team dinner $87 with wine listed on receipt." => Q1 Yes, Q2 No, Q3 includes Q3.1, overall Does Not Meet.
+- "Visa prepaid card $100 for vendor thank-you." => Q1 Yes, Q2 Yes, Q3 includes Q3.2, overall Does Not Meet.
+- "Lunch $63, missing attendee list but receipt attached." => Q1 Yes, Q2 No, Q3 includes Q3.4, overall Does Not Meet.
+Iteration 2: New subsample score 2.833333333333333 is better than old score 2.5. Continue to full eval and add to candidate pool.
+Iteration 2: Valset score for new program: 0.7291666666666666 (coverage 4 / 4)
+Iteration 2: Val aggregate for new program: 0.7291666666666666
+Iteration 2: Individual valset scores for new program: {0: 0.75, 1: 0.8333333333333333, 2: 0.5833333333333333, 3: 0.75}
+Iteration 2: New valset pareto front scores: {0: 0.75, 1: 0.8333333333333333, 2: 0.5833333333333333, 3: 0.75}
+Iteration 2: Valset pareto front aggregate score: 0.7291666666666666
+Iteration 2: Updated valset pareto front programs: {0: {0, 1}, 1: {0, 1}, 2: {0, 1}, 3: {0, 1}}
+Iteration 2: Best valset aggregate score so far: 0.7291666666666666
+Iteration 2: Best program as per aggregate score on valset: 0
+Iteration 2: Best score on valset: 0.7291666666666666
+Iteration 2: Linear pareto front program index: 0
+Iteration 2: New program candidate index: 1
+Iteration 3: Selected program 1 score: 0.7291666666666666
+Iteration 3: Proposed new text for instructions: Complete the receipt reimbursement audit using only the note, policy, and stated evidence. Apply Q1, Q2, and Q3 independently; do not let a failure in one question affect another question.
+
+Decision rules:
+- Q1: Answer Yes if the purchase is a normal business expense (client/team/vendor meal, thank-you, etc.) and the note does not clearly indicate a personal, non-business, or otherwise disallowed item. Answer No only when the note explicitly shows a personal/non-business purpose or a disallowed item type.
+- Q2: Answer only on the dollar limit for the relevant expense type. For business meals, use the hard threshold $60: amount <= $60 => Yes; amount > $60 => No. Do not make Q2 No because alcohol, gift cards, or other review-required content is present if the amount is within the limit.
+- Q3: Treat this as a driver checklist. Include only the driver sub-questions that are explicitly supported by the note/evidence. Never infer a driver from silence or from missing proof unless the note explicitly says it is missing or unreadable.
+
+Policy facts to apply literally:
+- Business meals up to $60 are allowed; over $60 needs review.
+- Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.
+- If the note explicitly says the attendee list is missing for a business meal, include Q3.4.
+- A Visa prepaid card or similar prepaid card counts as a gift card/cash-equivalent.
+- Alcohol explicitly mentioned on the receipt triggers Q3.1.
+- Team dinner, lunch, client lunch, vendor thank-you, or similar wording supports business purpose unless the note indicates personal use.
+
+Output requirements:
+- Q1 and Q2 must always include both comments and citations, even when the answer is Yes.
+- For Q1/Q2 comments, briefly explain the decision; citations must quote or point to the exact note/policy text used.
+- Answers must be exactly Yes or No.
+- For Q3, if no supported drivers are present, answer Yes and set sub_questions to null or [].
+- If Q3 answer is No, include only the applicable sub_questions that are explicitly supported by the note. Use at least one applicable driver, but do not add unrelated drivers.
+- On sub-question rows, include reasoning and citations only when actually used for that row; otherwise leave them null/empty.
+- Overall outcome is Meets only if the claim satisfies policy; otherwise Does Not Meet.
+
+Important anti-hallucination rule:
+- Do not mark Q3.4 just because the evidence package contains only a note or does not visibly show an attached receipt. Mark Q3.4 only when the note explicitly says receipt/documentation is missing, unreadable, or attendee list is missing where required.
+
+Examples:
+- "Client lunch $42 with itemized receipt; no alcohol." => Q1 Yes, Q2 Yes, Q3 Yes with no sub_questions, overall Meets.
+- "Gift card purchase $25 for client raffle." => Q1 Yes, Q2 Yes, Q3 No with Q3.2 only, overall Does Not Meet.
+- "Team dinner $92 includes cocktails and dessert." => Q1 Yes, Q2 No, Q3 No with Q3.1 only; do not add Q3.4 unless the note explicitly says documentation is missing, overall Does Not Meet.
+Iteration 3: New subsample score 2.75 is better than old score 2.583333333333333. Continue to full eval and add to candidate pool.
+Iteration 3: Valset score for new program: 0.7291666666666666 (coverage 4 / 4)
+Iteration 3: Val aggregate for new program: 0.7291666666666666
+Iteration 3: Individual valset scores for new program: {0: 0.75, 1: 0.8333333333333333, 2: 0.5833333333333333, 3: 0.75}
+Iteration 3: New valset pareto front scores: {0: 0.75, 1: 0.8333333333333333, 2: 0.5833333333333333, 3: 0.75}
+Iteration 3: Valset pareto front aggregate score: 0.7291666666666666
+Iteration 3: Updated valset pareto front programs: {0: {0, 1, 2}, 1: {0, 1, 2}, 2: {0, 1, 2}, 3: {0, 1, 2}}
+Iteration 3: Best valset aggregate score so far: 0.7291666666666666
+Iteration 3: Best program as per aggregate score on valset: 0
+Iteration 3: Best score on valset: 0.7291666666666666
+Iteration 3: Linear pareto front program index: 0
+Iteration 3: New program candidate index: 2
+Iteration 4: Selected program 2 score: 0.7291666666666666
+Iteration 4: Proposed new text for instructions: Complete the receipt reimbursement audit using only the note, policy, and stated evidence. Evaluate Q1, Q2, and Q3 independently; do not let a failure in one question affect any other question.
+
+Core decision rules:
+- Q1 (business purpose): Answer Yes if the note describes a normal business expense or business context (e.g., client lunch, team dinner, vendor thank-you, coffee meeting, office supplies) and does not explicitly indicate personal/non-business use or a disallowed item. Answer No only when the note clearly shows a personal/non-business purpose or a disallowed item type.
+- Q2 (amount limit): Answer only on the amount rule that is explicitly supported by policy for the expense type. For business meals, use the hard threshold $60: amount <= $60 => Yes; amount > $60 => No. If the expense is not a business meal and the policy does not give a specific amount limit for that type, do not invent one; answer Yes unless the note/policy explicitly states a limit violation or a review trigger based on amount.
+- Q3 (driver checklist): Treat Q3 as a strict checklist of review drivers. Only include sub-questions that are explicitly supported by the note/evidence. Never infer a driver from silence, missing attachments not mentioned in the note, or unreadable status unless the note explicitly says so.
+
+Policy facts to apply literally:
+- Business meals up to $60 are allowed; over $60 needs review.
+- Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.
+- A Visa prepaid card or similar prepaid card counts as a gift card/cash-equivalent.
+- Alcohol explicitly mentioned on the receipt triggers Q3.1.
+- If the note explicitly says the attendee list is missing for a business meal, include Q3.4.
+- If the note explicitly says receipt/documentation is missing, unreadable, or the receipt photo is unreadable/missing details, include Q3.4.
+- Business wording such as team dinner, lunch, client lunch, vendor thank-you, coffee meeting, or similar supports business purpose unless the note indicates personal use.
+
+Q3 sub-question selection rules:
+- If Q3 answer is Yes, set sub_questions to null or [].
+- If Q3 answer is No, include only the applicable sub_questions that are directly supported by the note/evidence.
+- Use at least one applicable driver when Q3 is No, but do not add unrelated drivers.
+- Do not mark Q3.4 just because the evidence package seems incomplete; mark it only when the note explicitly says documentation, receipt, attendee list, or receipt photo details are missing/unreadable.
+
+Output requirements:
+- Q1 and Q2 must always include both comments and citations, even when the answer is Yes.
+- Q1/Q2 comments should briefly explain the decision.
+- Q1/Q2 citations must quote or point to the exact note/policy text used.
+- Answers must be exactly Yes or No.
+- For Q3, if no supported drivers are present, answer Yes and use null or [] for sub_questions.
+- On sub-question rows, include reasoning and citations only when actually used for that row; otherwise leave them null/empty.
+- Overall outcome is Meets only if the claim satisfies policy; otherwise Does Not Meet.
+
+Few-shot examples:
+- "Client lunch $42 with itemized receipt; no alcohol." => Q1 Yes, Q2 Yes, Q3 Yes with no sub_questions, overall Meets.
+- "Gift card purchase $25 for client raffle." => Q1 Yes, Q2 Yes, Q3 No with Q3.2 only, overall Does Not Meet.
+- "Team dinner $92 includes cocktails and dessert." => Q1 Yes, Q2 No, Q3 No with Q3.1 only; do not add Q3.4 unless the note explicitly says documentation is missing, overall Does Not Meet.
+- "Coffee meeting $18, no receipt attached." => Q1 Yes, Q2 Yes, Q3 No with Q3.4 only, overall Does Not Meet.
+- "Client breakfast $28, receipt photo unreadable/missing details." => Q1 Yes, Q2 Yes, Q3 No with Q3.4 only, overall Does Not Meet.
+
+Anti-hallucination rule:
+- Never generate unsupported Q3 sub-questions. If the note does not explicitly mention alcohol, gift card/cash equivalent, personal/non-business item, or missing/unreadable documentation, omit those drivers.
+Iteration 4: New subsample score 2.75 is not better than old score 2.75, skipping
+Iteration 5: Selected program 2 score: 0.7291666666666666
+Iteration 5: Proposed new text for instructions: Complete the receipt reimbursement audit using only the note, policy, and stated evidence. Apply Q1, Q2, and Q3 independently; never let the result of one question alter another.
+
+Core decision rules:
+- Q1 (business purpose): Answer Yes when the note indicates a business-related purchase such as a client lunch, team dinner, vendor thank-you, office supply, or similar business context, and the note does not explicitly say the purchase is personal/non-business. Do not answer No merely because the item is review-required (for example, a gift card, alcohol, or missing docs); those are handled by Q3. Answer No only when the note explicitly shows a personal/non-business purpose or explicitly disallowed personal use.
+- Q2 (amount limit): Answer only on the dollar limit for the relevant expense type. For business meals, apply the hard threshold $60: amount <= $60 => Yes; amount > $60 => No. Do not use Q2 to flag alcohol, gift cards, personal items, or documentation problems if the amount is within the threshold. If the note is about a non-meal expense, still answer only based on the stated policy facts and the amount in the note; do not invent a different limit.
+- Q3 (driver checklist): Include only sub-questions that are explicitly supported by the note/evidence. Mark a driver Yes only when the note explicitly supports it. Mark a driver No only when the note explicitly negates it or the relevant detail is absent and the policy says absence matters. Never infer a driver from silence, the shape of the evidence package, or missing attachments unless the note explicitly says something is missing or unreadable.
+
+Policy facts to apply literally:
+- Business meals up to $60 are allowed; over $60 needs review.
+- Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.
+- Alcohol explicitly mentioned on the receipt triggers Q3.1.
+- A Visa prepaid card or similar prepaid card counts as a gift card/cash-equivalent and triggers Q3.2.
+- Team dinner, lunch, client lunch, vendor thank-you, or similar wording supports business purpose unless the note indicates personal use.
+- If the note explicitly says the attendee list is missing for a business meal, include Q3.4.
+- Do not mark Q3.4 just because the prompt only shows a note, or because the receipt is not visually present in the evidence bundle; mark it only when the note explicitly says receipt/documentation is missing, unreadable, or attendee list is missing where required.
+
+Q3 sub-question mapping:
+- Q3.1: Alcohol is present.
+- Q3.2: Gift card or cash-equivalent purchase is present.
+- Q3.3: Personal or non-business item is present.
+- Q3.4: Receipt or required documentation is missing.
+
+Output requirements:
+- Q1 and Q2 must always include both comments and citations, even when the answer is Yes.
+- Q1/Q2 answers must be exactly Yes or No.
+- Q1/Q2 comments should briefly explain the decision in one sentence.
+- Q1/Q2 citations must quote or point to the exact note/policy text used.
+- For Q3, if no supported drivers are present, answer Yes and set sub_questions to null or [].
+- If Q3 answer is No, include only the applicable sub_questions explicitly supported by the note. Include at least one applicable driver, but do not add unrelated drivers.
+- On Q3 sub-question rows, include reasoning and citations only when actually used for that row; otherwise leave them null/empty.
+- Overall outcome is Meets only if the claim satisfies policy; otherwise Does Not Meet.
+
+Examples:
+- "Client lunch $42 with itemized receipt; no alcohol." => Q1 Yes, Q2 Yes, Q3 Yes with no sub_questions, overall Meets.
+- "Gift card purchase $25 for client raffle." => Q1 Yes, Q2 Yes, Q3 No with Q3.2 only, overall Does Not Meet.
+- "Team dinner $92 includes cocktails and dessert." => Q1 Yes, Q2 No, Q3 No with Q3.1 only; do not add Q3.4 unless the note explicitly says documentation is missing, overall Does Not Meet.
+- "Printer paper $22 for project room, receipt attached." => Q1 Yes, Q2 Yes, Q3 Yes with no sub_questions, overall Meets.
+Iteration 5: New subsample score 2.5 is better than old score 2.333333333333333. Continue to full eval and add to candidate pool.
+Iteration 5: Valset score for new program: 0.7291666666666666 (coverage 4 / 4)
+Iteration 5: Val aggregate for new program: 0.7291666666666666
+Iteration 5: Individual valset scores for new program: {0: 0.75, 1: 0.8333333333333333, 2: 0.5833333333333333, 3: 0.75}
+Iteration 5: New valset pareto front scores: {0: 0.75, 1: 0.8333333333333333, 2: 0.5833333333333333, 3: 0.75}
+Iteration 5: Valset pareto front aggregate score: 0.7291666666666666
+Iteration 5: Updated valset pareto front programs: {0: {0, 1, 2, 3}, 1: {0, 1, 2, 3}, 2: {0, 1, 2, 3}, 3: {0, 1, 2, 3}}
+Iteration 5: Best valset aggregate score so far: 0.7291666666666666
+Iteration 5: Best program as per aggregate score on valset: 0
+Iteration 5: Best score on valset: 0.7291666666666666
+Iteration 5: Linear pareto front program index: 0
+Iteration 5: New program candidate index: 3
+Iteration 6: Selected program 3 score: 0.7291666666666666
+Iteration 6: All subsample scores perfect. Skipping.
+Iteration 6: Reflective mutation did not propose a new candidate
+Iteration 7: Selected program 3 score: 0.7291666666666666
+Iteration 7: Proposed new text for instructions: Complete the receipt reimbursement audit using only the note, policy, and stated evidence. Treat Q1, Q2, and Q3 as independent checks; do not let an answer to one question influence another.
+
+Decision rules:
+- Q1 (business purpose): Answer Yes when the note shows a business-related purchase (for example: client lunch, team dinner, vendor thank-you, office supplies, project materials) and does not explicitly describe the purchase as personal/non-business. Do not answer No just because the item is review-required (for example alcohol, gift card/cash equivalent, or missing documentation); those issues belong in Q3. Answer No only when the note explicitly indicates personal/non-business use or clearly disallowed personal use.
+- Q2 (amount limit): Answer only the amount-limit question for the expense type in the note. For business meals, use the hard $60 threshold: amount <= $60 => Yes; amount > $60 => No. Do not use Q2 to penalize alcohol, gift cards, personal items, or documentation issues if the amount is within the limit. For non-meal expenses, rely only on any explicit policy facts provided in the prompt and the amount stated in the note; do not invent other limits.
+- Q3 (drivers): Evaluate only drivers that are explicitly supported by the note/evidence. Do not create a driver from silence, from the structure of the evidence bundle, or from the mere presence/absence of a receipt image unless the note explicitly says documentation is missing, unreadable, or attendee list is missing where required. For each sub-question included, mark it Yes only if the note explicitly supports that driver. Include only drivers that are actually present or explicitly missing where the policy says absence matters.
+
+Policy facts to apply literally:
+- Business meals up to $60 are allowed; over $60 needs review.
+- Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.
+- Alcohol explicitly mentioned on the receipt triggers Q3.1.
+- A Visa prepaid card or similar prepaid card counts as a gift card/cash equivalent and triggers Q3.2.
+- Wording such as team dinner, lunch, client lunch, vendor thank-you, or similar supports business purpose unless the note indicates personal use.
+- If the note explicitly says the attendee list is missing for a business meal, include Q3.4.
+- Do not mark Q3.4 because the prompt only shows text instead of an image, or because the receipt is not visually present; mark it only when the note explicitly says receipt/documentation is missing, unreadable, or attendee list is missing where required.
+
+Q3 sub-question mapping:
+- Q3.1: Alcohol is present.
+- Q3.2: Gift card or cash-equivalent purchase is present.
+- Q3.3: Personal or non-business item is present.
+- Q3.4: Receipt or required documentation is missing.
+
+Critical Q3 formatting rule:
+- If no supported drivers are present, answer Q3 = Yes and set sub_questions to null or [].
+- If Q3 = No, include only the applicable supported sub_questions. Do not include every driver with false/No values. Do not add unsupported drivers just to fill out the list.
+- For each included sub_question, use the driver only when the note explicitly supports it; otherwise omit it. Provide reasoning and citations only for included rows when needed.
+
+Output requirements:
+- Q1 and Q2 must always include both comments and citations, even when the answer is Yes.
+- Q1/Q2 answers must be exactly Yes or No.
+- Q1/Q2 comments should be one concise sentence each.
+- Q1/Q2 citations must quote or point to the exact note/policy text used.
+- Q3 should contain only the supported sub_questions, or be null/[] when none apply.
+- Overall outcome is Meets only if the claim satisfies policy; otherwise Does Not Meet.
+
+Few-shot behavior:
+- "Client lunch $42 with itemized receipt; no alcohol." => Q1 Yes, Q2 Yes, Q3 Yes with sub_questions null/[], overall Meets.
+- "Gift card purchase $25 for client raffle." => Q1 Yes, Q2 Yes, Q3 No with Q3.2 only, overall Does Not Meet.
+- "Team dinner $92 includes cocktails and dessert." => Q1 Yes, Q2 No, Q3 No with Q3.1 only; do not add Q3.4 unless the note explicitly says documentation is missing, overall Does Not Meet.
+- "Printer paper $22 for project room, receipt attached." => Q1 Yes, Q2 Yes, Q3 Yes with sub_questions null/[], overall Meets.
+
+Formatting reminder from the form:
+- When a question has no Sub-Questions, put reasoning in question.comments and evidence in question.citations.
+- When a question has Sub-Questions, include only the applicable ones for the finding; do not generate non-applicable drivers.
+Iteration 7: New subsample score 2.5 is not better than old score 2.5, skipping
+Iteration 8: Selected program 3 score: 0.7291666666666666
+Iteration 8: Proposed new text for instructions: Complete the receipt reimbursement audit using only the note, policy, and stated evidence. Treat Q1, Q2, and Q3 as independent checks; never let the answer to one question influence another.
+
+Decision rules:
+- Q1 (business purpose): Answer Yes when the note shows a business context such as client lunch, team dinner, vendor thank-you, office supply, coffee meeting, or similar, unless the note explicitly says the purchase is personal or non-business. Do not answer No just because the item is review-required (for example, alcohol, a gift card, or missing docs); those are handled by Q3. Answer No only when the note explicitly shows personal/non-business use or a clearly disallowed personal purpose.
+- Q2 (amount limit): Decide only from the amount and the policy threshold for the relevant expense type. For business meals, use the hard threshold $60: amount <= $60 => Yes; amount > $60 => No. Do not use Q2 to flag alcohol, gift cards, personal items, or documentation problems if the amount is within the threshold. If the note is not a meal, use only the explicit policy facts given; do not invent new limits.
+- Q3 (driver checklist): Only include sub-questions that are explicitly supported by the note/evidence. Mark a driver Yes only when the note explicitly states the driver is present. Mark a driver No only when the note explicitly states the driver is absent, or when the policy says the absence itself is a required driver and the note explicitly says it is missing. Never infer a driver from silence, from the fact that the receipt image is not shown, or from generic wording like itemized receipt.
+
+Important negative-evidence rule:
+- A phrase like “no alcohol” means Q3.1 is false and must not be marked as present.
+- A phrase like “receipt attached” means documentation is present and must not trigger Q3.4.
+- Only “no receipt attached,” “missing receipt,” “unreadable receipt,” or “attendee list missing” should trigger Q3.4 when the policy requires that documentation.
+- Only explicit mentions of alcohol on the receipt trigger Q3.1; do not infer alcohol from a dinner or team meal.
+- Only an explicit prepaid/gift-card/cash-equivalent purchase (for example, Visa prepaid card) triggers Q3.2.
+- Only an explicit personal or non-business item triggers Q3.3.
+
+Policy facts to apply literally:
+- Business meals up to $60 are allowed; over $60 needs review.
+- Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.
+- Team dinner, lunch, client lunch, vendor thank-you, and similar wording support business purpose unless the note indicates personal use.
+- If the note explicitly says the attendee list is missing for a business meal, include Q3.4.
+- Do not mark Q3.4 just because the prompt only shows a note or because the receipt image is not visually present in the bundle.
+
+Q3 mapping:
+- Q3.1: Alcohol is present.
+- Q3.2: Gift card or cash-equivalent purchase is present.
+- Q3.3: Personal or non-business item is present.
+- Q3.4: Receipt or required documentation is missing.
+
+Output requirements:
+- Q1 and Q2 must always include both comments and citations, even when the answer is Yes.
+- Q1/Q2 answers must be exactly Yes or No.
+- Q1/Q2 comments should be one sentence and should cite the exact note/policy text used.
+- Q3: if no supported drivers are present, answer Yes and set sub_questions to null or [].
+- If Q3 answer is No, include only the applicable sub_questions explicitly supported by the note. Include at least one applicable driver, but do not add unrelated drivers or negative drivers from mere silence.
+- For Q3 sub-question rows, include reasoning and citations only when actually used for that row; otherwise leave them null/empty.
+- Overall outcome is Meets only if the claim satisfies policy; otherwise Does Not Meet.
+
+Examples:
+- "Client lunch $42 with itemized receipt; no alcohol." => Q1 Yes, Q2 Yes, Q3 Yes with no sub_questions, overall Meets.
+- "Gift card purchase $25 for client raffle." => Q1 Yes, Q2 Yes, Q3 No with Q3.2 only, overall Does Not Meet.
+- "Team dinner $92 includes cocktails and dessert." => Q1 Yes, Q2 No, Q3 No with Q3.1 only, overall Does Not Meet.
+- "Dinner $61 with client, itemized receipt, no alcohol." => Q1 Yes, Q2 No, Q3 Yes with no sub_questions, overall Does Not Meet.
+- "Coffee meeting $18, no receipt attached." => Q1 Yes, Q2 Yes, Q3 No with Q3.4 only, overall Does Not Meet.
+
+Form-specific guidance:
+- When a question does not list Sub-Questions, put reasoning in comments and evidence in citations.
+- When Q3 is No, return only the supported driver rows; do not pad with false drivers.
+- Do not produce Q3.1 just because the meal is dinner or includes cocktails unless alcohol is explicitly mentioned. Do not produce Q3.4 unless documentation is explicitly missing or unreadable.
+Iteration 8: New subsample score 2.75 is better than old score 2.583333333333333. Continue to full eval and add to candidate pool.
+Iteration 8: Found a better program on the valset with score 0.7708333333333333.
+Iteration 8: Valset score for new program: 0.7708333333333333 (coverage 4 / 4)
+Iteration 8: Val aggregate for new program: 0.7708333333333333
+Iteration 8: Individual valset scores for new program: {0: 0.75, 1: 0.8333333333333333, 2: 0.75, 3: 0.75}
+Iteration 8: New valset pareto front scores: {0: 0.75, 1: 0.8333333333333333, 2: 0.75, 3: 0.75}
+Iteration 8: Valset pareto front aggregate score: 0.7708333333333333
+Iteration 8: Updated valset pareto front programs: {0: {0, 1, 2, 3, 4}, 1: {0, 1, 2, 3, 4}, 2: {4}, 3: {0, 1, 2, 3, 4}}
+Iteration 8: Best valset aggregate score so far: 0.7708333333333333
+Iteration 8: Best program as per aggregate score on valset: 4
+Iteration 8: Best score on valset: 0.7708333333333333
+Iteration 8: Linear pareto front program index: 4
+Iteration 8: New program candidate index: 4
+Iteration 9: Selected program 4 score: 0.7708333333333333
+Iteration 9: Proposed new text for instructions: Complete the receipt reimbursement audit using only the note, policy, and stated evidence. Treat Q1, Q2, and Q3 as independent checks; never let the answer to one question influence another.
+
+Core decision rules:
+- Q1 (business purpose): Answer Yes when the note shows a business context such as client lunch, team dinner, vendor thank-you, office supply, coffee meeting, or similar, unless the note explicitly says the purchase is personal or non-business. Do not answer No just because the item is review-required (for example, alcohol, a gift card, or missing docs); those are handled by Q3. Answer No only when the note explicitly shows personal/non-business use or a clearly disallowed personal purpose.
+- Q2 (amount limit): Decide only from the amount and the policy threshold for the relevant expense type. For business meals, use the hard threshold $60: amount <= $60 => Yes; amount > $60 => No. Do not use Q2 to flag alcohol, gift cards, personal items, or documentation problems if the amount is within the threshold. If the note is not a meal, use only the explicit policy facts given; do not invent new limits.
+- Q3 (driver checklist): Use sub_questions only for drivers that are explicitly supported by the note/evidence and that are actually present. Mark a driver as present only when the note explicitly states it is present. Never add a sub_question row for a driver that is merely absent, not mentioned, or irrelevant.
+
+Critical Q3 formatting rule:
+- If Q3 answer is Yes, sub_questions must be null or []. Do not include any false/negative driver rows.
+- If Q3 answer is No, include only the applicable driver rows that are explicitly supported by the note. Every included sub_question row must be a present driver (answer implied by inclusion); do not add rows for drivers that are false, silent, or unsupported.
+- Do not output Q3 sub_question rows with answer=false. Instead, omit unsupported drivers entirely.
+- Include at least one supported driver row when Q3 is No.
+
+Negative-evidence rules:
+- A phrase like “no alcohol” means alcohol is absent; do not create a Q3.1 row for it.
+- A phrase like “receipt attached” means documentation is present; do not create a Q3.4 row for it.
+- Only “no receipt attached,” “missing receipt,” “unreadable receipt,” or “attendee list missing” should trigger Q3.4 when the policy requires that documentation.
+- Only explicit mentions of alcohol on the receipt trigger Q3.1; do not infer alcohol from a dinner or team meal.
+- Only an explicit prepaid/gift-card/cash-equivalent purchase (for example, Visa prepaid card) triggers Q3.2.
+- Only an explicit personal or non-business item triggers Q3.3.
+
+Policy facts to apply literally:
+- Business meals up to $60 are allowed; over $60 needs review.
+- Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.
+- Team dinner, lunch, client lunch, vendor thank-you, and similar wording support business purpose unless the note indicates personal use.
+- If the note explicitly says the attendee list is missing for a business meal, include Q3.4.
+- Do not mark Q3.4 just because the prompt only shows a note or because the receipt image is not visually present in the bundle.
+
+Q3 mapping:
+- Q3.1: Alcohol is present.
+- Q3.2: Gift card or cash-equivalent purchase is present.
+- Q3.3: Personal or non-business item is present.
+- Q3.4: Receipt or required documentation is missing.
+
+Output requirements:
+- Q1 and Q2 must always include both comments and citations, even when the answer is Yes.
+- Q1/Q2 answers must be exactly Yes or No.
+- Q1/Q2 comments should be one sentence and should cite the exact note/policy text used.
+- For Q1/Q2, keep the reasoning narrowly tied to the relevant rule and evidence; do not mention unrelated policy checks.
+- For Q3, if no supported drivers are present, answer Yes and set sub_questions to null or [].
+- When Q3 is No, include only the supported driver rows and omit all unsupported drivers; do not pad with false drivers.
+- For Q3 sub-question rows, include reasoning and citations only when actually used for that row; otherwise leave them null/empty.
+- Overall outcome is Meets only if the claim satisfies policy; otherwise Does Not Meet.
+
+Examples:
+- "Client lunch $42 with itemized receipt; no alcohol." => Q1 Yes, Q2 Yes, Q3 Yes with no sub_questions, overall Meets.
+- "Gift card purchase $25 for client raffle." => Q1 Yes, Q2 Yes, Q3 No with Q3.2 only, overall Does Not Meet.
+- "Team dinner $92 includes cocktails and dessert." => Q1 Yes, Q2 No, Q3 No with Q3.1 only, overall Does Not Meet.
+- "Dinner $61 with client, itemized receipt, no alcohol." => Q1 Yes, Q2 No, Q3 Yes with no sub_questions, overall Does Not Meet.
+- "Coffee meeting $18, no receipt attached." => Q1 Yes, Q2 Yes, Q3 No with Q3.4 only, overall Does Not Meet.
+
+Form-specific guidance:
+- When a question does not list Sub-Questions, put reasoning in comments and evidence in citations.
+- When Q3 is No, return only the supported driver rows; do not include false driver rows or a complete checklist.
+- Do not produce Q3.1 just because the meal is dinner or includes cocktails unless alcohol is explicitly mentioned. Do not produce Q3.4 unless documentation is explicitly missing or unreadable.
+- If the note says documentation is attached/present, treat Q3.4 as absent.
+Iteration 9: New subsample score 2.5 is not better than old score 2.5, skipping
+Iteration 10: Selected program 4 score: 0.7708333333333333
+Iteration 10: Proposed new text for instructions: Complete the receipt reimbursement audit using only the note, policy, and stated evidence. Treat Q1, Q2, and Q3 as independent checks; do not let the answer to one question influence another.
+
+Core decision rules:
+- Q1 (business purpose): Answer Yes when the note shows a business context such as client lunch, team dinner, vendor thank-you, office supply, coffee meeting, or similar, unless the note explicitly says the purchase is personal or non-business. Do not answer No just because the item is review-required (for example, alcohol, a gift card, missing docs, or over-limit amount); those are handled elsewhere. Answer No only when the note explicitly shows personal/non-business use or a clearly disallowed personal purpose.
+- Q2 (amount limit): Decide only from the amount and the policy threshold for the relevant expense type. For business meals, use the hard threshold $60: amount <= $60 => Yes; amount > $60 => No. Do not use Q2 to flag alcohol, gift cards, personal items, or documentation problems if the amount is within the threshold. If the note is not a meal, use only the explicit policy facts given; do not invent new limits.
+- Q3 (driver checklist): Q3 is No if any supported driver is present; Q3 is Yes only when no listed driver is explicitly supported by the note/evidence. Only include sub-questions that are explicitly supported by the note/evidence. Mark a driver Yes only when the note explicitly states the driver is present. Mark a driver No only when the note explicitly states the driver is absent, or when the policy says the absence itself is a required driver and the note explicitly says it is missing. Never infer a driver from silence, from the fact that the receipt image is not shown, or from generic wording like itemized receipt.
+
+Negative-evidence and documentation rules:
+- "No alcohol" means Q3.1 is false and must not be marked as present.
+- "Receipt attached" means documentation is present and must not trigger Q3.4.
+- Q3.4 is triggered only by explicit missing/unreadable documentation language such as "no receipt attached," "missing receipt," "unreadable receipt," "missing details," or "attendee list missing" when the policy requires that documentation.
+- Do not mark Q3.4 just because the prompt only shows a note or because the receipt image is not visually present in the bundle.
+- If the note says the receipt is unreadable, missing details, or otherwise unusable, treat that as Q3.4 even if the note also says a receipt is attached.
+- Only explicit mentions of alcohol on the receipt trigger Q3.1; do not infer alcohol from a dinner or team meal.
+- Only an explicit prepaid/gift-card/cash-equivalent purchase (for example, Visa prepaid card) triggers Q3.2.
+- Only an explicit personal or non-business item triggers Q3.3.
+
+Policy facts to apply literally:
+- Business meals up to $60 are allowed; over $60 needs review.
+- Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.
+- Team dinner, lunch, client lunch, vendor thank-you, and similar wording support business purpose unless the note indicates personal use.
+- If the note explicitly says the attendee list is missing for a business meal, include Q3.4.
+
+Q3 mapping:
+- Q3.1: Alcohol is present.
+- Q3.2: Gift card or cash-equivalent purchase is present.
+- Q3.3: Personal or non-business item is present.
+- Q3.4: Receipt or required documentation is missing, unreadable, or missing required details.
+
+Output requirements:
+- Q1 and Q2 must always include both comments and citations, even when the answer is Yes.
+- Q1/Q2 answers must be exactly Yes or No.
+- Q1/Q2 comments must be one sentence and must cite the exact note/policy text used.
+- Q3: if no supported drivers are present, answer Yes and set sub_questions to null or [].
+- If Q3 answer is No, include only the applicable sub_questions explicitly supported by the note. Include at least one applicable driver, but do not add unrelated drivers or negative drivers from mere silence.
+- For Q3 sub-question rows, include reasoning and citations only when actually used for that row; otherwise leave them null/empty.
+- Overall outcome is Meets only if the claim satisfies policy; otherwise Does Not Meet.
+
+Few-shot examples:
+- "Client lunch $42 with itemized receipt; no alcohol." => Q1 Yes, Q2 Yes, Q3 Yes with no sub_questions, overall Meets.
+- "Gift card purchase $25 for client raffle." => Q1 Yes, Q2 Yes, Q3 No with Q3.2 only, overall Does Not Meet.
+- "Team dinner $92 includes cocktails and dessert." => Q1 Yes, Q2 No, Q3 No with Q3.1 only, overall Does Not Meet.
+- "Dinner $61 with client, itemized receipt, no alcohol." => Q1 Yes, Q2 No, Q3 Yes with no sub_questions, overall Does Not Meet.
+- "Coffee meeting $18, no receipt attached." => Q1 Yes, Q2 Yes, Q3 No with Q3.4 only, overall Does Not Meet.
+- "Client breakfast $28, receipt photo unreadable/missing details." => Q1 Yes, Q2 Yes, Q3 No with Q3.4 only, overall Does Not Meet.
+- "Lunch $63, missing attendee list but receipt attached." => Q1 Yes, Q2 No, Q3 No with Q3.4 only, overall Does Not Meet.
+
+Form-specific guidance:
+- When a question does not list Sub-Questions, put reasoning in comments and evidence in citations.
+- When Q3 is No, return only the supported driver rows; do not pad with false drivers.
+- Do not produce Q3.1 just because the meal is dinner or includes cocktails unless alcohol is explicitly mentioned.
+- Do not produce Q3.4 unless documentation is explicitly missing, unreadable, missing required details, or explicitly stated as missing.
+Iteration 10: New subsample score 2.75 is not better than old score 2.75, skipping
+Iteration 11: Selected program 4 score: 0.7708333333333333
+Iteration 11: Proposed new text for instructions: Complete the receipt reimbursement audit using only the note, policy, and stated evidence. Treat Q1, Q2, and Q3 as independent checks; never let the answer to one question influence another.
+
+Core rule: evaluate each question on its own stated criterion.
+- Q1 asks whether the purchase is business related and allowed by policy.
+- Q2 asks only whether the amount is within the relevant policy limit.
+- Q3 asks only whether any listed prohibited/review-required drivers are explicitly present.
+
+Decision rules:
+- Q1 (business purpose): Answer Yes when the note shows a business context such as client lunch, team dinner, vendor thank-you, office supply, coffee meeting, or similar, unless the note explicitly says the purchase is personal or non-business. Do not answer No merely because the item is review-required for another reason (for example, alcohol, gift card, prepaid card, or missing docs); those belong in Q3. Answer No only when the note explicitly shows personal/non-business use or a clearly disallowed personal purpose.
+- Q2 (amount limit): Decide only from the amount and the explicit policy threshold for the relevant expense type. For business meals, use the hard threshold $60: amount <= $60 => Yes; amount > $60 => No. Do not use Q2 to flag alcohol, gift cards, prepaid cards, personal items, or documentation problems when the amount is within the threshold. If the note is not a meal, use only explicit limits stated in the policy; if no explicit limit is provided for that type, do not invent one.
+- Q3 (driver checklist): Only include sub-questions that are explicitly supported by the note/evidence. Mark a driver Yes only when the note explicitly states the driver is present. Mark a driver No only when the note explicitly states the driver is absent, or when the policy makes the absence itself a required driver and the note explicitly says it is missing. Never infer a driver from silence, from the fact that the receipt image is not shown, or from generic wording like itemized receipt.
+
+Important negative-evidence rules:
+- “no alcohol” means Q3.1 is false and must not be marked as present.
+- “receipt attached” means documentation is present and must not trigger Q3.4.
+- Only “no receipt attached,” “missing receipt,” “unreadable receipt,” or “attendee list missing” should trigger Q3.4 when the policy requires that documentation.
+- Only explicit mentions of alcohol on the receipt trigger Q3.1; do not infer alcohol from dinner, team dinner, cocktails in a generic example, or other meal wording unless the note itself names alcohol.
+- Only an explicit prepaid/gift-card/cash-equivalent purchase (for example, Visa prepaid card, gift card, prepaid card) triggers Q3.2.
+- Only an explicit personal or non-business item triggers Q3.3.
+
+Policy facts to apply literally:
+- Business meals up to $60 are allowed; over $60 needs review.
+- Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.
+- Team dinner, lunch, client lunch, vendor thank-you, and similar wording support business purpose unless the note indicates personal use.
+- If the note explicitly says the attendee list is missing for a business meal, include Q3.4.
+- Do not mark Q3.4 just because the prompt only shows a note or because the receipt image is not visually present in the bundle.
+- A cash-equivalent item can still be business-related for Q1 if the note shows a business context (for example, vendor thank-you); do not treat Q3 review items as automatic Q1 failures.
+
+Q3 mapping:
+- Q3.1: Alcohol is present.
+- Q3.2: Gift card or cash-equivalent purchase is present.
+- Q3.3: Personal or non-business item is present.
+- Q3.4: Receipt or required documentation is missing.
+
+Output requirements:
+- Q1 and Q2 must always include both comments and citations, even when the answer is Yes.
+- Q1/Q2 answers must be exactly Yes or No.
+- Q1/Q2 comments should be one sentence and should cite the exact note/policy text used.
+- Q3: if no supported drivers are present, answer Yes and set sub_questions to null or [].
+- If Q3 answer is No, include only the applicable sub_questions explicitly supported by the note. Include at least one applicable driver, but do not add unrelated drivers or negative drivers from mere silence.
+- For Q3 sub-question rows, include reasoning and citations only when actually used for that row; otherwise leave them null/empty.
+- Overall outcome is Meets only if the claim satisfies policy; otherwise Does Not Meet.
+
+Examples:
+- "Client lunch $42 with itemized receipt; no alcohol." => Q1 Yes, Q2 Yes, Q3 Yes with no sub_questions, overall Meets.
+- "Gift card purchase $25 for client raffle." => Q1 Yes, Q2 Yes, Q3 No with Q3.2 only, overall Does Not Meet.
+- "Team dinner $92 includes cocktails and dessert." => Q1 Yes, Q2 No, Q3 No with Q3.1 only, overall Does Not Meet.
+- "Dinner $61 with client, itemized receipt, no alcohol." => Q1 Yes, Q2 No, Q3 Yes with no sub_questions, overall Does Not Meet.
+- "Coffee meeting $18, no receipt attached." => Q1 Yes, Q2 Yes, Q3 No with Q3.4 only, overall Does Not Meet.
+- "Visa prepaid card $100 for vendor thank-you." => Q1 Yes, Q2 Yes, Q3 No with Q3.2 only, overall Does Not Meet.
+
+Form-specific guidance:
+- When a question does not list Sub-Questions, put reasoning in comments and evidence in citations.
+- When Q3 is No, return only the supported driver rows; do not pad with false drivers.
+- Do not produce Q3.1 just because the meal is dinner or includes cocktails unless alcohol is explicitly mentioned.
+- Do not produce Q3.4 unless documentation is explicitly missing or unreadable.
+Iteration 11: New subsample score 2.583333333333333 is better than old score 2.4166666666666665. Continue to full eval and add to candidate pool.
+Iteration 11: Valset score for new program: 0.7708333333333333 (coverage 4 / 4)
+Iteration 11: Val aggregate for new program: 0.7708333333333333
+Iteration 11: Individual valset scores for new program: {0: 0.75, 1: 0.8333333333333333, 2: 0.75, 3: 0.75}
+Iteration 11: New valset pareto front scores: {0: 0.75, 1: 0.8333333333333333, 2: 0.75, 3: 0.75}
+Iteration 11: Valset pareto front aggregate score: 0.7708333333333333
+Iteration 11: Updated valset pareto front programs: {0: {0, 1, 2, 3, 4, 5}, 1: {0, 1, 2, 3, 4, 5}, 2: {4, 5}, 3: {0, 1, 2, 3, 4, 5}}
+Iteration 11: Best valset aggregate score so far: 0.7708333333333333
+Iteration 11: Best program as per aggregate score on valset: 4
+Iteration 11: Best score on valset: 0.7708333333333333
+Iteration 11: Linear pareto front program index: 4
+Iteration 11: New program candidate index: 5

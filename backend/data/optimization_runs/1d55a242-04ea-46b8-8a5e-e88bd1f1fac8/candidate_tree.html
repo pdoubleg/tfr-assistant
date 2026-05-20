@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GEPA Candidate Tree</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; width: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f8f9fa; display: flex; flex-direction: column; }
+  #header { background: #fff; border-bottom: 1px solid #dee2e6; padding: 12px 20px; display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+  #header h1 { font-size: 18px; font-weight: 600; color: #212529; }
+  .legend { display: flex; gap: 14px; font-size: 13px; color: #495057; }
+  .legend-item { display: flex; align-items: center; gap: 4px; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid #adb5bd; }
+  #graph-container { flex: 1 1 auto; width: 100%; overflow: auto; padding: 20px; text-align: center; }
+  #graph-container svg { width: 100%; height: 100%; }
+  #tooltip {
+    display: none; position: fixed; background: #fff; border: 1px solid #dee2e6;
+    border-radius: 8px; padding: 14px 16px; max-width: 560px; max-height: 70vh; overflow-y: auto;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18); z-index: 1000; font-size: 13px; line-height: 1.5;
+  }
+  #tooltip .tt-header { font-weight: 700; font-size: 15px; margin-bottom: 6px; color: #212529; }
+  #tooltip .tt-meta { color: #6c757d; margin-bottom: 4px; }
+  #tooltip .tt-hint { color: #adb5bd; font-size: 11px; font-style: italic; margin-bottom: 10px; }
+  #tooltip .tt-comp-name { font-weight: 600; color: #495057; margin-top: 10px; border-bottom: 1px solid #e9ecef; padding-bottom: 2px; }
+  #tooltip .tt-comp-text {
+    white-space: pre-wrap; word-break: break-word; background: #f8f9fa;
+    border: 1px solid #e9ecef; border-radius: 4px; padding: 8px 10px; margin-top: 4px;
+    font-family: "SF Mono", SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px;
+    max-height: 200px; overflow-y: auto;
+  }
+  .role-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-left: 6px; }
+  .role-best { background: #00e5ff33; color: #006064; }
+  .role-pareto { background: #ff980033; color: #e65100; }
+  .role-seed { background: #e0e0e0; color: #424242; }
+</style>
+</head>
+<body>
+<div id="header">
+  <h1>GEPA Candidate Tree</h1>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:cyan"></div> Best</div>
+    <div class="legend-item"><div class="legend-dot" style="background:orange"></div> Pareto Front</div>
+    <div class="legend-item"><div class="legend-dot" style="background:lightgray"></div> Other</div>
+  </div>
+</div>
+<div id="graph-container"><p>Loading graph&hellip;</p></div>
+<div id="tooltip"></div>
+
+<script type="module">
+const NODES = [{"idx": 0, "score": 0.7292, "parents": "seed", "role": "Seed", "components": {"instructions": "Complete the receipt reimbursement audit from the note. Apply policy carefully."}},
+{"idx": 1, "score": 0.7292, "parents": "0", "role": "", "components": {"instructions": "Complete the receipt reimbursement audit from the note using the policy and the evidence only. Apply the questions literally and independently\u2014do not let a failure in one question change another question\u2019s answer.\n\nKey rule interpretations:\n- Q1 asks whether the purchase is business related and generally allowed by policy. Mark Yes for ordinary business meals or vendor/client/team expenses unless the note clearly shows a personal/non-business purchase or a disallowed item type.\n- Q2 asks only whether the amount is within the stated dollar limit for the relevant expense type. For business meals, use the policy threshold of $60: amount <= $60 => Yes; amount > $60 => No. Do not answer No for Q2 just because alcohol, a gift card, or other review-required content is present if the amount itself is within the limit.\n- Q3 is a driver check. Include only the listed sub-question(s) that are actually supported by the note. Do not add non-applicable drivers.\n\nRequired policy facts to apply:\n- Business meals up to $60 are allowed; over $60 needs review.\n- Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.\n- If the note says attendee list is missing for a business meal, treat that as missing required documentation and include Q3.4.\n- A Visa prepaid card or similar prepaid card counts as a gift card/cash-equivalent.\n- Alcohol explicitly mentioned on the receipt triggers Q3.1.\n- Team dinner, lunch, or vendor thank-you wording may support business purpose, but only if nothing indicates personal use.\n\nOutput formatting rules:\n- Answers must be exactly Yes or No.\n- For questions without sub-questions, put the reasoning in comments and the evidence in citations.\n- For questions with sub-questions, include only applicable sub-questions; omit the others.\n- For Yes answers with sub-questions, omit sub_questions or set them to null/[]. For No answers, include at least one applicable sub-question with reasoning and citations.\n- Keep comments/citations null on sub-question rows unless the field is explicitly used for that row.\n- Overall outcome should be Meets only if the claim satisfies policy; otherwise Does Not Meet.\n\nCommon examples:\n- \"Team dinner $87 with wine listed on receipt.\" => Q1 Yes, Q2 No, Q3 includes Q3.1, overall Does Not Meet.\n- \"Visa prepaid card $100 for vendor thank-you.\" => Q1 Yes, Q2 Yes, Q3 includes Q3.2, overall Does Not Meet.\n- \"Lunch $63, missing attendee list but receipt attached.\" => Q1 Yes, Q2 No, Q3 includes Q3.4, overall Does Not Meet."}},
+{"idx": 2, "score": 0.7292, "parents": "1", "role": "", "components": {"instructions": "Complete the receipt reimbursement audit using only the note, policy, and stated evidence. Apply Q1, Q2, and Q3 independently; do not let a failure in one question affect another question.\n\nDecision rules:\n- Q1: Answer Yes if the purchase is a normal business expense (client/team/vendor meal, thank-you, etc.) and the note does not clearly indicate a personal, non-business, or otherwise disallowed item. Answer No only when the note explicitly shows a personal/non-business purpose or a disallowed item type.\n- Q2: Answer only on the dollar limit for the relevant expense type. For business meals, use the hard threshold $60: amount <= $60 => Yes; amount > $60 => No. Do not make Q2 No because alcohol, gift cards, or other review-required content is present if the amount is within the limit.\n- Q3: Treat this as a driver checklist. Include only the driver sub-questions that are explicitly supported by the note/evidence. Never infer a driver from silence or from missing proof unless the note explicitly says it is missing or unreadable.\n\nPolicy facts to apply literally:\n- Business meals up to $60 are allowed; over $60 needs review.\n- Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.\n- If the note explicitly says the attendee list is missing for a business meal, include Q3.4.\n- A Visa prepaid card or similar prepaid card counts as a gift card/cash-equivalent.\n- Alcohol explicitly mentioned on the receipt triggers Q3.1.\n- Team dinner, lunch, client lunch, vendor thank-you, or similar wording supports business purpose unless the note indicates personal use.\n\nOutput requirements:\n- Q1 and Q2 must always include both comments and citations, even when the answer is Yes.\n- For Q1/Q2 comments, briefly explain the decision; citations must quote or point to the exact note/policy text used.\n- Answers must be exactly Yes or No.\n- For Q3, if no supported drivers are present, answer Yes and set sub_questions to null or [].\n- If Q3 answer is No, include only the applicable sub_questions that are explicitly supported by the note. Use at least one applicable driver, but do not add unrelated drivers.\n- On sub-question rows, include reasoning and citations only when actually used for that row; otherwise leave them null/empty.\n- Overall outcome is Meets only if the claim satisfies policy; otherwise Does Not Meet.\n\nImportant anti-hallucination rule:\n- Do not mark Q3.4 just because the evidence package contains only a note or does not visibly show an attached receipt. Mark Q3.4 only when the note explicitly says receipt/documentation is missing, unreadable, or attendee list is missing where required.\n\nExamples:\n- \"Client lunch $42 with itemized receipt; no alcohol.\" => Q1 Yes, Q2 Yes, Q3 Yes with no sub_questions, overall Meets.\n- \"Gift card purchase $25 for client raffle.\" => Q1 Yes, Q2 Yes, Q3 No with Q3.2 only, overall Does Not Meet.\n- \"Team dinner $92 includes cocktails and dessert.\" => Q1 Yes, Q2 No, Q3 No with Q3.1 only; do not add Q3.4 unless the note explicitly says documentation is missing, overall Does Not Meet."}},
+{"idx": 3, "score": 0.7292, "parents": "2", "role": "", "components": {"instructions": "Complete the receipt reimbursement audit using only the note, policy, and stated evidence. Apply Q1, Q2, and Q3 independently; never let the result of one question alter another.\n\nCore decision rules:\n- Q1 (business purpose): Answer Yes when the note indicates a business-related purchase such as a client lunch, team dinner, vendor thank-you, office supply, or similar business context, and the note does not explicitly say the purchase is personal/non-business. Do not answer No merely because the item is review-required (for example, a gift card, alcohol, or missing docs); those are handled by Q3. Answer No only when the note explicitly shows a personal/non-business purpose or explicitly disallowed personal use.\n- Q2 (amount limit): Answer only on the dollar limit for the relevant expense type. For business meals, apply the hard threshold $60: amount <= $60 => Yes; amount > $60 => No. Do not use Q2 to flag alcohol, gift cards, personal items, or documentation problems if the amount is within the threshold. If the note is about a non-meal expense, still answer only based on the stated policy facts and the amount in the note; do not invent a different limit.\n- Q3 (driver checklist): Include only sub-questions that are explicitly supported by the note/evidence. Mark a driver Yes only when the note explicitly supports it. Mark a driver No only when the note explicitly negates it or the relevant detail is absent and the policy says absence matters. Never infer a driver from silence, the shape of the evidence package, or missing attachments unless the note explicitly says something is missing or unreadable.\n\nPolicy facts to apply literally:\n- Business meals up to $60 are allowed; over $60 needs review.\n- Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.\n- Alcohol explicitly mentioned on the receipt triggers Q3.1.\n- A Visa prepaid card or similar prepaid card counts as a gift card/cash-equivalent and triggers Q3.2.\n- Team dinner, lunch, client lunch, vendor thank-you, or similar wording supports business purpose unless the note indicates personal use.\n- If the note explicitly says the attendee list is missing for a business meal, include Q3.4.\n- Do not mark Q3.4 just because the prompt only shows a note, or because the receipt is not visually present in the evidence bundle; mark it only when the note explicitly says receipt/documentation is missing, unreadable, or attendee list is missing where required.\n\nQ3 sub-question mapping:\n- Q3.1: Alcohol is present.\n- Q3.2: Gift card or cash-equivalent purchase is present.\n- Q3.3: Personal or non-business item is present.\n- Q3.4: Receipt or required documentation is missing.\n\nOutput requirements:\n- Q1 and Q2 must always include both comments and citations, even when the answer is Yes.\n- Q1/Q2 answers must be exactly Yes or No.\n- Q1/Q2 comments should briefly explain the decision in one sentence.\n- Q1/Q2 citations must quote or point to the exact note/policy text used.\n- For Q3, if no supported drivers are present, answer Yes and set sub_questions to null or [].\n- If Q3 answer is No, include only the applicable sub_questions explicitly supported by the note. Include at least one applicable driver, but do not add unrelated drivers.\n- On Q3 sub-question rows, include reasoning and citations only when actually used for that row; otherwise leave them null/empty.\n- Overall outcome is Meets only if the claim satisfies policy; otherwise Does Not Meet.\n\nExamples:\n- \"Client lunch $42 with itemized receipt; no alcohol.\" => Q1 Yes, Q2 Yes, Q3 Yes with no sub_questions, overall Meets.\n- \"Gift card purchase $25 for client raffle.\" => Q1 Yes, Q2 Yes, Q3 No with Q3.2 only, overall Does Not Meet.\n- \"Team dinner $92 includes cocktails and dessert.\" => Q1 Yes, Q2 No, Q3 No with Q3.1 only; do not add Q3.4 unless the note explicitly says documentation is missing, overall Does Not Meet.\n- \"Printer paper $22 for project room, receipt attached.\" => Q1 Yes, Q2 Yes, Q3 Yes with no sub_questions, overall Meets."}},
+{"idx": 4, "score": 0.7708, "parents": "3", "role": "Best", "components": {"instructions": "Complete the receipt reimbursement audit using only the note, policy, and stated evidence. Treat Q1, Q2, and Q3 as independent checks; never let the answer to one question influence another.\n\nDecision rules:\n- Q1 (business purpose): Answer Yes when the note shows a business context such as client lunch, team dinner, vendor thank-you, office supply, coffee meeting, or similar, unless the note explicitly says the purchase is personal or non-business. Do not answer No just because the item is review-required (for example, alcohol, a gift card, or missing docs); those are handled by Q3. Answer No only when the note explicitly shows personal/non-business use or a clearly disallowed personal purpose.\n- Q2 (amount limit): Decide only from the amount and the policy threshold for the relevant expense type. For business meals, use the hard threshold $60: amount <= $60 => Yes; amount > $60 => No. Do not use Q2 to flag alcohol, gift cards, personal items, or documentation problems if the amount is within the threshold. If the note is not a meal, use only the explicit policy facts given; do not invent new limits.\n- Q3 (driver checklist): Only include sub-questions that are explicitly supported by the note/evidence. Mark a driver Yes only when the note explicitly states the driver is present. Mark a driver No only when the note explicitly states the driver is absent, or when the policy says the absence itself is a required driver and the note explicitly says it is missing. Never infer a driver from silence, from the fact that the receipt image is not shown, or from generic wording like itemized receipt.\n\nImportant negative-evidence rule:\n- A phrase like \u201cno alcohol\u201d means Q3.1 is false and must not be marked as present.\n- A phrase like \u201creceipt attached\u201d means documentation is present and must not trigger Q3.4.\n- Only \u201cno receipt attached,\u201d \u201cmissing receipt,\u201d \u201cunreadable receipt,\u201d or \u201cattendee list missing\u201d should trigger Q3.4 when the policy requires that documentation.\n- Only explicit mentions of alcohol on the receipt trigger Q3.1; do not infer alcohol from a dinner or team meal.\n- Only an explicit prepaid/gift-card/cash-equivalent purchase (for example, Visa prepaid card) triggers Q3.2.\n- Only an explicit personal or non-business item triggers Q3.3.\n\nPolicy facts to apply literally:\n- Business meals up to $60 are allowed; over $60 needs review.\n- Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.\n- Team dinner, lunch, client lunch, vendor thank-you, and similar wording support business purpose unless the note indicates personal use.\n- If the note explicitly says the attendee list is missing for a business meal, include Q3.4.\n- Do not mark Q3.4 just because the prompt only shows a note or because the receipt image is not visually present in the bundle.\n\nQ3 mapping:\n- Q3.1: Alcohol is present.\n- Q3.2: Gift card or cash-equivalent purchase is present.\n- Q3.3: Personal or non-business item is present.\n- Q3.4: Receipt or required documentation is missing.\n\nOutput requirements:\n- Q1 and Q2 must always include both comments and citations, even when the answer is Yes.\n- Q1/Q2 answers must be exactly Yes or No.\n- Q1/Q2 comments should be one sentence and should cite the exact note/policy text used.\n- Q3: if no supported drivers are present, answer Yes and set sub_questions to null or [].\n- If Q3 answer is No, include only the applicable sub_questions explicitly supported by the note. Include at least one applicable driver, but do not add unrelated drivers or negative drivers from mere silence.\n- For Q3 sub-question rows, include reasoning and citations only when actually used for that row; otherwise leave them null/empty.\n- Overall outcome is Meets only if the claim satisfies policy; otherwise Does Not Meet.\n\nExamples:\n- \"Client lunch $42 with itemized receipt; no alcohol.\" => Q1 Yes, Q2 Yes, Q3 Yes with no sub_questions, overall Meets.\n- \"Gift card purchase $25 for client raffle.\" => Q1 Yes, Q2 Yes, Q3 No with Q3.2 only, overall Does Not Meet.\n- \"Team dinner $92 includes cocktails and dessert.\" => Q1 Yes, Q2 No, Q3 No with Q3.1 only, overall Does Not Meet.\n- \"Dinner $61 with client, itemized receipt, no alcohol.\" => Q1 Yes, Q2 No, Q3 Yes with no sub_questions, overall Does Not Meet.\n- \"Coffee meeting $18, no receipt attached.\" => Q1 Yes, Q2 Yes, Q3 No with Q3.4 only, overall Does Not Meet.\n\nForm-specific guidance:\n- When a question does not list Sub-Questions, put reasoning in comments and evidence in citations.\n- When Q3 is No, return only the supported driver rows; do not pad with false drivers.\n- Do not produce Q3.1 just because the meal is dinner or includes cocktails unless alcohol is explicitly mentioned. Do not produce Q3.4 unless documentation is explicitly missing or unreadable."}},
+{"idx": 5, "score": 0.7708, "parents": "4", "role": "Pareto Front", "components": {"instructions": "Complete the receipt reimbursement audit using only the note, policy, and stated evidence. Treat Q1, Q2, and Q3 as independent checks; never let the answer to one question influence another.\n\nCore rule: evaluate each question on its own stated criterion.\n- Q1 asks whether the purchase is business related and allowed by policy.\n- Q2 asks only whether the amount is within the relevant policy limit.\n- Q3 asks only whether any listed prohibited/review-required drivers are explicitly present.\n\nDecision rules:\n- Q1 (business purpose): Answer Yes when the note shows a business context such as client lunch, team dinner, vendor thank-you, office supply, coffee meeting, or similar, unless the note explicitly says the purchase is personal or non-business. Do not answer No merely because the item is review-required for another reason (for example, alcohol, gift card, prepaid card, or missing docs); those belong in Q3. Answer No only when the note explicitly shows personal/non-business use or a clearly disallowed personal purpose.\n- Q2 (amount limit): Decide only from the amount and the explicit policy threshold for the relevant expense type. For business meals, use the hard threshold $60: amount <= $60 => Yes; amount > $60 => No. Do not use Q2 to flag alcohol, gift cards, prepaid cards, personal items, or documentation problems when the amount is within the threshold. If the note is not a meal, use only explicit limits stated in the policy; if no explicit limit is provided for that type, do not invent one.\n- Q3 (driver checklist): Only include sub-questions that are explicitly supported by the note/evidence. Mark a driver Yes only when the note explicitly states the driver is present. Mark a driver No only when the note explicitly states the driver is absent, or when the policy makes the absence itself a required driver and the note explicitly says it is missing. Never infer a driver from silence, from the fact that the receipt image is not shown, or from generic wording like itemized receipt.\n\nImportant negative-evidence rules:\n- \u201cno alcohol\u201d means Q3.1 is false and must not be marked as present.\n- \u201creceipt attached\u201d means documentation is present and must not trigger Q3.4.\n- Only \u201cno receipt attached,\u201d \u201cmissing receipt,\u201d \u201cunreadable receipt,\u201d or \u201cattendee list missing\u201d should trigger Q3.4 when the policy requires that documentation.\n- Only explicit mentions of alcohol on the receipt trigger Q3.1; do not infer alcohol from dinner, team dinner, cocktails in a generic example, or other meal wording unless the note itself names alcohol.\n- Only an explicit prepaid/gift-card/cash-equivalent purchase (for example, Visa prepaid card, gift card, prepaid card) triggers Q3.2.\n- Only an explicit personal or non-business item triggers Q3.3.\n\nPolicy facts to apply literally:\n- Business meals up to $60 are allowed; over $60 needs review.\n- Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.\n- Team dinner, lunch, client lunch, vendor thank-you, and similar wording support business purpose unless the note indicates personal use.\n- If the note explicitly says the attendee list is missing for a business meal, include Q3.4.\n- Do not mark Q3.4 just because the prompt only shows a note or because the receipt image is not visually present in the bundle.\n- A cash-equivalent item can still be business-related for Q1 if the note shows a business context (for example, vendor thank-you); do not treat Q3 review items as automatic Q1 failures.\n\nQ3 mapping:\n- Q3.1: Alcohol is present.\n- Q3.2: Gift card or cash-equivalent purchase is present.\n- Q3.3: Personal or non-business item is present.\n- Q3.4: Receipt or required documentation is missing.\n\nOutput requirements:\n- Q1 and Q2 must always include both comments and citations, even when the answer is Yes.\n- Q1/Q2 answers must be exactly Yes or No.\n- Q1/Q2 comments should be one sentence and should cite the exact note/policy text used.\n- Q3: if no supported drivers are present, answer Yes and set sub_questions to null or [].\n- If Q3 answer is No, include only the applicable sub_questions explicitly supported by the note. Include at least one applicable driver, but do not add unrelated drivers or negative drivers from mere silence.\n- For Q3 sub-question rows, include reasoning and citations only when actually used for that row; otherwise leave them null/empty.\n- Overall outcome is Meets only if the claim satisfies policy; otherwise Does Not Meet.\n\nExamples:\n- \"Client lunch $42 with itemized receipt; no alcohol.\" => Q1 Yes, Q2 Yes, Q3 Yes with no sub_questions, overall Meets.\n- \"Gift card purchase $25 for client raffle.\" => Q1 Yes, Q2 Yes, Q3 No with Q3.2 only, overall Does Not Meet.\n- \"Team dinner $92 includes cocktails and dessert.\" => Q1 Yes, Q2 No, Q3 No with Q3.1 only, overall Does Not Meet.\n- \"Dinner $61 with client, itemized receipt, no alcohol.\" => Q1 Yes, Q2 No, Q3 Yes with no sub_questions, overall Does Not Meet.\n- \"Coffee meeting $18, no receipt attached.\" => Q1 Yes, Q2 Yes, Q3 No with Q3.4 only, overall Does Not Meet.\n- \"Visa prepaid card $100 for vendor thank-you.\" => Q1 Yes, Q2 Yes, Q3 No with Q3.2 only, overall Does Not Meet.\n\nForm-specific guidance:\n- When a question does not list Sub-Questions, put reasoning in comments and evidence in citations.\n- When Q3 is No, return only the supported driver rows; do not pad with false drivers.\n- Do not produce Q3.1 just because the meal is dinner or includes cocktails unless alcohol is explicitly mentioned.\n- Do not produce Q3.4 unless documentation is explicitly missing or unreadable."}}];
+const DOT = `digraph G {
+    rankdir=TB;
+    node [style=filled, shape=circle, fontsize=14, width=0.6, height=0.6];
+    0 [label="0\\n(0.73)", fillcolor=lightgray, tooltip=" "];
+    1 [label="1\\n(0.73)", fillcolor=lightgray, tooltip=" "];
+    2 [label="2\\n(0.73)", fillcolor=lightgray, tooltip=" "];
+    3 [label="3\\n(0.73)", fillcolor=lightgray, tooltip=" "];
+    4 [label="4\\n(0.77)", fillcolor=cyan, tooltip=" "];
+    5 [label="5\\n(0.77)", fillcolor=orange, tooltip=" "];
+    0 -> 1;
+    1 -> 2;
+    2 -> 3;
+    3 -> 4;
+    4 -> 5;
+}`;
+
+const nodeMap = {};
+NODES.forEach(n => { nodeMap[n.idx] = n; });
+
+let pinnedIdx = null;   // non-null when tooltip is click-pinned (scrollable)
+let hoverIdx = null;    // non-null when hovering over a node
+
+function renderTooltip(idx) {
+  const n = nodeMap[idx];
+  if (!n) return "";
+  let roleBadge = "";
+  if (n.role === "Best") roleBadge = '<span class="role-badge role-best">BEST</span>';
+  else if (n.role === "Pareto Front") roleBadge = '<span class="role-badge role-pareto">PARETO</span>';
+  else if (n.role === "Seed") roleBadge = '<span class="role-badge role-seed">SEED</span>';
+
+  let comps = "";
+  for (const [name, text] of Object.entries(n.components)) {
+    const escaped = text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    comps += '<div class="tt-comp-name">' + name + '</div><div class="tt-comp-text">' + escaped + '</div>';
+  }
+
+  return '<div class="tt-header">Candidate ' + n.idx + roleBadge + '</div>' +
+    '<div class="tt-meta">Score: <strong>' + n.score + '</strong>&nbsp;&nbsp;|&nbsp;&nbsp;Parent(s): ' + n.parents +
+    '</div><div class="tt-hint">' + (pinnedIdx === idx ? 'Click node again to dismiss' : 'Click to pin &amp; scroll') + '</div>' +
+    comps;
+}
+
+function positionTooltip(x, y) {
+  const tt = document.getElementById("tooltip");
+  let tx = x + 16, ty = y + 16;
+  const r = tt.getBoundingClientRect();
+  if (tx + r.width > window.innerWidth - 8) tx = x - r.width - 16;
+  if (ty + r.height > window.innerHeight - 8) ty = y - r.height - 16;
+  if (tx < 8) tx = 8;
+  if (ty < 8) ty = 8;
+  tt.style.left = tx + "px";
+  tt.style.top = ty + "px";
+}
+
+function showTooltip(idx, x, y) {
+  const tt = document.getElementById("tooltip");
+  tt.innerHTML = renderTooltip(idx);
+  tt.style.display = "block";
+  positionTooltip(x, y);
+}
+
+function hideTooltip() {
+  pinnedIdx = null;
+  hoverIdx = null;
+  document.getElementById("tooltip").style.display = "none";
+}
+
+// Click outside tooltip and outside nodes dismisses pinned tooltip
+document.addEventListener("mousedown", function(e) {
+  const tt = document.getElementById("tooltip");
+  if (pinnedIdx !== null && tt.style.display === "block"
+      && !tt.contains(e.target) && !e.target.closest(".node")) {
+    hideTooltip();
+  }
+});
+
+async function render() {
+  const { instance } = await import("https://cdn.jsdelivr.net/npm/@viz-js/viz@3.11.0/lib/viz-standalone.mjs");
+  const viz = await instance();
+  const svg = viz.renderSVGElement(DOT);
+  const container = document.getElementById("graph-container");
+  container.innerHTML = "";
+  container.appendChild(svg);
+
+  // Attach hover listeners and strip native <title> tooltips to avoid double tooltips
+  svg.querySelectorAll(".node").forEach(node => {
+    const title = node.querySelector("title");
+    if (!title) return;
+    const idx = parseInt(title.textContent, 10);
+    if (isNaN(idx)) return;
+    title.remove();  // remove native SVG tooltip
+    node.style.cursor = "pointer";
+    // Hover: show tooltip following the mouse (non-interactive)
+    node.addEventListener("mouseenter", e => {
+      if (pinnedIdx !== null) return;  // don't override a pinned tooltip
+      hoverIdx = idx;
+      showTooltip(idx, e.clientX, e.clientY);
+    });
+    node.addEventListener("mousemove", e => {
+      if (pinnedIdx !== null || hoverIdx !== idx) return;
+      positionTooltip(e.clientX, e.clientY);
+    });
+    node.addEventListener("mouseleave", () => {
+      if (pinnedIdx !== null) return;
+      hoverIdx = null;
+      document.getElementById("tooltip").style.display = "none";
+    });
+    // Click: pin the tooltip so user can scroll it
+    node.addEventListener("click", e => {
+      e.stopPropagation();
+      if (pinnedIdx === idx) { hideTooltip(); return; }
+      pinnedIdx = idx;
+      showTooltip(idx, e.clientX, e.clientY);
+    });
+  });
+  // Also strip <title> from edges and the graph itself
+  svg.querySelectorAll(".edge title").forEach(t => t.remove());
+  const graphTitle = svg.querySelector(":scope > title");
+  if (graphTitle) graphTitle.remove();
+}
+
+render().catch(err => {
+  document.getElementById("graph-container").innerHTML =
+    "<p style='color:red'>Failed to render graph: " + err.message + "</p>" +
+    "<pre>" + DOT.replace(/</g,"&lt;") + "</pre>";
+});
+</script>
+</body>
+</html>

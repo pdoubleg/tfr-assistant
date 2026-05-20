@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     image_model: str = "gpt-image-2"
     generated_images_dir: Path = Path("data/generated_images")
     chat_artifacts_dir: Path = Path("data/chat_artifacts")
+    optimization_runs_dir: Path = Path("data/optimization_runs")
     agent_workspace_dir: Path = Path("data/workspace")
     monty_rlm_model: str = "gpt-5.4-nano"
     monty_rlm_model_api: LLMModelAPI = LLMModelAPI.CHAT

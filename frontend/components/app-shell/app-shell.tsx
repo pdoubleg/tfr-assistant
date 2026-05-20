@@ -53,6 +53,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     document.documentElement.classList.toggle("dark", nextTheme === "dark");
   }, []);
 
+  useEffect(() => {
+    if (window.innerWidth < 768) {
+      setChatMode("hidden");
+    }
+  }, []);
+
   const toggleTheme = () => {
     const nextTheme = theme === "light" ? "dark" : "light";
     setTheme(nextTheme);

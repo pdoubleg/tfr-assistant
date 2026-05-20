@@ -327,6 +327,173 @@ export interface EvalRunItemRecord {
   updated_at?: string;
 }
 
+export type OptimizationRunStatus = "queued" | "running" | "completed" | "failed" | "canceled";
+export type OptimizationSplit = "train" | "val" | "test";
+export type OptimizationMetricMode = "comparison" | "comparison_with_judge";
+export type OptimizationScoreKey =
+  | "score"
+  | "question_agreement"
+  | "path_exact_rate"
+  | "subquestion_f1"
+  | "outcome_score";
+export type OptimizationReferencePolicy = "prefer_r2" | "r1" | "r2" | "all";
+export type OptimizationAutoBudget = "light" | "medium" | "heavy";
+export type OptimizationCandidateSelectionStrategy = "pareto" | "current_best" | "epsilon_greedy" | "top_k_pareto";
+export type OptimizationFrontierType = "instance" | "objective" | "hybrid" | "cartesian";
+export type OptimizationBatchSampler = "epoch_shuffled";
+export type OptimizationValEvaluationPolicy = "full_eval";
+
+export interface OptimizationCaseRecord {
+  case_id: string;
+  dataset_id: string;
+  dataset_name: string;
+  source_kind: string;
+  claim_number: string;
+  effective_date?: string | null;
+  instructions: string;
+  outcome: string;
+  issue_count: number;
+  driver_count: number;
+  reference_kinds: string[];
+  created_at?: string;
+}
+
+export interface OptimizationCaseSplit {
+  case_id: string;
+  split: OptimizationSplit;
+}
+
+export interface OptimizationRunPayload {
+  name: string;
+  form_id: string;
+  form_version: string;
+  seed_instruction_source: "form" | "manual";
+  manual_instructions: string;
+  metric_mode: OptimizationMetricMode;
+  score_key: OptimizationScoreKey;
+  reference_policy: OptimizationReferencePolicy;
+  judge_model?: string | null;
+  gepa_params: {
+    auto?: OptimizationAutoBudget | null;
+    max_full_evals?: number | null;
+    max_metric_calls?: number | null;
+    reflection_model?: string | null;
+    reflection_minibatch_size: number;
+    perfect_score: number;
+    skip_perfect_score: boolean;
+    candidate_selection_strategy: OptimizationCandidateSelectionStrategy;
+    frontier_type: OptimizationFrontierType;
+    batch_sampler: OptimizationBatchSampler;
+    module_selector: string;
+    use_merge: boolean;
+    max_merge_invocations: number;
+    merge_val_overlap_floor: number;
+    cache_evaluation: boolean;
+    track_best_outputs: boolean;
+    display_progress_bar: boolean;
+    raise_on_exception: boolean;
+    val_evaluation_policy?: OptimizationValEvaluationPolicy | null;
+    use_mlflow: boolean;
+    mlflow_tracking_uri?: string | null;
+    mlflow_experiment_name?: string | null;
+    seed: number;
+  };
+  trace_config: {
+    capture_traces: boolean;
+    max_tool_return_chars: number;
+    include_debug_traces: boolean;
+    include_thinking: boolean;
+  };
+  case_splits: OptimizationCaseSplit[];
+}
+
+export interface OptimizationCandidateRecord {
+  id: string;
+  run_id: string;
+  candidate_index: number;
+  parent_indices: Array<number | null>;
+  status: string;
+  candidate: Record<string, string>;
+  score?: number | null;
+  metrics: Record<string, unknown>;
+  created_at?: string;
+}
+
+export interface OptimizationEventRecord {
+  id: string;
+  run_id: string;
+  sequence: number;
+  type: string;
+  message: string;
+  iteration?: number | null;
+  level: string;
+  data: Record<string, unknown>;
+  created_at?: string;
+}
+
+export interface OptimizationRunRecord {
+  id: string;
+  name: string;
+  status: OptimizationRunStatus;
+  form_id: string;
+  form_version: string;
+  config: Record<string, unknown>;
+  case_splits: OptimizationCaseSplit[];
+  seed_candidate?: Record<string, string> | null;
+  best_candidate?: Record<string, string> | null;
+  metrics: Record<string, unknown>;
+  artifacts: Record<string, unknown>;
+  token_usage: Record<string, unknown>;
+  total_count: number;
+  train_count: number;
+  val_count: number;
+  test_count: number;
+  best_score?: number | null;
+  original_score?: number | null;
+  total_metric_calls: number;
+  error_message?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  candidates: OptimizationCandidateRecord[];
+  events: OptimizationEventRecord[];
+}
+
+export interface OptimizationDemoFixtureRecord {
+  dataset_id: string;
+  form_id: string;
+  form_version: string;
+  case_count: number;
+  created: boolean;
+}
+
+export interface OptimizationDagNode {
+  id: string;
+  candidate_index: number;
+  role: string;
+  score?: number | null;
+  candidate: Record<string, string>;
+  parents: Array<number | null>;
+}
+
+export interface OptimizationDagEdge {
+  id: string;
+  source: string;
+  target: string;
+}
+
+export interface OptimizationDagArtifact {
+  schema_version: number;
+  nodes: OptimizationDagNode[];
+  edges: OptimizationDagEdge[];
+  best_idx: number;
+  pareto_front: number[];
+  config: OptimizationRunPayload;
+  test_report: Record<string, unknown>;
+  total_metric_calls?: number | null;
+}
+
 export interface FormCatalogEntry {
   id: string;
   version: string;

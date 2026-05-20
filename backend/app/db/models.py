@@ -389,3 +389,88 @@ class EvalAgreementItemORM(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     comparison: Mapped[EvalComparisonORM] = relationship(back_populates="agreement_items")
+
+
+class OptimizationRunORM(Base):
+    __tablename__ = "optimization_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), index=True)
+    status: Mapped[str] = mapped_column(String(24), default="queued", index=True)
+    form_id: Mapped[str] = mapped_column(String(128), index=True)
+    form_version: Mapped[str] = mapped_column(String(64), index=True)
+    config_json: Mapped[dict[str, Any]] = mapped_column(PortableJSON, nullable=False)
+    split_json: Mapped[list[dict[str, Any]]] = mapped_column(
+        PortableJSON,
+        default=list,
+        nullable=False,
+    )
+    seed_candidate_json: Mapped[dict[str, Any] | None] = mapped_column(
+        PortableJSON,
+        nullable=True,
+    )
+    best_candidate_json: Mapped[dict[str, Any] | None] = mapped_column(
+        PortableJSON,
+        nullable=True,
+    )
+    metrics_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
+    artifacts_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
+    token_usage_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
+    total_count: Mapped[int] = mapped_column(Integer, default=0)
+    train_count: Mapped[int] = mapped_column(Integer, default=0)
+    val_count: Mapped[int] = mapped_column(Integer, default=0)
+    test_count: Mapped[int] = mapped_column(Integer, default=0)
+    best_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    original_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    total_metric_calls: Mapped[int] = mapped_column(Integer, default=0)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+    candidates: Mapped[list["OptimizationCandidateORM"]] = relationship(
+        back_populates="run",
+        cascade="all, delete-orphan",
+    )
+    events: Mapped[list["OptimizationEventORM"]] = relationship(
+        back_populates="run",
+        cascade="all, delete-orphan",
+    )
+
+
+class OptimizationCandidateORM(Base):
+    __tablename__ = "optimization_candidates"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    run_id: Mapped[str] = mapped_column(ForeignKey("optimization_runs.id"), index=True)
+    candidate_index: Mapped[int] = mapped_column(Integer, index=True)
+    parent_indices_json: Mapped[list[int | None]] = mapped_column(
+        PortableJSON,
+        default=list,
+        nullable=False,
+    )
+    status: Mapped[str] = mapped_column(String(24), default="candidate", index=True)
+    candidate_json: Mapped[dict[str, Any]] = mapped_column(PortableJSON, nullable=False)
+    score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    metrics_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    run: Mapped[OptimizationRunORM] = relationship(back_populates="candidates")
+
+
+class OptimizationEventORM(Base):
+    __tablename__ = "optimization_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    run_id: Mapped[str] = mapped_column(ForeignKey("optimization_runs.id"), index=True)
+    sequence: Mapped[int] = mapped_column(Integer, index=True)
+    event_type: Mapped[str] = mapped_column(String(64), index=True)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(PortableJSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    run: Mapped[OptimizationRunORM] = relationship(back_populates="events")
