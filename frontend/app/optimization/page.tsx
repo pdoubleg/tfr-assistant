@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type PointerEvent as ReactPointerEvent } from "react";
 import {
   Background,
   Controls,
@@ -20,7 +20,10 @@ import {
   Database,
   GitBranch,
   GitCompareArrows,
+  Info,
   Loader2,
+  Maximize2,
+  Minimize2,
   Network,
   Play,
   RefreshCw,
@@ -63,10 +66,10 @@ import type {
 const pollMs = 3500;
 const nodeWidth = 284;
 const nodeHeight = 168;
-const maxVisibleIterationNodes = 10;
 type GepaParamsState = OptimizationRunPayload["gepa_params"];
 type BudgetMode = "metric_calls" | "full_evals" | "auto";
 type MonitorView = "graph" | "native";
+type ResizeDirection = "left" | "right" | "top" | "bottom" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
 
 const defaultGepaParams: GepaParamsState = {
   auto: null,
@@ -235,12 +238,28 @@ function CandidateNode({ data }: NodeProps<Node<CandidateNodeData>>) {
   const isBest = data.role === "best";
   const isPareto = data.role === "pareto";
   const isSeed = data.role === "seed";
+  const isFinal = data.role === "final";
   const isRejected = data.role === "rejected" || data.role === "errored";
+  const isCurrent = data.status === "selected" || data.status === "evaluating" || data.role === "current";
   const isAccepted = data.role === "accepted" || isBest || isPareto;
+  const parentText = formatParentIds(data.parentIds);
+  const reflectionStats = reflectionStatsFromEvents(data.events ?? []);
+  const thirdStatLabel = reflectionStats.trajectories > 0 ? "traj" : data.validationSize ? "val" : "events";
+  const thirdStatValue = reflectionStats.trajectories > 0
+    ? String(reflectionStats.trajectories)
+    : data.validationSize
+      ? String(data.validationSize)
+      : String(data.events?.length ?? "-");
   const accentClass = isBest
-    ? "border-amber-400 bg-amber-50 text-amber-950 dark:bg-amber-950/25 dark:text-amber-50"
-    : isAccepted
-      ? "border-emerald-500/70 bg-emerald-50 text-emerald-950 dark:bg-emerald-950/25 dark:text-emerald-50"
+    ? "border-amber-400 bg-gradient-to-br from-amber-50 to-yellow-100 text-amber-950 shadow-lg shadow-amber-500/20 ring-2 ring-amber-300/60 dark:from-amber-950/50 dark:to-yellow-950/25 dark:text-amber-50"
+    : isPareto
+      ? "border-amber-400 bg-amber-50 text-amber-950 dark:bg-amber-950/25 dark:text-amber-50"
+      : isFinal
+        ? "border-rose-400 bg-rose-50 text-rose-950 shadow-rose-500/10 dark:bg-rose-950/25 dark:text-rose-50"
+      : isCurrent
+        ? "border-primary/80 bg-primary/10 text-card-foreground shadow-primary/10"
+      : isAccepted
+        ? "border-emerald-500/70 bg-emerald-50 text-emerald-950 dark:bg-emerald-950/25 dark:text-emerald-50"
       : isRejected
         ? "border-rose-500/70 bg-rose-50 text-rose-950 dark:bg-rose-950/25 dark:text-rose-50"
         : isSeed
@@ -265,14 +284,16 @@ function CandidateNode({ data }: NodeProps<Node<CandidateNodeData>>) {
             <Trophy className="h-4 w-4 shrink-0 text-amber-600" />
           ) : isRejected ? (
             <XCircle className="h-4 w-4 shrink-0 text-rose-600" />
-          ) : isAccepted ? (
+          ) : isFinal ? (
+            <CircleDot className="h-4 w-4 shrink-0 text-rose-600" />
+          ) : isAccepted || isCurrent ? (
             <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
           ) : (
             <CircleDot className="h-4 w-4 shrink-0 text-primary" />
           )}
           <p className="truncate text-sm font-semibold">{data.title}</p>
         </div>
-        <Badge variant={isBest ? "warning" : isAccepted ? "success" : isRejected ? "danger" : "outline"} className="shrink-0 text-[10px]">
+        <Badge variant={isBest || isPareto ? "warning" : isAccepted ? "success" : isRejected || isFinal ? "danger" : "outline"} className="shrink-0 text-[10px]">
           {data.status}
         </Badge>
       </div>
@@ -282,14 +303,12 @@ function CandidateNode({ data }: NodeProps<Node<CandidateNodeData>>) {
           <p className="font-mono font-semibold">{formatScore(data.score)}</p>
         </div>
         <div>
-          <p className="text-[10px] uppercase opacity-65">candidate</p>
-          <p className="font-mono font-semibold">
-            {data.newCandidateIndex ?? data.candidateIndex ?? "-"}
-          </p>
+          <p className="text-[10px] uppercase opacity-65">parent</p>
+          <p className="truncate font-mono font-semibold" title={parentText}>{parentText}</p>
         </div>
         <div>
-          <p className="text-[10px] uppercase opacity-65">budget</p>
-          <p className="font-mono font-semibold">{progressText ?? "-"}</p>
+          <p className="text-[10px] uppercase opacity-65">{thirdStatLabel}</p>
+          <p className="font-mono font-semibold">{thirdStatValue}</p>
         </div>
       </div>
       <p className="mt-3 line-clamp-2 min-h-[32px] text-xs leading-relaxed opacity-80">
@@ -297,7 +316,9 @@ function CandidateNode({ data }: NodeProps<Node<CandidateNodeData>>) {
       </p>
       <div className="mt-3 flex items-center justify-between gap-2 text-[10px] uppercase opacity-65">
         <span>{data.label}</span>
-        <span>{data.minibatchSize ? `${data.minibatchSize} train` : data.validationSize ? `${data.validationSize} val` : ""}</span>
+        <span>
+          {progressText ? `${progressText} calls` : data.events?.length ? `${data.events.length} callbacks` : ""}
+        </span>
       </div>
       <Handle type="source" position={Position.Bottom} className="!h-2 !w-2 !bg-primary" />
     </motion.div>
@@ -1200,11 +1221,12 @@ function RunMonitor({
         ) : run ? (
           <div className="relative h-full">
             <ReactFlow
+              key={`${run.id}-${graph.nodes.length}-${graph.edges.length}`}
               className="optimization-flow"
               nodes={graph.nodes}
               edges={graph.edges}
               nodeTypes={nodeTypes}
-              defaultViewport={{ x: 320, y: 40, zoom: 0.86 }}
+              defaultViewport={{ x: 420, y: 72, zoom: 0.82 }}
               minZoom={0.2}
               maxZoom={1.6}
               onNodeClick={(_, node) => onNodeSelect(node.data as CandidateNodeData)}
@@ -1212,7 +1234,17 @@ function RunMonitor({
             >
               <Background gap={28} size={1.2} />
               <Controls />
-              <MiniMap nodeColor={(node) => nodeColor((node.data as CandidateNodeData).role)} pannable zoomable />
+              <MiniMap
+                pannable
+                zoomable
+                nodeBorderRadius={4}
+                nodeColor={(node) => nodeColor((node.data as CandidateNodeData).role)}
+                nodeStrokeColor={(node) => nodeStrokeColor((node.data as CandidateNodeData).role)}
+                nodeStrokeWidth={3}
+                maskColor="hsl(var(--background) / 0.46)"
+                bgColor="hsl(var(--card) / 0.98)"
+                style={{ width: 240, height: 168 }}
+              />
             </ReactFlow>
             {selectedNode ? (
               <NodeDetailDrawer node={selectedNode} run={run} onClose={() => onNodeSelect(null)} />
@@ -1237,48 +1269,132 @@ function NodeDetailDrawer({
   run: OptimizationRunRecord;
   onClose: () => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const [drawerSize, setDrawerSize] = useState({ width: 760, height: 560 });
   const instructionText =
     node.proposedInstructions?.instructions ??
     node.candidate?.instructions ??
     node.events?.find((event) => typeof event.data?.new_instructions === "object")?.data?.new_instructions;
   const printableInstructions =
     typeof instructionText === "string" ? instructionText : "No instruction text available for this node.";
+  const reflectionDetails = formatReflectionDetails(node.events ?? []);
+  const reflectionStats = reflectionStatsFromEvents(node.events ?? []);
+  const startResize = useCallback((
+    direction: ResizeDirection,
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startWidth = drawerSize.width;
+    const startHeight = drawerSize.height;
+    const maxWidth = Math.max(440, window.innerWidth - 40);
+    const maxHeight = Math.max(360, window.innerHeight - 40);
+    const onMove = (moveEvent: PointerEvent) => {
+      const dx = moveEvent.clientX - startX;
+      const dy = moveEvent.clientY - startY;
+      const nextWidth = direction.includes("left")
+        ? startWidth - dx
+        : direction.includes("right")
+          ? startWidth + dx
+          : startWidth;
+      const nextHeight = direction.includes("top")
+        ? startHeight - dy
+        : direction.includes("bottom")
+          ? startHeight + dy
+          : startHeight;
+      setDrawerSize({
+        width: Math.min(Math.max(nextWidth, 440), maxWidth),
+        height: Math.min(Math.max(nextHeight, 360), maxHeight),
+      });
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }, [drawerSize.height, drawerSize.width]);
   return (
     <motion.aside
       initial={{ opacity: 0, x: 18 }}
       animate={{ opacity: 1, x: 0 }}
-      className="absolute bottom-4 right-4 top-4 z-10 flex w-[min(420px,calc(100%-2rem))] flex-col overflow-hidden rounded-lg border bg-card/95 shadow-xl backdrop-blur"
+      style={expanded ? { width: drawerSize.width, height: drawerSize.height } : undefined}
+      className={[
+        "absolute z-10 flex flex-col overflow-hidden rounded-lg border bg-card/95 shadow-xl backdrop-blur",
+        expanded
+          ? "right-4 top-4 max-h-[calc(100%-2rem)] max-w-[calc(100%-2rem)]"
+          : "bottom-4 right-4 top-4 w-[min(440px,calc(100%-2rem))]",
+      ].join(" ")}
     >
+      {expanded ? <ResizeHandles onStartResize={startResize} /> : null}
       <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{node.title}</p>
           <p className="text-xs text-muted-foreground">{run.name}</p>
         </div>
-        <Button type="button" variant="ghost" size="sm" onClick={onClose}>
-          Close
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setExpanded((current) => !current)}
+            title={expanded ? "Collapse summary" : "Expand summary"}
+          >
+            {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </Button>
+          <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+            Close
+          </Button>
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-2 border-b p-4 text-sm">
         <MetricRow label="Status" value={node.status} />
         <MetricRow label="Score" value={formatScore(node.score)} />
         <MetricRow label="Candidate" value={String(node.newCandidateIndex ?? node.candidateIndex ?? "-")} />
-        <MetricRow label="Parents" value={(node.parentIds ?? []).filter((item) => item !== null).join(", ") || "-"} />
+        <MetricRow label="Parents" value={formatParentIds(node.parentIds)} />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         <div className="rounded-lg border bg-secondary/25 p-3">
           <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Summary</p>
           <p className="text-sm leading-relaxed">{node.message ?? "No summary available."}</p>
         </div>
-        <div className="mt-3 rounded-lg border bg-secondary/25 p-3">
-          <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Instructions</p>
-          <p className="max-h-[240px] overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed">
+        <details className="mt-3 rounded-lg border bg-secondary/25 p-3">
+          <summary className="flex cursor-pointer select-none items-center justify-between gap-3 text-xs font-semibold uppercase text-muted-foreground">
+            <span>Instructions</span>
+            <Badge variant="outline" className="text-[10px]">{printableInstructions.length.toLocaleString()} chars</Badge>
+          </summary>
+          <p className={[
+            "mt-3 overflow-y-auto whitespace-pre-wrap rounded-md border bg-card p-3 text-xs leading-relaxed",
+            expanded ? "max-h-[520px]" : "max-h-[240px]",
+          ].join(" ")}>
             {printableInstructions}
           </p>
-        </div>
+        </details>
+        {reflectionDetails ? (
+          <details className="mt-3 rounded-lg border bg-secondary/25 p-3">
+            <summary className="flex cursor-pointer select-none items-center justify-between gap-3 text-xs font-semibold uppercase text-muted-foreground">
+              <span>Reflection Details</span>
+              <Badge variant="outline" className="text-[10px]">
+                {reflectionStats.batches} batch{reflectionStats.batches === 1 ? "" : "es"} · {reflectionStats.trajectories} traj
+              </Badge>
+            </summary>
+            <pre className={[
+              "mt-3 overflow-auto whitespace-pre-wrap rounded-md border bg-card p-3 text-xs leading-relaxed",
+              expanded ? "max-h-[520px]" : "max-h-[260px]",
+            ].join(" ")}>
+              {reflectionDetails}
+            </pre>
+          </details>
+        ) : null}
         {node.events?.length ? (
-          <div className="mt-3 rounded-lg border bg-secondary/25 p-3">
-            <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Callbacks</p>
-            <div className="space-y-2">
+          <details className="mt-3 rounded-lg border bg-secondary/25 p-3">
+            <summary className="flex cursor-pointer select-none items-center justify-between gap-3 text-xs font-semibold uppercase text-muted-foreground">
+              <span>Callbacks</span>
+              <Badge variant="outline" className="text-[10px]">{node.events.length}</Badge>
+            </summary>
+            <div className="mt-3 space-y-2">
               {node.events.map((event) => (
                 <div key={event.id} className="rounded-md border bg-card px-2 py-1.5">
                   <div className="flex items-center justify-between gap-2">
@@ -1289,10 +1405,53 @@ function NodeDetailDrawer({
                 </div>
               ))}
             </div>
-          </div>
+          </details>
         ) : null}
       </div>
     </motion.aside>
+  );
+}
+
+function ResizeHandles({
+  onStartResize,
+}: {
+  onStartResize: (direction: ResizeDirection, event: ReactPointerEvent<HTMLDivElement>) => void;
+}) {
+  return (
+    <>
+      <div
+        className="absolute left-4 right-4 top-0 z-20 h-2 cursor-ns-resize touch-none"
+        onPointerDown={(event) => onStartResize("top", event)}
+      />
+      <div
+        className="absolute bottom-0 left-4 right-4 z-20 h-2 cursor-ns-resize touch-none"
+        onPointerDown={(event) => onStartResize("bottom", event)}
+      />
+      <div
+        className="absolute bottom-4 top-4 left-0 z-20 w-2 cursor-ew-resize touch-none"
+        onPointerDown={(event) => onStartResize("left", event)}
+      />
+      <div
+        className="absolute bottom-4 right-0 top-4 z-20 w-2 cursor-ew-resize touch-none"
+        onPointerDown={(event) => onStartResize("right", event)}
+      />
+      <div
+        className="absolute left-0 top-0 z-20 h-4 w-4 cursor-nwse-resize touch-none"
+        onPointerDown={(event) => onStartResize("top-left", event)}
+      />
+      <div
+        className="absolute right-0 top-0 z-20 h-4 w-4 cursor-nesw-resize touch-none"
+        onPointerDown={(event) => onStartResize("top-right", event)}
+      />
+      <div
+        className="absolute bottom-0 left-0 z-20 h-4 w-4 cursor-nesw-resize touch-none"
+        onPointerDown={(event) => onStartResize("bottom-left", event)}
+      />
+      <div
+        className="absolute bottom-0 right-0 z-20 h-4 w-4 cursor-nwse-resize touch-none"
+        onPointerDown={(event) => onStartResize("bottom-right", event)}
+      />
+    </>
   );
 }
 
@@ -1320,9 +1479,39 @@ function DatasetCuration(props: {
           </CardTitle>
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" variant="outline" size="sm" onClick={props.onSelectAll}>Select All</Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => props.onAutoSplit("random")}>Random</Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => props.onAutoSplit("outcome")}>Outcome</Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => props.onAutoSplit("outcome_issues")}>Outcome+Issues</Button>
+            <div className="flex flex-wrap items-center gap-1 rounded-md border bg-secondary/25 p-1">
+              <span className="flex items-center gap-1 px-2 text-xs font-semibold text-muted-foreground">
+                Split Data
+                <Info className="h-3.5 w-3.5" />
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                title="Shuffle selected cases by seed, then apply the default train/val/test counts."
+                onClick={() => props.onAutoSplit("random")}
+              >
+                Random
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                title="Keep each split balanced by overall outcome so Meets and Does Not Meet examples are represented."
+                onClick={() => props.onAutoSplit("outcome")}
+              >
+                Outcome
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                title="Balance by overall outcome first, then spread higher issue/driver-count cases across train, val, and test."
+                onClick={() => props.onAutoSplit("outcome_issues")}
+              >
+                Outcome + Issues
+              </Button>
+            </div>
           </div>
         </div>
       </CardHeader>
@@ -1405,252 +1594,437 @@ function buildGraph(
   run: OptimizationRunRecord | null,
   events: OptimizationEventRecord[],
 ): { nodes: Node<CandidateNodeData>[]; edges: Edge[] } {
-  const iterationGraph = buildIterationGraph(run, events);
-  if (iterationGraph.nodes.length > 0) {
-    return layoutGraph(iterationGraph.nodes, iterationGraph.edges);
-  }
   if (artifact?.nodes.length) {
-    const rawNodes: Node<CandidateNodeData>[] = artifact.nodes.map((node) => ({
-      id: node.id,
-      type: "candidate",
-      data: {
-        label: `Candidate ${node.candidate_index}`,
-        title: `Candidate ${node.candidate_index}`,
-        score: node.score,
-        role: node.role,
-        status: node.role,
-        candidateIndex: node.candidate_index,
-        parentIds: node.parents,
-        candidate: node.candidate,
-        message: `${node.role} candidate with ${node.parents.filter((item) => item !== null).length || 0} parent link(s).`,
-      },
-      position: { x: 0, y: 0 },
-    }));
-    const edges: Edge[] = artifact.edges.map((edge) => ({
-      ...edge,
-      animated: false,
-      style: { strokeWidth: 2 },
-    }));
-    const compacted = compactCandidateGraph(rawNodes, edges);
-    return layoutGraph(compacted.nodes, compacted.edges);
+    const artifactGraph = buildArtifactCandidateGraph(artifact, run, events);
+    return layoutGraph(artifactGraph.nodes, artifactGraph.edges);
   }
-  return { nodes: [], edges: [] };
+  if (!run) return { nodes: [], edges: [] };
+  const runGraph = buildRunCandidateGraph(run, events);
+  return runGraph.nodes.length ? layoutGraph(runGraph.nodes, runGraph.edges) : runGraph;
 }
 
-function buildIterationGraph(
+function buildArtifactCandidateGraph(
+  artifact: OptimizationDagArtifact,
   run: OptimizationRunRecord | null,
   events: OptimizationEventRecord[],
 ): { nodes: Node<CandidateNodeData>[]; edges: Edge[] } {
-  if (!run || events.length === 0) return { nodes: [], edges: [] };
-  const nodes: Node<CandidateNodeData>[] = [];
-  const seedEvent = events.find((event) => event.type === "run_started") ?? events.find((event) => event.type === "run_prepared");
-  const preparedProgress = progressFromRun(run, events);
-  if (seedEvent || run.seed_candidate) {
-    nodes.push({
-      id: "seed",
-      type: "candidate",
-      data: {
-        label: "seed",
-        title: "Seed Candidate",
-        role: "seed",
-        status: "seed",
-        score: run.original_score,
-        candidateIndex: 0,
-        candidate: candidateFromUnknown(seedEvent?.data?.seed_candidate) ?? run.seed_candidate ?? undefined,
-        message: seedEvent?.message ?? "Initial prompt candidate.",
-        progress: preparedProgress,
-        event: seedEvent,
-        events: seedEvent ? [seedEvent] : [],
-      },
-      position: { x: 0, y: 0 },
+  const eventsByCandidate = eventsByCandidateIndex(events);
+  const paretoFront = new Set(artifact.pareto_front);
+  const finalIndex = maxCandidateIndex(artifact.nodes.map((node) => node.candidate_index));
+  const progress = progressFromRun(run, events);
+  const nodes: Node<CandidateNodeData>[] = artifact.nodes.map((node) => {
+    const relatedEvents = eventsByCandidate.get(node.candidate_index) ?? [];
+    const role = candidateRole(node.candidate_index, node.role, artifact.best_idx, paretoFront, finalIndex);
+    return candidateNode({
+      id: node.id,
+      index: node.candidate_index,
+      role,
+      status: candidateStatus(role),
+      score: node.score ?? scoreFromCandidateEvents(relatedEvents),
+      candidate: node.candidate,
+      parentIds: node.parents,
+      events: relatedEvents,
+      progress,
+      message: candidateMessage(node.candidate_index, role, node.parents, relatedEvents),
     });
-  }
-
-  const byIteration = new Map<number, OptimizationEventRecord[]>();
-  for (const event of events) {
-    if (typeof event.iteration !== "number" || event.iteration <= 0) continue;
-    byIteration.set(event.iteration, [...(byIteration.get(event.iteration) ?? []), event]);
-  }
-
-  const iterationNodes = [...byIteration.entries()]
-    .sort(([first], [second]) => first - second)
-    .map(([iteration, bucket]) => iterationNodeFromEvents(iteration, bucket));
-  nodes.push(...compactIterationNodes(iterationNodes));
-
-  const terminal = [...events].reverse().find((event) => ["run_completed", "run_error"].includes(event.type));
-  if (terminal) {
-    nodes.push({
-      id: "terminal",
-      type: "candidate",
-      data: {
-        label: "final",
-        title: terminal.type === "run_completed" ? "Run Complete" : "Run Error",
-        role: terminal.type === "run_completed" ? "best" : "errored",
-        status: terminal.type === "run_completed" ? "complete" : "error",
-        score: run.best_score,
-        candidate: run.best_candidate ?? undefined,
-        message: terminal.message,
-        progress: progressFromRun(run, events),
-        event: terminal,
-        events: [terminal],
-      },
-      position: { x: 0, y: 0 },
-    });
-  }
-
-  const edges: Edge[] = nodes.slice(1).map((node, index) => ({
-    id: `${nodes[index].id}-${node.id}`,
-    source: nodes[index].id,
-    target: node.id,
-    animated: run.status === "running" || run.status === "queued",
-    style: { strokeWidth: 2 },
-  }));
-  return { nodes, edges };
+  });
+  return {
+    nodes,
+    edges: artifact.edges.map((edge) => ({
+      ...edge,
+      animated: false,
+      style: { strokeWidth: 2 },
+    })),
+  };
 }
 
-function iterationNodeFromEvents(
-  iteration: number,
-  bucket: OptimizationEventRecord[],
-): Node<CandidateNodeData> {
-  const eventOfType = (...types: string[]) => [...bucket].reverse().find((event) => types.includes(event.type));
-  const selected = eventOfType("candidate_selected");
-  const sampled = eventOfType("minibatch_sampled");
-  const proposal = eventOfType("proposal_created");
-  const accepted = eventOfType("candidate_accepted", "merge_accepted");
-  const rejected = eventOfType("candidate_rejected", "merge_rejected");
-  const validation = eventOfType("validation_evaluated");
-  const evaluation = eventOfType("evaluation_completed");
-  const error = eventOfType("run_error");
-  const progressEvent = eventOfType("budget_updated");
-  const proposedInstructions = candidateFromUnknown(proposal?.data?.new_instructions);
-  const candidate = proposedInstructions ?? candidateFromUnknown(selected?.data?.candidate);
-  const acceptedScore = numberFromUnknown(accepted?.data?.new_score);
-  const validationScore = numberFromUnknown(validation?.data?.average_score);
-  const evaluationScore = averageFromUnknownScores(evaluation?.data?.scores);
-  const selectedScore = numberFromUnknown(selected?.data?.score);
-  const score = acceptedScore ?? validationScore ?? evaluationScore ?? selectedScore;
-  const newCandidateIndex = numberFromUnknown(accepted?.data?.new_candidate_idx);
-  const candidateIndex = numberFromUnknown(selected?.data?.candidate_idx);
-  const parentIds = arrayOfNumbersOrNull(accepted?.data?.parent_ids ?? evaluation?.data?.parent_ids);
-  const minibatchIds = Array.isArray(sampled?.data?.minibatch_ids) ? sampled.data.minibatch_ids : null;
-  const validationSize = numberFromUnknown(validation?.data?.num_examples_evaluated);
-  const status = error
-    ? "error"
-    : accepted
-      ? "accepted"
-      : rejected
-        ? "rejected"
-        : proposal
-          ? "proposed"
-          : validation
-            ? "validated"
-            : "running";
-  const role = error
-    ? "errored"
-    : accepted
-      ? "accepted"
-      : rejected
-        ? "rejected"
-        : validation?.data?.is_best_program
-          ? "best"
-          : "candidate";
-  const message =
-    rejected?.message ??
-    accepted?.message ??
-    validation?.message ??
-    proposal?.message ??
-    evaluation?.message ??
-    selected?.message ??
-    bucket[bucket.length - 1]?.message;
+function buildRunCandidateGraph(
+  run: OptimizationRunRecord,
+  events: OptimizationEventRecord[],
+): { nodes: Node<CandidateNodeData>[]; edges: Edge[] } {
+  const eventsByCandidate = eventsByCandidateIndex(events);
+  const bestIndex = bestCandidateIndexFromEvents(events, run);
+  const paretoFront = latestParetoFront(events);
+  const finalIndex = maxCandidateIndex((run.candidates ?? []).map((candidate) => candidate.candidate_index));
+  const currentIndex = ["queued", "running"].includes(run.status) ? currentSelectedCandidateIndex(events) : null;
+  const progress = progressFromRun(run, events);
+  const records = [...(run.candidates ?? [])].sort((first, second) => first.candidate_index - second.candidate_index);
+  const nodesById = new Map<string, Node<CandidateNodeData>>();
+  const seedRecord = records.find((record) => record.candidate_index === 0);
+  const seedEvent = events.find((event) => event.type === "run_started") ?? events.find((event) => event.type === "run_prepared");
+  const seedCandidate =
+    seedRecord?.candidate ??
+    run.seed_candidate ??
+    candidateFromUnknown(seedEvent?.data?.seed_candidate);
+
+  if (seedCandidate || seedEvent) {
+    const relatedEvents = eventsByCandidate.get(0) ?? [];
+    const role = candidateRole(0, "seed", bestIndex, paretoFront, finalIndex);
+    const status = currentIndex === 0 ? "selected" : candidateStatus(role);
+    nodesById.set(
+      "0",
+      candidateNode({
+        id: "0",
+        index: 0,
+        role,
+        status,
+        score: seedRecord?.score ?? run.original_score ?? scoreFromCandidateEvents(relatedEvents),
+        candidate: seedCandidate ?? {},
+        parentIds: seedRecord?.parent_indices ?? [null],
+        events: relatedEvents,
+        progress,
+        message: candidateMessage(0, role, seedRecord?.parent_indices ?? [null], relatedEvents),
+      }),
+    );
+  }
+
+  for (const record of records) {
+    if (!Number.isFinite(record.candidate_index)) continue;
+    if (record.candidate_index === 0 && nodesById.has("0")) continue;
+    const relatedEvents = eventsByCandidate.get(record.candidate_index) ?? [];
+    const role = candidateRole(record.candidate_index, record.status, bestIndex, paretoFront, finalIndex);
+    const status = currentIndex === record.candidate_index ? "selected" : candidateStatus(role);
+    nodesById.set(
+      String(record.candidate_index),
+      candidateNode({
+        id: String(record.candidate_index),
+        index: record.candidate_index,
+        role,
+        status,
+        score: record.score ?? scoreFromCandidateEvents(relatedEvents),
+        candidate: record.candidate,
+        parentIds: record.parent_indices,
+        events: relatedEvents,
+        progress,
+        message: candidateMessage(record.candidate_index, role, record.parent_indices, relatedEvents),
+      }),
+    );
+  }
 
   return {
-    id: `iteration-${iteration}`,
+    nodes: [...nodesById.values()],
+    edges: lineageEdges([...nodesById.values()], run.status === "queued" || run.status === "running"),
+  };
+}
+
+function candidateNode({
+  id,
+  index,
+  role,
+  status,
+  score,
+  candidate,
+  parentIds,
+  events,
+  progress,
+  message,
+}: {
+  id: string;
+  index: number;
+  role: string;
+  status: string;
+  score?: number | null;
+  candidate: Record<string, string>;
+  parentIds: Array<number | null>;
+  events: OptimizationEventRecord[];
+  progress: RunProgress | null;
+  message: string;
+}): Node<CandidateNodeData> {
+  const proposal = [...events].reverse().find((event) => event.type === "proposal_created");
+  return {
+    id,
     type: "candidate",
     data: {
-      label: `i${iteration}`,
-      title: `Iteration ${iteration}`,
+      label: index === 0 ? "seed" : `candidate ${index}`,
+      title: index === 0 ? "Seed Candidate" : `Candidate ${index}`,
       role,
       status,
       score,
-      iteration,
-      candidateIndex,
-      newCandidateIndex,
+      candidateIndex: index,
       parentIds,
-      minibatchSize: minibatchIds?.length ?? null,
-      validationSize,
+      validationSize: validationSizeFromEvents(events),
       candidate,
-      proposedInstructions,
+      proposedInstructions: candidateFromUnknown(proposal?.data?.new_instructions),
       message,
-      progress: progressFromEvents(bucket),
-      event: bucket[bucket.length - 1],
-      events: bucket,
+      progress,
+      event: events[events.length - 1],
+      events,
     },
     position: { x: 0, y: 0 },
   };
 }
 
-function compactIterationNodes(nodes: Node<CandidateNodeData>[]): Node<CandidateNodeData>[] {
-  if (nodes.length <= maxVisibleIterationNodes) return nodes;
-  const head = nodes.slice(0, 1);
-  const tail = nodes.slice(-4);
-  const middle = nodes.slice(1, -4);
-  const bucketSize = Math.max(1, Math.ceil(middle.length / 3));
-  const buckets: Node<CandidateNodeData>[] = [];
-  for (let index = 0; index < middle.length; index += bucketSize) {
-    const chunk = middle.slice(index, index + bucketSize);
-    const first = chunk[0]?.data.iteration;
-    const last = chunk[chunk.length - 1]?.data.iteration;
-    buckets.push({
-      id: `iteration-bucket-${first}-${last}`,
-      type: "candidate",
-      data: {
-        label: `i${first}-${last}`,
-        title: `Iterations ${first}-${last}`,
-        role: "bucket",
-        status: "bucket",
-        score: chunk[chunk.length - 1]?.data.score,
-        message: `${chunk.length} GEPA iterations grouped. Click to inspect the callback summaries.`,
-        progress: chunk[chunk.length - 1]?.data.progress,
-        events: chunk.flatMap((node) => node.data.events ?? []),
-      },
-      position: { x: 0, y: 0 },
-    });
-  }
-  return [...head, ...buckets, ...tail];
-}
-
-function compactCandidateGraph(
-  nodes: Node<CandidateNodeData>[],
-  edges: Edge[],
-): { nodes: Node<CandidateNodeData>[]; edges: Edge[] } {
-  if (nodes.length <= 28) return { nodes, edges };
-  const importantIds = new Set<string>();
+function lineageEdges(nodes: Node<CandidateNodeData>[], animated: boolean): Edge[] {
+  const ids = new Set(nodes.map((node) => node.id));
+  const edges: Edge[] = [];
   for (const node of nodes) {
-    if (["seed", "best", "pareto"].includes(node.data.role)) importantIds.add(node.id);
+    for (const parent of node.data.parentIds ?? []) {
+      if (parent === null) continue;
+      const source = String(parent);
+      if (!ids.has(source) || source === node.id) continue;
+      edges.push({
+        id: `${source}-${node.id}`,
+        source,
+        target: node.id,
+        animated,
+        style: { strokeWidth: 2 },
+      });
+    }
   }
-  for (const node of nodes.slice(-12)) importantIds.add(node.id);
-  const visible = nodes.filter((node) => importantIds.has(node.id));
-  const omitted = nodes.filter((node) => !importantIds.has(node.id));
-  if (!omitted.length) return { nodes: visible, edges: edges.filter((edge) => importantIds.has(edge.source) && importantIds.has(edge.target)) };
-  const bucketNode: Node<CandidateNodeData> = {
-    id: "candidate-bucket",
-    type: "candidate",
-    data: {
-      label: "bucket",
-      title: `${omitted.length} Candidates`,
-      role: "bucket",
-      status: "bucket",
-      message: `${omitted.length} non-frontier candidates are grouped to keep the replay readable.`,
-      events: [],
-    },
-    position: { x: 0, y: 0 },
+  return edges;
+}
+
+function eventsByCandidateIndex(events: OptimizationEventRecord[]): Map<number, OptimizationEventRecord[]> {
+  const acceptedByIteration = new Map<number, number>();
+  const selectedByIteration = new Map<number, number>();
+  for (const event of events) {
+    if (typeof event.iteration !== "number") continue;
+    const newIndex = numberFromUnknown(event.data?.new_candidate_idx);
+    if ((event.type === "candidate_accepted" || event.type === "merge_accepted") && newIndex !== null) {
+      acceptedByIteration.set(event.iteration, newIndex);
+    }
+    const selectedIndex = numberFromUnknown(event.data?.candidate_idx);
+    if (event.type === "candidate_selected" && selectedIndex !== null) {
+      selectedByIteration.set(event.iteration, selectedIndex);
+    }
+  }
+
+  const scopedTypes = new Set([
+    "budget_updated",
+    "candidate_rejected",
+    "evaluation_completed",
+    "evaluation_skipped",
+    "evaluation_started",
+    "iteration_completed",
+    "iteration_started",
+    "merge_rejected",
+    "minibatch_sampled",
+    "proposal_created",
+    "proposal_started",
+    "reflective_dataset_built",
+  ]);
+  const output = new Map<number, OptimizationEventRecord[]>();
+  const add = (index: number | null, event: OptimizationEventRecord) => {
+    if (index === null || !Number.isFinite(index)) return;
+    output.set(index, [...(output.get(index) ?? []), event]);
   };
-  const visibleEdges = edges.filter((edge) => importantIds.has(edge.source) && importantIds.has(edge.target));
-  const seed = visible.find((node) => node.data.role === "seed") ?? visible[0];
-  const bucketEdges: Edge[] = seed
-    ? [{ id: `${seed.id}-candidate-bucket`, source: seed.id, target: bucketNode.id, style: { strokeWidth: 2 } }]
-    : [];
-  return { nodes: [...visible, bucketNode], edges: [...visibleEdges, ...bucketEdges] };
+
+  for (const event of events) {
+    if (event.type === "run_started" || event.type === "run_prepared") {
+      add(0, event);
+      continue;
+    }
+    if (typeof event.iteration === "number" && scopedTypes.has(event.type)) {
+      add(acceptedByIteration.get(event.iteration) ?? selectedByIteration.get(event.iteration) ?? null, event);
+      continue;
+    }
+    const newIndex = numberFromUnknown(event.data?.new_candidate_idx);
+    if (newIndex !== null) {
+      add(newIndex, event);
+      continue;
+    }
+    const candidateIndex = numberFromUnknown(event.data?.candidate_idx);
+    if (candidateIndex !== null) {
+      add(candidateIndex, event);
+    }
+  }
+  return output;
+}
+
+function candidateRole(
+  index: number,
+  sourceRole: string | undefined,
+  bestIndex: number | null,
+  paretoFront: Set<number>,
+  finalIndex: number | null,
+): string {
+  if (bestIndex === index) return "best";
+  if (finalIndex === index && index !== 0) return "final";
+  if (paretoFront.has(index)) return "pareto";
+  if (index === 0) return "seed";
+  if (sourceRole === "accepted" || sourceRole === "candidate" || sourceRole === "pareto" || sourceRole === "best") {
+    return sourceRole;
+  }
+  return "candidate";
+}
+
+function candidateStatus(role: string): string {
+  if (role === "best") return "best";
+  if (role === "pareto") return "pareto";
+  if (role === "final") return "final";
+  if (role === "seed") return "seed";
+  if (role === "errored") return "error";
+  return "candidate";
+}
+
+function candidateMessage(
+  index: number,
+  role: string,
+  parents: Array<number | null>,
+  events: OptimizationEventRecord[],
+): string {
+  const latest = latestEventOfTypes(
+    events,
+    "validation_evaluated",
+    "candidate_accepted",
+    "merge_accepted",
+    "candidate_rejected",
+    "merge_rejected",
+    "proposal_created",
+    "evaluation_completed",
+    "candidate_selected",
+  );
+  if (latest?.message) return latest.message;
+  const parentCount = parents.filter((item) => item !== null).length;
+  if (role === "best") return `Best candidate with ${parentCount || 0} parent link(s).`;
+  if (role === "pareto") return `Pareto-front candidate with ${parentCount || 0} parent link(s).`;
+  if (index === 0) return "Initial seed prompt candidate.";
+  return `Candidate ${index} with ${parentCount || 0} parent link(s).`;
+}
+
+function latestEventOfTypes(events: OptimizationEventRecord[], ...types: string[]): OptimizationEventRecord | undefined {
+  return [...events].reverse().find((event) => types.includes(event.type));
+}
+
+function scoreFromCandidateEvents(events: OptimizationEventRecord[]): number | null {
+  const validationScore = numberFromUnknown(latestEventOfTypes(events, "validation_evaluated")?.data?.average_score);
+  if (validationScore !== null) return validationScore;
+  const evaluationScore = averageFromUnknownScores(latestEventOfTypes(events, "evaluation_completed")?.data?.scores);
+  if (evaluationScore !== null) return evaluationScore;
+  return numberFromUnknown(latestEventOfTypes(events, "candidate_accepted", "merge_accepted")?.data?.new_score);
+}
+
+function validationSizeFromEvents(events: OptimizationEventRecord[]): number | null {
+  return numberFromUnknown(latestEventOfTypes(events, "validation_evaluated")?.data?.num_examples_evaluated);
+}
+
+function bestCandidateIndexFromEvents(events: OptimizationEventRecord[], run: OptimizationRunRecord): number | null {
+  const bestEvent = [...events]
+    .reverse()
+    .find((event) => event.type === "validation_evaluated" && event.data?.is_best_program === true);
+  const eventIndex = numberFromUnknown(bestEvent?.data?.candidate_idx);
+  if (eventIndex !== null) return eventIndex;
+  if (run.best_score === null || run.best_score === undefined) return null;
+  const match = run.candidates.find((candidate) => candidate.score === run.best_score);
+  return match?.candidate_index ?? null;
+}
+
+function latestParetoFront(events: OptimizationEventRecord[]): Set<number> {
+  const event = [...events].reverse().find((item) => item.type === "pareto_front_updated");
+  const front = Array.isArray(event?.data?.new_front) ? event.data.new_front : [];
+  return new Set(front.filter((item): item is number => typeof item === "number" && Number.isFinite(item)));
+}
+
+function maxCandidateIndex(indexes: number[]): number | null {
+  const finiteIndexes = indexes.filter((item) => Number.isFinite(item));
+  return finiteIndexes.length ? Math.max(...finiteIndexes) : null;
+}
+
+function currentSelectedCandidateIndex(events: OptimizationEventRecord[]): number | null {
+  const event = [...events].reverse().find((item) => item.type === "candidate_selected");
+  return numberFromUnknown(event?.data?.candidate_idx);
+}
+
+function reflectionStatsFromEvents(events: OptimizationEventRecord[]): { batches: number; trajectories: number } {
+  let batches = 0;
+  let trajectories = 0;
+  for (const event of events) {
+    if (event.type !== "reflective_dataset_built") continue;
+    batches += 1;
+    const dataset = recordFromUnknown(event.data?.dataset) ?? recordFromUnknown(event.data?.reflective_dataset);
+    const traces = Array.isArray(dataset?.traces) ? dataset.traces : [];
+    trajectories += traces.length;
+  }
+  return { batches, trajectories };
+}
+
+function formatReflectionDetails(events: OptimizationEventRecord[]): string {
+  const sections: string[] = [];
+  for (const event of events) {
+    if (event.type === "reflective_dataset_built") {
+      sections.push(formatReflectiveDataset(event));
+    } else if (event.type === "proposal_started") {
+      sections.push(`Proposal input\n${formatUnknownForDisplay(event.data, 12000)}`);
+    } else if (event.type === "proposal_created") {
+      const proposal = candidateFromUnknown(event.data?.new_instructions);
+      sections.push(
+        proposal?.instructions
+          ? `Proposed instructions\n${proposal.instructions}`
+          : `Proposed text\n${formatUnknownForDisplay(event.data, 12000)}`,
+      );
+    } else if (event.type === "evaluation_completed") {
+      sections.push(formatEvaluationSummary(event));
+    }
+  }
+  return sections.filter(Boolean).join("\n\n---\n\n");
+}
+
+function formatReflectiveDataset(event: OptimizationEventRecord): string {
+  const dataset = recordFromUnknown(event.data?.dataset) ?? recordFromUnknown(event.data?.reflective_dataset);
+  const traces = Array.isArray(dataset?.traces) ? dataset.traces : null;
+  if (!traces) {
+    return `Reflective dataset\n${formatUnknownForDisplay(dataset ?? event.data, 16000)}`;
+  }
+  const traceSummaries = traces.slice(0, 8).map((item, index) => {
+    const record = recordFromUnknown(item);
+    if (!record) return `Trace ${index + 1}\n${formatUnknownForDisplay(item, 3000)}`;
+    const trace = recordFromUnknown(record.trace);
+    const caseId = stringFromUnknown(record.case_id);
+    const feedback = stringFromUnknown(record.feedback);
+    const parts = [
+      `Trace ${index + 1}${caseId ? ` (${caseId})` : ""}`,
+      `Score: ${formatScore(numberFromUnknown(record.score))}`,
+      `Success: ${record.success === true ? "yes" : record.success === false ? "no" : "-"}`,
+    ];
+    if (feedback) parts.push(`Metric feedback:\n${feedback}`);
+    if (trace) parts.push(`Trajectory:\n${formatUnknownForDisplay(compactTrajectory(trace), 6000)}`);
+    return parts.join("\n");
+  });
+  const omitted = traces.length > traceSummaries.length ? `\n\n[${traces.length - traceSummaries.length} additional traces omitted]` : "";
+  return `Reflective dataset (${traces.length} trace${traces.length === 1 ? "" : "s"})\n\n${traceSummaries.join("\n\n")}${omitted}`;
+}
+
+function formatEvaluationSummary(event: OptimizationEventRecord): string {
+  const summary = {
+    scores: event.data?.scores,
+    objective_scores: event.data?.objective_scores,
+    parent_ids: event.data?.parent_ids,
+    has_trajectories: event.data?.has_trajectories,
+    average_score: averageFromUnknownScores(event.data?.scores),
+  };
+  return `Metric feedback / rollout summary\n${formatUnknownForDisplay(summary, 6000)}`;
+}
+
+function compactTrajectory(trace: Record<string, unknown>): Record<string, unknown> {
+  const keys = [
+    "claim_number",
+    "prompt",
+    "generated_output",
+    "error",
+    "elapsed_seconds",
+    "usage",
+    "messages",
+  ];
+  return Object.fromEntries(keys.filter((key) => key in trace).map((key) => [key, trace[key]]));
+}
+
+function formatUnknownForDisplay(value: unknown, maxChars = 16000): string {
+  let text: string;
+  if (typeof value === "string") {
+    text = value;
+  } else {
+    try {
+      text = JSON.stringify(value, null, 2) ?? String(value);
+    } catch {
+      text = String(value);
+    }
+  }
+  if (text.length <= maxChars) return text;
+  return `${text.slice(0, maxChars)}\n\n[truncated ${text.length - maxChars} characters]`;
+}
+
+function stringFromUnknown(value: unknown): string {
+  return typeof value === "string" ? value : "";
 }
 
 function progressFromRun(
@@ -1726,6 +2100,11 @@ function arrayOfNumbersOrNull(value: unknown): Array<number | null> {
   return value.filter((item): item is number | null => item === null || typeof item === "number");
 }
 
+function formatParentIds(value?: Array<number | null>): string {
+  const parents = (value ?? []).filter((item): item is number => typeof item === "number" && Number.isFinite(item));
+  return parents.length ? parents.join(", ") : "-";
+}
+
 function layoutGraph(nodes: Node<CandidateNodeData>[], edges: Edge[]): { nodes: Node<CandidateNodeData>[]; edges: Edge[] } {
   const graph = new dagre.graphlib.Graph();
   graph.setDefaultEdgeLabel(() => ({}));
@@ -1733,25 +2112,42 @@ function layoutGraph(nodes: Node<CandidateNodeData>[], edges: Edge[]): { nodes: 
   nodes.forEach((node) => graph.setNode(node.id, { width: nodeWidth, height: nodeHeight }));
   edges.forEach((edge) => graph.setEdge(edge.source, edge.target));
   dagre.layout(graph);
+  const positioned = nodes.map((node) => {
+    const position = graph.node(node.id);
+    return {
+      ...node,
+      position: { x: position.x - nodeWidth / 2, y: position.y - nodeHeight / 2 },
+    };
+  });
+  const minX = Math.min(...positioned.map((node) => node.position.x));
+  const maxX = Math.max(...positioned.map((node) => node.position.x + nodeWidth));
+  const minY = Math.min(...positioned.map((node) => node.position.y));
+  const centerX = (minX + maxX) / 2;
   return {
-    nodes: nodes.map((node) => {
-      const position = graph.node(node.id);
-      return {
-        ...node,
-        position: { x: position.x - nodeWidth / 2, y: position.y - nodeHeight / 2 },
-      };
-    }),
+    nodes: positioned.map((node) => ({
+      ...node,
+      position: { x: node.position.x - centerX, y: node.position.y - minY },
+    })),
     edges,
   };
 }
 
 function nodeColor(role: string): string {
-  if (role === "best") return "#d97706";
-  if (role === "pareto" || role === "accepted") return "#059669";
+  if (role === "best") return "#f59e0b";
+  if (role === "pareto") return "#f59e0b";
+  if (role === "final") return "#fb7185";
+  if (role === "accepted" || role === "current") return "#059669";
   if (role === "rejected" || role === "errored") return "#dc2626";
   if (role === "seed") return "#64748b";
-  if (role === "bucket") return "#8b5cf6";
   return "#94a3b8";
+}
+
+function nodeStrokeColor(role: string): string {
+  if (role === "best") return "#facc15";
+  if (role === "pareto") return "#f59e0b";
+  if (role === "final") return "#e11d48";
+  if (role === "seed") return "#cbd5e1";
+  return "#0f172a";
 }
 
 function MetricRow({ label, value }: { label: string; value: string }) {

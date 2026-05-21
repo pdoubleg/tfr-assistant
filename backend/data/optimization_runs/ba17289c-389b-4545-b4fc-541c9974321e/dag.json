@@ -1,0 +1,223 @@
+{
+  "schema_version": 1,
+  "nodes": [
+    {
+      "id": "0",
+      "candidate_index": 0,
+      "role": "seed",
+      "score": 0.6875,
+      "candidate": {
+        "instructions": "Complete the receipt reimbursement audit from the note. Apply policy carefully."
+      },
+      "parents": [
+        null
+      ]
+    },
+    {
+      "id": "1",
+      "candidate_index": 1,
+      "role": "best",
+      "score": 0.7291666666666666,
+      "candidate": {
+        "instructions": "Complete the receipt reimbursement audit from the note using only the evidence explicitly stated in the prompt and the policy below. Apply a closed-world approach: do not infer prohibited items, missing documentation, or other issues unless they are directly mentioned.\n\nRegistered Audit Form: Receipt Reimbursement Policy Audit\n- Output answers exactly as Yes or No.\n- Use the listed question structure exactly.\n- For questions without sub-questions, put the short rationale in `comments` and the supporting evidence in `citations`.\n- For questions with sub-questions, include only the sub-question drivers that are explicitly supported by the note and relevant to the audit finding; omit non-applicable drivers.\n- Do not add an `answer` field inside sub_questions.\n- For Q3, include only sub-questions that are actually present in the evidence. If a driver is not mentioned, do not include it.\n- Do not mark documentation as missing unless the note explicitly says the receipt/documentation is missing, unreadable, incomplete, or absent.\n- Do not treat \u201cno mention\u201d as evidence.\n\nPolicy facts to apply:\n- Business meals up to $60 are allowed; business meals over $60 need review.\n- Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.\n- A team meal/lunch/dinner/vendor thank-you is generally business related unless the note says otherwise.\n- For Q1, assess whether the purchase is business related and allowed by policy based on the note; do not fail Q1 just because an allowed item has a separate review trigger such as amount over $60 or alcohol.\n- For Q2, assess only the stated amount against the policy limit; do not use prohibited-item rules to answer Q2.\n- For Q3, mark a driver true only when the note explicitly supports it (for example: wine/alcohol listed, prepaid card/gift card, personal item named, missing attendee list/documentation stated).\n\nReasoning guidance:\n- Prefer concise, evidence-based rationales.\n- Cite the exact phrase from the note when possible.\n- If the note says \u201cmissing attendee list,\u201d treat that as missing required documentation for a business meal.\n- If the note says \u201cwine listed,\u201d \u201calcohol,\u201d \u201cprepaid card,\u201d or similar, map it directly to the corresponding driver.\n\nExamples:\n- Note: \u201cLunch $63, missing attendee list but receipt attached.\u201d\n  - Q1: Yes\n  - Q2: No\n  - Q3: No, with Q3.4 only\n- Note: \u201cVisa prepaid card $100 for vendor thank-you.\u201d\n  - Q1: Yes\n  - Q2: Yes\n  - Q3: Yes, with Q3.2 only if the form expects a No overall on Q3 when any driver is present\n- Note: \u201cTeam dinner $87 with wine listed on receipt.\u201d\n  - Q1: Yes\n  - Q2: No\n  - Q3: No, with Q3.1 only\n\nOverall Outcome:\n- Meets only if the request satisfies the policy with no review-required drivers.\n- Does Not Meet if any required documentation is missing/unreadable or any policy trigger requires review under the provided policy."
+      },
+      "parents": [
+        0
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "0-1",
+      "source": "0",
+      "target": "1"
+    }
+  ],
+  "best_idx": 1,
+  "pareto_front": [
+    1
+  ],
+  "config": {
+    "name": "GEPA Prompt Optimization t2",
+    "form_id": "demo_receipt_policy",
+    "form_version": "v0.1",
+    "seed_instruction_source": "form",
+    "manual_instructions": "",
+    "metric_mode": "comparison",
+    "score_key": "score",
+    "reference_policy": "prefer_r2",
+    "judge_model": null,
+    "gepa_params": {
+      "auto": null,
+      "max_full_evals": null,
+      "max_metric_calls": 24,
+      "reflection_model": null,
+      "reflection_minibatch_size": 3,
+      "perfect_score": 1.0,
+      "skip_perfect_score": true,
+      "candidate_selection_strategy": "pareto",
+      "frontier_type": "instance",
+      "batch_sampler": "epoch_shuffled",
+      "module_selector": "all",
+      "use_merge": false,
+      "max_merge_invocations": 5,
+      "merge_val_overlap_floor": 5,
+      "cache_evaluation": false,
+      "track_best_outputs": false,
+      "display_progress_bar": false,
+      "raise_on_exception": false,
+      "val_evaluation_policy": null,
+      "use_mlflow": false,
+      "mlflow_tracking_uri": null,
+      "mlflow_experiment_name": null,
+      "seed": 0
+    },
+    "trace_config": {
+      "capture_traces": true,
+      "max_tool_return_chars": 2000,
+      "include_debug_traces": true,
+      "include_thinking": true
+    },
+    "case_splits": [
+      {
+        "case_id": "b24f6a6c-2238-4153-8d10-a8aa6e1d0ed1",
+        "split": "train"
+      },
+      {
+        "case_id": "9a6e857f-d874-4886-b6a6-e6f5d56c2370",
+        "split": "train"
+      },
+      {
+        "case_id": "01687966-1a8d-4fd2-8de3-675995a90dc8",
+        "split": "train"
+      },
+      {
+        "case_id": "4d8a1b2c-52cf-446a-8cad-37965f613d2c",
+        "split": "train"
+      },
+      {
+        "case_id": "8d754a1e-7536-483c-9997-b9a39406ac50",
+        "split": "train"
+      },
+      {
+        "case_id": "2b510207-6e87-4c12-96d2-f0937cef0b89",
+        "split": "train"
+      },
+      {
+        "case_id": "950e9c61-0912-4666-b401-c371ddeb61d3",
+        "split": "train"
+      },
+      {
+        "case_id": "25f7e784-e4fb-49d0-9183-bc4925c9d2b8",
+        "split": "train"
+      },
+      {
+        "case_id": "217bbc32-d602-45fe-8041-cdd63be6e743",
+        "split": "train"
+      },
+      {
+        "case_id": "8ed983af-b654-4a17-b0c3-e3a847e68f98",
+        "split": "train"
+      },
+      {
+        "case_id": "d01a8b93-5265-41c8-96df-bd1eb07dcf76",
+        "split": "train"
+      },
+      {
+        "case_id": "fb93f3a0-fc5c-4e42-af0e-30b1d044e100",
+        "split": "train"
+      },
+      {
+        "case_id": "d590ef9d-a671-4ea5-affd-cd08b88a3878",
+        "split": "val"
+      },
+      {
+        "case_id": "6c4189b4-5bb2-4831-b410-1eb66f639665",
+        "split": "val"
+      },
+      {
+        "case_id": "0d36ce92-0851-40c2-82d0-8e2c3fa9e589",
+        "split": "val"
+      },
+      {
+        "case_id": "6b16acae-4e60-4702-8756-8ad52536058c",
+        "split": "val"
+      },
+      {
+        "case_id": "4464fa3e-b108-43a5-ac97-0e2274392222",
+        "split": "test"
+      },
+      {
+        "case_id": "c587156e-d3d7-4b10-b68f-fa7699553358",
+        "split": "test"
+      },
+      {
+        "case_id": "e03c1de7-8c06-4881-a699-fa0277113eaa",
+        "split": "test"
+      },
+      {
+        "case_id": "6afec42a-b0b6-4075-9be2-0ed59670ad14",
+        "split": "test"
+      }
+    ]
+  },
+  "test_report": {
+    "count": 4,
+    "average_score": 0.6666666666666666,
+    "items": [
+      {
+        "case_id": "4464fa3e-b108-43a5-ac97-0e2274392222",
+        "claim_number": "RCPT-007",
+        "score": 0.75,
+        "success": true,
+        "feedback": "Reference R2\nSelected score `score` = 0.7500.\nScore components:\n- score: 0.7500\n- question_agreement: 1.0000\n- path_exact_rate: 1.0000\n- subquestion_f1: 0.0000\n- outcome_score: 1.0000",
+        "comparison": {
+          "score": 0.75,
+          "references": [
+            "{'metric_schema_version': 2, 'score': 0.75, 'score_percent': 75.0, 'outcome_match': True, 'outcome_score': 1.0, 'generated_outcome': 'Meets', 'reference_outcome': 'Meets', 'generated_outcome_justification': 'Meets: The note indicates a client dinner for $60 (within the $60 limit), includes an itemized receipt, and explicitly states no alcohol; no prohibited/review-required drivers are supported by the note.', 'reference_outcome_justification': 'No policy exceptions are present in the note.', 'question_total': 3, 'question_matches': 3, 'question_agreement': 1.0, 'question_agreement_percent': 100.0, 'question_no_precision': 0.0, 'question_no_recall': 0.0, 'question_no_f1': 0.0, 'question_no_f1_percent': 0.0, 'subquestion_eligible_question_count': 0, 'subquestion_total': 0, 'subquestion_matches': 0, 'subquestion_agreement': 0.0, 'subquestion_agreement_percent': 0.0, 'subquestion_precision': 0.0, 'subquestion_recall': 0.0, 'subquestion_f1': 0.0, 'subquestion_f1_percent': 0.0, 'path_exact_matches': 3, 'path_exact_rate': 1.0, 'path_exact_percent': 100.0, 'form_exact_match': True, 'question_agreements': {'Q1': 1.0, 'Q2': 1.0, 'Q3': 1.0}, 'questions': []}"
+          ]
+        }
+      },
+      {
+        "case_id": "6afec42a-b0b6-4075-9be2-0ed59670ad14",
+        "claim_number": "RCPT-012",
+        "score": 0.8333333333333333,
+        "success": true,
+        "feedback": "Reference R2\nSelected score `score` = 0.8333.\nScore components:\n- score: 0.8333\n- question_agreement: 0.6667\n- path_exact_rate: 0.6667\n- subquestion_f1: 1.0000\n- outcome_score: 1.0000\n- Q1 mismatch: generated `No` vs reference `Yes`\n  Generated rationale: The note does not state that the restaurant meal is business related; it only provides the receipt amount and that beer is included.\n  Reference rationale: The purchase appears business related.",
+        "comparison": {
+          "score": 0.8333333333333333,
+          "references": [
+            "{'metric_schema_version': 2, 'score': 0.8333333333333333, 'score_percent': 83.33, 'outcome_match': True, 'outcome_score': 1.0, 'generated_outcome': 'Does Not Meet', 'reference_outcome': 'Does Not Meet', 'generated_outcome_justification': 'The request does not avoid review-required drivers because alcohol (beer) is included, and the note does not establish the purchase is business related.', 'reference_outcome_justification': 'The reimbursement needs review because one or more policy drivers apply.', 'question_total': 3, 'question_matches': 2, 'question_agreement': 0.6666666666666666, 'question_agreement_percent': 66.67, 'question_no_precision': 0.5, 'question_no_recall': 1.0, 'question_no_f1': 0.6666666666666666, 'question_no_f1_percent': 66.67, 'subquestion_eligible_question_count': 1, 'subquestion_total': 4, 'subquestion_matches': 4, 'subquestion_agreement': 1.0, 'subquestion_agreement_percent': 100.0, 'subquestion_precision': 1.0, 'subquestion_recall': 1.0, 'subquestion_f1': 1.0, 'subquestion_f1_percent': 100.0, 'path_exact_matches': 2, 'path_exact_rate': 0.6666666666666666, 'path_exact_percent': 66.67, 'form_exact_match': False, 'question_agreements': {'Q1': 0.0, 'Q2': 1.0, 'Q3': 1.0}, 'questions': [{'id': 'Q1', 'text': 'Is the purchase business related and allowed by policy?', 'generated_answer': 'No', 'reference_answer': 'Yes', 'sub_questions': []}]}"
+          ]
+        }
+      },
+      {
+        "case_id": "c587156e-d3d7-4b10-b68f-fa7699553358",
+        "claim_number": "RCPT-009",
+        "score": 0.3333333333333333,
+        "success": true,
+        "feedback": "Reference R2\nSelected score `score` = 0.3333.\nScore components:\n- score: 0.3333\n- question_agreement: 0.6667\n- path_exact_rate: 0.6667\n- subquestion_f1: 0.0000\n- outcome_score: 0.0000\n- outcome mismatch: generated `Meets` vs reference `Does Not Meet`\n  Generated rationale: The note states \"Hotel minibar snacks $14 during trip,\" which is within the $60 limit and does not mention alcohol, gift cards/cash equivalents, personal/non-business items, or missing documentation; therefore no review-required drivers are triggered.\n  Reference rationale: The reimbursement needs review because one or more policy drivers apply.\n- Q3 mismatch: generated `Yes` vs reference `No`\n- missed driver: Q3.3 Personal or non-business item is present.\n  Reference reasoning: Personal or non-business item is present. Evidence from note: Hotel minibar snacks $14 during trip.",
+        "comparison": {
+          "score": 0.3333333333333333,
+          "references": [
+            "{'metric_schema_version': 2, 'score': 0.3333333333333333, 'score_percent': 33.33, 'outcome_match': False, 'outcome_score': 0.0, 'generated_outcome': 'Meets', 'reference_outcome': 'Does Not Meet', 'generated_outcome_justification': 'The note states \"Hotel minibar snacks $14 during trip,\" which is within the $60 limit and does not mention alcohol, gift cards/cash equivalents, personal/non-business items, or missing documentation; therefore no review-required drivers are triggered.', 'reference_outcome_justification': 'The reimbursement needs review because one or more policy drivers apply.', 'question_total': 3, 'question_matches': 2, 'question_agreement': 0.6666666666666666, 'question_agreement_percent': 66.67, 'question_no_precision': 0.0, 'question_no_recall': 0.0, 'question_no_f1': 0.0, 'question_no_f1_percent': 0.0, 'subquestion_eligible_question_count': 0, 'subquestion_total': 0, 'subquestion_matches': 0, 'subquestion_agreement': 0.0, 'subquestion_agreement_percent': 0.0, 'subquestion_precision': 0.0, 'subquestion_recall': 0.0, 'subquestion_f1': 0.0, 'subquestion_f1_percent': 0.0, 'path_exact_matches': 2, 'path_exact_rate': 0.6666666666666666, 'path_exact_percent': 66.67, 'form_exact_match': False, 'question_agreements': {'Q1': 1.0, 'Q2': 1.0, 'Q3': 0.0}, 'questions': [{'id': 'Q3', 'text': 'Does the request avoid prohibited or review-required drivers?', 'generated_answer': 'Yes', 'reference_answer': 'No', 'sub_questions': [{'id': 'Q3.3', 'text': 'Personal or non-business item is present.', 'generated_answer': False, 'reference_answer': True, 'generated_reasoning': '', 'reference_reasoning': 'Personal or non-business item is present. Evidence from note: Hotel minibar snacks $14 during trip.'}]}]}"
+          ]
+        }
+      },
+      {
+        "case_id": "e03c1de7-8c06-4881-a699-fa0277113eaa",
+        "claim_number": "RCPT-017",
+        "score": 0.75,
+        "success": true,
+        "feedback": "Reference R2\nSelected score `score` = 0.7500.\nScore components:\n- score: 0.7500\n- question_agreement: 1.0000\n- path_exact_rate: 1.0000\n- subquestion_f1: 0.0000\n- outcome_score: 1.0000",
+        "comparison": {
+          "score": 0.75,
+          "references": [
+            "{'metric_schema_version': 2, 'score': 0.75, 'score_percent': 75.0, 'outcome_match': True, 'outcome_score': 1.0, 'generated_outcome': 'Meets', 'reference_outcome': 'Meets', 'generated_outcome_justification': 'The expense is business related (\u201cParking for client visit\u201d), the amount is $16, and the note does not indicate alcohol, gift cards/cash equivalents, personal items, or missing documentation.', 'reference_outcome_justification': 'No policy exceptions are present in the note.', 'question_total': 3, 'question_matches': 3, 'question_agreement': 1.0, 'question_agreement_percent': 100.0, 'question_no_precision': 0.0, 'question_no_recall': 0.0, 'question_no_f1': 0.0, 'question_no_f1_percent': 0.0, 'subquestion_eligible_question_count': 0, 'subquestion_total': 0, 'subquestion_matches': 0, 'subquestion_agreement': 0.0, 'subquestion_agreement_percent': 0.0, 'subquestion_precision': 0.0, 'subquestion_recall': 0.0, 'subquestion_f1': 0.0, 'subquestion_f1_percent': 0.0, 'path_exact_matches': 3, 'path_exact_rate': 1.0, 'path_exact_percent': 100.0, 'form_exact_match': True, 'question_agreements': {'Q1': 1.0, 'Q2': 1.0, 'Q3': 1.0}, 'questions': []}"
+          ]
+        }
+      }
+    ]
+  },
+  "total_metric_calls": 26
+}

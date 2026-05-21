@@ -370,12 +370,12 @@
     overflow: hidden;
     border: 1px solid hsl(var(--border));
     border-radius: 0.5rem;
-    background: hsl(var(--card) / 0.92);
+    background: hsl(var(--card) / 0.95);
     box-shadow: 0 12px 28px hsl(var(--background) / 0.45);
   }
 
   .optimization-flow .react-flow__minimap-mask {
-    fill: hsl(var(--secondary) / 0.45);
+    fill: hsl(var(--background) / 0.46);
   }
 
   .optimization-flow .react-flow__attribution {
