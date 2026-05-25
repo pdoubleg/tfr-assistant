@@ -2,6 +2,7 @@
 
 import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  BarChart3,
   ChevronDown,
   ChevronRight,
   Eye,
@@ -59,6 +60,36 @@ const evalQueueStorageKey = "tfr.eval.executionQueue.v1";
 
 type RunAction = "start" | "pause" | "resume" | "cancel";
 type HierarchyLevel = "form" | "question" | "subquestion";
+type MetricColumnKey =
+  | "score"
+  | "score_percent"
+  | "outcome_match"
+  | "outcome_score"
+  | "question_total"
+  | "question_matches"
+  | "question_agreement"
+  | "question_agreement_percent"
+  | "question_no_precision"
+  | "question_no_recall"
+  | "question_no_f1"
+  | "question_no_f1_percent"
+  | "subquestion_eligible_question_count"
+  | "subquestion_total"
+  | "subquestion_matches"
+  | "subquestion_agreement"
+  | "subquestion_agreement_percent"
+  | "subquestion_precision"
+  | "subquestion_recall"
+  | "subquestion_f1"
+  | "subquestion_f1_percent"
+  | "path_exact_matches"
+  | "path_exact_rate"
+  | "path_exact_percent"
+  | "form_exact_match";
+type MetricFormat = "count" | "number" | "percent" | "ratio";
+type MetricAggregate = "mean" | "sum";
+type VisualizationMode = "results" | "agreement";
+type ReferenceView = EvalReferenceKind | "both";
 
 interface EvalRunDialogState {
   dataset_id: string;
@@ -82,6 +113,7 @@ interface HierarchyMetricRow {
   agreement: number;
   averageScore: number | null;
   outcomeMatches: number;
+  metrics: Partial<Record<MetricColumnKey, number>>;
 }
 
 interface PairResultRow {
@@ -99,6 +131,179 @@ interface PairResultRow {
   generatedOutcome: string;
   referenceOutcome: string;
 }
+
+interface MetricColumnDefinition {
+  key: MetricColumnKey;
+  label: string;
+  format: MetricFormat;
+  aggregate: MetricAggregate;
+  levels: HierarchyLevel[];
+}
+
+interface DetectionStats {
+  truePositive: number;
+  falsePositive: number;
+  falseNegative: number;
+}
+
+interface MatchStats {
+  total: number;
+  matches: number;
+}
+
+interface HierarchyMetricAccumulator extends HierarchyMetricRow {
+  scoreSum: number;
+  scoreCount: number;
+  metricSums: Partial<Record<MetricColumnKey, number>>;
+  metricCounts: Partial<Record<MetricColumnKey, number>>;
+  questionStats: MatchStats;
+  questionNoStats: DetectionStats;
+  subquestionStats: MatchStats;
+  subquestionStatsByParent: Map<string, MatchStats>;
+  subquestionDetectionStats: DetectionStats;
+  subquestionEligibleQuestionCount: number;
+}
+
+interface EvalVisualizationBar {
+  key: string;
+  label: string;
+  value: number;
+  displayValue: string;
+  color: string;
+  muted?: boolean;
+}
+
+interface EvalVisualizationRow {
+  id: string;
+  label: string;
+  context: string;
+  bars: EvalVisualizationBar[];
+}
+
+interface EvalVisualizationSection {
+  id: "overall" | "question" | "subquestion";
+  title: string;
+  rows: EvalVisualizationRow[];
+}
+
+const metricColumnDefinitions: MetricColumnDefinition[] = [
+  { key: "score", label: "Score", format: "ratio", aggregate: "mean", levels: ["form"] },
+  { key: "score_percent", label: "Score %", format: "percent", aggregate: "mean", levels: ["form"] },
+  { key: "outcome_match", label: "Outcome Match", format: "ratio", aggregate: "mean", levels: ["form"] },
+  { key: "outcome_score", label: "Outcome Score", format: "ratio", aggregate: "mean", levels: ["form"] },
+  { key: "question_total", label: "Question Total", format: "count", aggregate: "sum", levels: ["form", "question"] },
+  { key: "question_matches", label: "Question Matches", format: "count", aggregate: "sum", levels: ["form", "question"] },
+  { key: "question_agreement", label: "Question Agreement", format: "ratio", aggregate: "mean", levels: ["form", "question"] },
+  {
+    key: "question_agreement_percent",
+    label: "Question Agreement %",
+    format: "percent",
+    aggregate: "mean",
+    levels: ["form", "question"],
+  },
+  {
+    key: "question_no_precision",
+    label: "Question No Precision",
+    format: "ratio",
+    aggregate: "mean",
+    levels: ["form", "question"],
+  },
+  {
+    key: "question_no_recall",
+    label: "Question No Recall",
+    format: "ratio",
+    aggregate: "mean",
+    levels: ["form", "question"],
+  },
+  {
+    key: "question_no_f1",
+    label: "Question No F1",
+    format: "ratio",
+    aggregate: "mean",
+    levels: ["form", "question"],
+  },
+  {
+    key: "question_no_f1_percent",
+    label: "Question No F1 %",
+    format: "percent",
+    aggregate: "mean",
+    levels: ["form", "question"],
+  },
+  {
+    key: "subquestion_eligible_question_count",
+    label: "Sub-question Eligible Questions",
+    format: "count",
+    aggregate: "sum",
+    levels: ["form", "question"],
+  },
+  {
+    key: "subquestion_total",
+    label: "Sub-question Total",
+    format: "count",
+    aggregate: "sum",
+    levels: ["form", "question", "subquestion"],
+  },
+  {
+    key: "subquestion_matches",
+    label: "Sub-question Matches",
+    format: "count",
+    aggregate: "sum",
+    levels: ["form", "question", "subquestion"],
+  },
+  {
+    key: "subquestion_agreement",
+    label: "Sub-question Agreement",
+    format: "ratio",
+    aggregate: "mean",
+    levels: ["form", "question", "subquestion"],
+  },
+  {
+    key: "subquestion_agreement_percent",
+    label: "Sub-question Agreement %",
+    format: "percent",
+    aggregate: "mean",
+    levels: ["form", "question", "subquestion"],
+  },
+  {
+    key: "subquestion_precision",
+    label: "Sub-question Precision",
+    format: "ratio",
+    aggregate: "mean",
+    levels: ["form", "question", "subquestion"],
+  },
+  {
+    key: "subquestion_recall",
+    label: "Sub-question Recall",
+    format: "ratio",
+    aggregate: "mean",
+    levels: ["form", "question", "subquestion"],
+  },
+  {
+    key: "subquestion_f1",
+    label: "Sub-question F1",
+    format: "ratio",
+    aggregate: "mean",
+    levels: ["form", "question", "subquestion"],
+  },
+  {
+    key: "subquestion_f1_percent",
+    label: "Sub-question F1 %",
+    format: "percent",
+    aggregate: "mean",
+    levels: ["form", "question", "subquestion"],
+  },
+  { key: "path_exact_matches", label: "Path Exact Matches", format: "count", aggregate: "sum", levels: ["form"] },
+  { key: "path_exact_rate", label: "Path Exact Rate", format: "ratio", aggregate: "mean", levels: ["form"] },
+  { key: "path_exact_percent", label: "Path Exact %", format: "percent", aggregate: "mean", levels: ["form"] },
+  { key: "form_exact_match", label: "Form Exact Match", format: "ratio", aggregate: "mean", levels: ["form"] },
+];
+
+const metricColumnDefinitionByKey = new Map(metricColumnDefinitions.map((definition) => [definition.key, definition]));
+const resultSeriesColors = {
+  generated: "#0891b2",
+  R1: "#d97706",
+  R2: "#16a34a",
+};
 
 function statusVariant(status: EvalRunStatus | string): "secondary" | "outline" | "success" | "danger" | "warning" {
   if (status === "completed") return "success";
@@ -131,6 +336,84 @@ function metricNumberFallback(metrics: Record<string, unknown>, keys: string[]):
 
 function metricBool(metrics: Record<string, unknown>, key: string): boolean {
   return Boolean(metrics[key]);
+}
+
+function metricScalar(metrics: Record<string, unknown>, key: string): number | null {
+  const value = metrics[key];
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "boolean") return value ? 1 : 0;
+  return null;
+}
+
+function emptyDetectionStats(): DetectionStats {
+  return { truePositive: 0, falsePositive: 0, falseNegative: 0 };
+}
+
+function emptyMatchStats(): MatchStats {
+  return { total: 0, matches: 0 };
+}
+
+function addMatch(stats: MatchStats, matched: boolean) {
+  stats.total += 1;
+  if (matched) stats.matches += 1;
+}
+
+function normalizedAnswer(value?: string | null): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function boolAnswer(value?: string | null): boolean {
+  return ["true", "yes", "1"].includes(normalizedAnswer(value));
+}
+
+function noAnswer(value?: string | null): boolean {
+  return normalizedAnswer(value) === "no";
+}
+
+function addDetection(stats: DetectionStats, generated: boolean, reference: boolean) {
+  if (generated && reference) stats.truePositive += 1;
+  else if (generated && !reference) stats.falsePositive += 1;
+  else if (!generated && reference) stats.falseNegative += 1;
+}
+
+function precision(stats: DetectionStats): number {
+  const denominator = stats.truePositive + stats.falsePositive;
+  return denominator ? stats.truePositive / denominator : 0;
+}
+
+function recall(stats: DetectionStats): number {
+  const denominator = stats.truePositive + stats.falseNegative;
+  return denominator ? stats.truePositive / denominator : 0;
+}
+
+function f1Score(stats: DetectionStats): number {
+  const p = precision(stats);
+  const r = recall(stats);
+  return p + r ? (2 * p * r) / (p + r) : 0;
+}
+
+function ratioFromStats(stats: MatchStats): number {
+  return stats.total ? stats.matches / stats.total : 0;
+}
+
+function addMetricSample(row: HierarchyMetricAccumulator, key: MetricColumnKey, value: number) {
+  row.metricSums[key] = (row.metricSums[key] ?? 0) + value;
+  row.metricCounts[key] = (row.metricCounts[key] ?? 0) + 1;
+}
+
+function formatNumber(value: number): string {
+  if (Number.isInteger(value)) return new Intl.NumberFormat("en-US").format(value);
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value);
+}
+
+function formatMetricValue(row: HierarchyMetricRow, definition: MetricColumnDefinition): string {
+  if (!definition.levels.includes(row.level)) return "-";
+  const value = row.metrics[definition.key];
+  if (typeof value !== "number" || !Number.isFinite(value)) return "-";
+  if (definition.format === "count") return formatNumber(value);
+  if (definition.format === "percent") return `${Math.round(value)}%`;
+  if (definition.format === "ratio") return agreementPercent(value);
+  return formatNumber(value);
 }
 
 function formatRuntime(seconds?: number | null): string {
@@ -195,7 +478,7 @@ function useBodyScrollLock(open: boolean) {
 }
 
 function buildHierarchyRows(items: EvalRunItemRecord[]): HierarchyMetricRow[] {
-  const rows = new Map<HierarchyMetricRow["id"], HierarchyMetricRow & { scoreSum: number; scoreCount: number }>();
+  const rows = new Map<HierarchyMetricRow["id"], HierarchyMetricAccumulator>();
 
   const ensure = (
     level: HierarchyLevel,
@@ -219,8 +502,17 @@ function buildHierarchyRows(items: EvalRunItemRecord[]): HierarchyMetricRow[] {
         agreement: 0,
         averageScore: null,
         outcomeMatches: 0,
+        metrics: {},
         scoreSum: 0,
         scoreCount: 0,
+        metricSums: {},
+        metricCounts: {},
+        questionStats: emptyMatchStats(),
+        questionNoStats: emptyDetectionStats(),
+        subquestionStats: emptyMatchStats(),
+        subquestionStatsByParent: new Map<string, MatchStats>(),
+        subquestionDetectionStats: emptyDetectionStats(),
+        subquestionEligibleQuestionCount: 0,
       };
       rows.set(id, row);
     }
@@ -237,6 +529,10 @@ function buildHierarchyRows(items: EvalRunItemRecord[]): HierarchyMetricRow[] {
         formRow.scoreSum += comparison.score;
         formRow.scoreCount += 1;
       }
+      for (const definition of metricColumnDefinitions) {
+        const value = metricScalar(comparison.metrics, definition.key);
+        if (value !== null) addMetricSample(formRow, definition.key, value);
+      }
 
       for (const agreementItem of comparison.agreement_items ?? []) {
         if (agreementItem.level === "overall") {
@@ -249,6 +545,11 @@ function buildHierarchyRows(items: EvalRunItemRecord[]): HierarchyMetricRow[] {
           const questionRow = ensure("question", comparison.reference_kind, questionId, "", questionText);
           questionRow.total += 1;
           if (agreementItem.matched) questionRow.matches += 1;
+          addMatch(questionRow.questionStats, agreementItem.matched);
+          addDetection(questionRow.questionNoStats, noAnswer(agreementItem.generated_answer), noAnswer(agreementItem.reference_answer));
+          if (noAnswer(agreementItem.generated_answer) && noAnswer(agreementItem.reference_answer)) {
+            questionRow.subquestionEligibleQuestionCount += 1;
+          }
           continue;
         }
 
@@ -264,6 +565,15 @@ function buildHierarchyRows(items: EvalRunItemRecord[]): HierarchyMetricRow[] {
         );
         subquestionRow.total += 1;
         if (agreementItem.matched) subquestionRow.matches += 1;
+        addMatch(subquestionRow.subquestionStats, agreementItem.matched);
+        addDetection(subquestionRow.subquestionDetectionStats, boolAnswer(agreementItem.generated_answer), boolAnswer(agreementItem.reference_answer));
+
+        const questionRow = ensure("question", comparison.reference_kind, questionId, "", agreementItem.question_text ?? questionId);
+        const parentStats = questionRow.subquestionStatsByParent.get(subquestionId) ?? emptyMatchStats();
+        addMatch(parentStats, agreementItem.matched);
+        questionRow.subquestionStatsByParent.set(subquestionId, parentStats);
+        addMatch(questionRow.subquestionStats, agreementItem.matched);
+        addDetection(questionRow.subquestionDetectionStats, boolAnswer(agreementItem.generated_answer), boolAnswer(agreementItem.reference_answer));
       }
 
       if ((comparison.agreement_items ?? []).length > 0) {
@@ -279,6 +589,7 @@ function buildHierarchyRows(items: EvalRunItemRecord[]): HierarchyMetricRow[] {
         const questionRow = ensure("question", comparison.reference_kind, questionId, "", questionText);
         questionRow.total += 1;
         if (questionRecord.answer_match === true) questionRow.matches += 1;
+        addMatch(questionRow.questionStats, questionRecord.answer_match === true);
 
         const legacyDrivers = questionRecord.drivers;
         if (!Array.isArray(legacyDrivers)) continue;
@@ -295,23 +606,85 @@ function buildHierarchyRows(items: EvalRunItemRecord[]): HierarchyMetricRow[] {
           );
           driverRow.total += 1;
           if (driverRecord.match === true) driverRow.matches += 1;
+          addMatch(driverRow.subquestionStats, driverRecord.match === true);
+          addMatch(questionRow.subquestionStats, driverRecord.match === true);
         }
       }
     }
   }
 
   return Array.from(rows.values())
-    .map((row) => ({
-      ...row,
-      agreement: row.total ? row.matches / row.total : 0,
-      averageScore: row.scoreCount ? row.scoreSum / row.scoreCount : null,
-    }))
+    .map((row) => finalizeHierarchyRow(row))
     .sort((first, second) => {
       const refCompare = first.referenceKind.localeCompare(second.referenceKind);
       if (refCompare) return refCompare;
       const order = { form: 0, question: 1, subquestion: 2 };
       return order[first.level] - order[second.level] || first.path.localeCompare(second.path, undefined, { numeric: true });
     });
+}
+
+function finalizeHierarchyRow(row: HierarchyMetricAccumulator): HierarchyMetricRow {
+  const metrics: Partial<Record<MetricColumnKey, number>> = {};
+
+  for (const definition of metricColumnDefinitions) {
+    const sum = row.metricSums[definition.key];
+    const count = row.metricCounts[definition.key] ?? 0;
+    if (sum === undefined || !count) continue;
+    metrics[definition.key] = definition.aggregate === "sum" ? sum : sum / count;
+  }
+
+  if (row.level === "form") {
+    const questionTotal = metrics.question_total ?? 0;
+    const questionMatches = metrics.question_matches ?? 0;
+    const subquestionTotal = metrics.subquestion_total ?? 0;
+    const subquestionMatches = metrics.subquestion_matches ?? 0;
+    const pathExactMatches = metrics.path_exact_matches ?? 0;
+
+    metrics.question_agreement = questionTotal ? questionMatches / questionTotal : 0;
+    metrics.question_agreement_percent = metrics.question_agreement * 100;
+    metrics.subquestion_agreement = subquestionTotal ? subquestionMatches / subquestionTotal : 0;
+    metrics.subquestion_agreement_percent = metrics.subquestion_agreement * 100;
+    metrics.path_exact_rate = questionTotal ? pathExactMatches / questionTotal : 0;
+    metrics.path_exact_percent = metrics.path_exact_rate * 100;
+  }
+
+  if (row.level === "question") {
+    metrics.question_total = row.questionStats.total;
+    metrics.question_matches = row.questionStats.matches;
+    metrics.question_agreement = ratioFromStats(row.questionStats);
+    metrics.question_agreement_percent = metrics.question_agreement * 100;
+    metrics.question_no_precision = precision(row.questionNoStats);
+    metrics.question_no_recall = recall(row.questionNoStats);
+    metrics.question_no_f1 = f1Score(row.questionNoStats);
+    metrics.question_no_f1_percent = metrics.question_no_f1 * 100;
+    metrics.subquestion_eligible_question_count = row.subquestionEligibleQuestionCount;
+  }
+
+  if (row.level === "question" || row.level === "subquestion") {
+    metrics.subquestion_total = row.subquestionStats.total;
+    metrics.subquestion_matches = row.subquestionStats.matches;
+    metrics.subquestion_agreement = ratioFromStats(row.subquestionStats);
+    metrics.subquestion_agreement_percent = metrics.subquestion_agreement * 100;
+    metrics.subquestion_precision = precision(row.subquestionDetectionStats);
+    metrics.subquestion_recall = recall(row.subquestionDetectionStats);
+    metrics.subquestion_f1 = f1Score(row.subquestionDetectionStats);
+    metrics.subquestion_f1_percent = metrics.subquestion_f1 * 100;
+  }
+
+  return {
+    id: row.id,
+    level: row.level,
+    referenceKind: row.referenceKind,
+    path: row.path,
+    parentPath: row.parentPath,
+    label: row.label,
+    total: row.total,
+    matches: row.matches,
+    agreement: row.total ? row.matches / row.total : 0,
+    averageScore: row.scoreCount ? row.scoreSum / row.scoreCount : null,
+    outcomeMatches: row.outcomeMatches,
+    metrics,
+  };
 }
 
 function aggregateRunMetrics(run: EvalRunRecord | null, items: EvalRunItemRecord[]) {
@@ -359,6 +732,313 @@ function buildPairRows(items: EvalRunItemRecord[]): PairResultRow[] {
       ];
     }),
   );
+}
+
+function availableReferenceKinds(items: EvalRunItemRecord[]): EvalReferenceKind[] {
+  const kinds = new Set<EvalReferenceKind>();
+  for (const item of items) {
+    for (const truth of item.ground_truths) kinds.add(truth.reference_kind);
+    for (const comparison of item.comparisons) kinds.add(comparison.reference_kind);
+  }
+  return (["R1", "R2"] as EvalReferenceKind[]).filter((kind) => kinds.has(kind));
+}
+
+function selectedReferenceKinds(view: ReferenceView, availableKinds: EvalReferenceKind[]): EvalReferenceKind[] {
+  if (view === "both") return availableKinds;
+  return availableKinds.includes(view) ? [view] : availableKinds.slice(0, 1);
+}
+
+function preferredReferenceView(run: EvalRunRecord | null, availableKinds: EvalReferenceKind[]): ReferenceView {
+  if (run?.reference_policy === "r1" && availableKinds.includes("R1")) return "R1";
+  if (run?.reference_policy === "r2" && availableKinds.includes("R2")) return "R2";
+  return availableKinds.includes("R2") ? "R2" : availableKinds[0] ?? "R1";
+}
+
+function comparePath(first: string, second: string): number {
+  return first.localeCompare(second, undefined, { numeric: true });
+}
+
+function formQuestionLabel(question: FormQuestion): string {
+  return question.text || question.id;
+}
+
+function questionMap(form: AuditFormResult): Map<string, FormQuestion> {
+  return new Map(form.questions.map((question) => [question.id, question]));
+}
+
+function subQuestionMap(question?: FormQuestion): Map<string, NonNullable<FormQuestion["sub_questions"]>[number]> {
+  return new Map((question?.sub_questions ?? []).map((subQuestion) => [subQuestion.id, subQuestion]));
+}
+
+function orderedQuestionIdsForForms(generated: AuditFormResult, reference: AuditFormResult): string[] {
+  const generatedQuestions = questionMap(generated);
+  const referenceQuestions = questionMap(reference);
+  const questionIds = reference.questions.map((question) => question.id);
+  for (const questionId of generatedQuestions.keys()) {
+    if (!referenceQuestions.has(questionId)) questionIds.push(questionId);
+  }
+  return questionIds;
+}
+
+function countDisplay(count: number, total: number): string {
+  return `${formatNumber(count)} of ${formatNumber(total)}`;
+}
+
+function percentDisplay(value: number, matches: number, total: number): string {
+  return `${Math.round(value)}% (${formatNumber(matches)}/${formatNumber(total)})`;
+}
+
+function buildResultSections(items: EvalRunItemRecord[], referenceView: ReferenceView): EvalVisualizationSection[] {
+  const availableKinds = availableReferenceKinds(items);
+  const references = selectedReferenceKinds(referenceView, availableKinds);
+  const generatedKey = "generated";
+  type CountBucket = { count: number; total: number };
+  type ResultAccumulator = {
+    id: string;
+    label: string;
+    context: string;
+    generated: CountBucket;
+    references: Partial<Record<EvalReferenceKind, CountBucket>>;
+  };
+  const newBucket = (): CountBucket => ({ count: 0, total: 0 });
+  const overall: ResultAccumulator = {
+    id: "overall:rating",
+    label: "Overall rating: Does Not Meet",
+    context: "Form result",
+    generated: newBucket(),
+    references: {},
+  };
+  const questionRows = new Map<string, ResultAccumulator>();
+  const subquestionRows = new Map<string, ResultAccumulator>();
+
+  const ensureResultRow = (map: Map<string, ResultAccumulator>, id: string, label: string, context: string) => {
+    let row = map.get(id);
+    if (!row) {
+      row = { id, label, context, generated: newBucket(), references: {} };
+      map.set(id, row);
+    } else {
+      row.label = row.label || label;
+      row.context = row.context || context;
+    }
+    return row;
+  };
+  const referenceBucket = (row: ResultAccumulator, kind: EvalReferenceKind) => {
+    row.references[kind] = row.references[kind] ?? newBucket();
+    return row.references[kind] as CountBucket;
+  };
+  const addQuestionCounts = (form: AuditFormResult, target: "generated" | EvalReferenceKind) => {
+    for (const question of form.questions) {
+      const questionRow = ensureResultRow(questionRows, question.id, formQuestionLabel(question), question.id);
+      const questionBucket = target === generatedKey ? questionRow.generated : referenceBucket(questionRow, target);
+      questionBucket.total += 1;
+      if (question.answer === "No") questionBucket.count += 1;
+
+      for (const subQuestion of question.sub_questions ?? []) {
+        const subquestionId = `${question.id}:${subQuestion.id}`;
+        const subquestionRow = ensureResultRow(
+          subquestionRows,
+          subquestionId,
+          subQuestion.text || subQuestion.id,
+          `${question.id} / ${subQuestion.id}`,
+        );
+        const subquestionBucket = target === generatedKey ? subquestionRow.generated : referenceBucket(subquestionRow, target);
+        subquestionBucket.total += 1;
+        if (subQuestion.answer) subquestionBucket.count += 1;
+      }
+    }
+  };
+
+  for (const item of items) {
+    if (item.generated_result) {
+      overall.generated.total += 1;
+      if (item.generated_result.overall_outcome === "Does Not Meet") overall.generated.count += 1;
+      addQuestionCounts(item.generated_result, generatedKey);
+    }
+
+    for (const referenceKind of references) {
+      const truth = item.ground_truths.find((candidate) => candidate.reference_kind === referenceKind);
+      if (!truth) continue;
+      const bucket = referenceBucket(overall, referenceKind);
+      bucket.total += 1;
+      if (truth.result.overall_outcome === "Does Not Meet") bucket.count += 1;
+      addQuestionCounts(truth.result, referenceKind);
+    }
+  }
+
+  const toBars = (row: ResultAccumulator): EvalVisualizationBar[] => {
+    const bars: EvalVisualizationBar[] = [];
+    if (row.generated.total > 0) {
+      bars.push({
+        key: "generated",
+        label: "Generated",
+        value: row.generated.count,
+        displayValue: countDisplay(row.generated.count, row.generated.total),
+        color: resultSeriesColors.generated,
+      });
+    }
+    for (const referenceKind of references) {
+      const bucket = row.references[referenceKind];
+      if (!bucket || bucket.total === 0) continue;
+      bars.push({
+        key: referenceKind,
+        label: `Ground Truth ${referenceKind}`,
+        value: bucket.count,
+        displayValue: countDisplay(bucket.count, bucket.total),
+        color: resultSeriesColors[referenceKind],
+      });
+    }
+    return bars;
+  };
+  const toRows = (rows: ResultAccumulator[]) =>
+    rows
+      .map((row) => ({ id: row.id, label: row.label, context: row.context, bars: toBars(row) }))
+      .filter((row) => row.bars.length > 0);
+
+  return [
+    { id: "overall", title: "Overall Rating", rows: toRows([overall]) },
+    { id: "question", title: "Question No Answers", rows: toRows(Array.from(questionRows.values()).sort((a, b) => comparePath(a.id, b.id))) },
+    {
+      id: "subquestion",
+      title: "Ticked Drivers",
+      rows: toRows(Array.from(subquestionRows.values()).sort((a, b) => comparePath(a.id, b.id))),
+    },
+  ];
+}
+
+function buildAgreementSections(items: EvalRunItemRecord[], referenceView: ReferenceView): EvalVisualizationSection[] {
+  const availableKinds = availableReferenceKinds(items);
+  const references = selectedReferenceKinds(referenceView, availableKinds);
+  type AgreementAccumulator = {
+    id: string;
+    label: string;
+    context: string;
+    references: Partial<Record<EvalReferenceKind, MatchStats>>;
+  };
+  const overall: AgreementAccumulator = {
+    id: "overall:agreement",
+    label: "Overall rating agreement",
+    context: "Generated vs ground truth",
+    references: {},
+  };
+  const questionRows = new Map<string, AgreementAccumulator>();
+  const subquestionRows = new Map<string, AgreementAccumulator>();
+
+  const ensureAgreementRow = (map: Map<string, AgreementAccumulator>, id: string, label: string, context: string) => {
+    let row = map.get(id);
+    if (!row) {
+      row = { id, label, context, references: {} };
+      map.set(id, row);
+    } else {
+      row.label = row.label || label;
+      row.context = row.context || context;
+    }
+    return row;
+  };
+  const referenceStats = (row: AgreementAccumulator, kind: EvalReferenceKind) => {
+    row.references[kind] = row.references[kind] ?? emptyMatchStats();
+    return row.references[kind] as MatchStats;
+  };
+  const addFormAgreementRows = (
+    generated: AuditFormResult,
+    reference: AuditFormResult,
+    referenceKind: EvalReferenceKind,
+  ) => {
+    const generatedQuestions = questionMap(generated);
+    const referenceQuestions = questionMap(reference);
+    for (const questionId of orderedQuestionIdsForForms(generated, reference)) {
+      const generatedQuestion = generatedQuestions.get(questionId);
+      const referenceQuestion = referenceQuestions.get(questionId);
+      const question = referenceQuestion ?? generatedQuestion;
+      const questionMatch = generatedQuestion?.answer === referenceQuestion?.answer;
+      const questionRow = ensureAgreementRow(questionRows, questionId, question?.text ?? questionId, questionId);
+      addMatch(referenceStats(questionRow, referenceKind), questionMatch);
+
+      if (generatedQuestion?.answer !== "No" || referenceQuestion?.answer !== "No") continue;
+      const generatedSubQuestions = subQuestionMap(generatedQuestion);
+      const referenceSubQuestions = subQuestionMap(referenceQuestion);
+      const subQuestionIds = Array.from(new Set([...generatedSubQuestions.keys(), ...referenceSubQuestions.keys()])).sort(comparePath);
+      for (const subQuestionId of subQuestionIds) {
+        const generatedSubQuestion = generatedSubQuestions.get(subQuestionId);
+        const referenceSubQuestion = referenceSubQuestions.get(subQuestionId);
+        const subQuestion = referenceSubQuestion ?? generatedSubQuestion;
+        const subQuestionMatch = Boolean(generatedSubQuestion?.answer) === Boolean(referenceSubQuestion?.answer);
+        const subquestionRow = ensureAgreementRow(
+          subquestionRows,
+          `${questionId}:${subQuestionId}`,
+          subQuestion?.text ?? subQuestionId,
+          `${questionId} / ${subQuestionId}`,
+        );
+        addMatch(referenceStats(subquestionRow, referenceKind), subQuestionMatch);
+      }
+    }
+  };
+
+  for (const item of items) {
+    for (const referenceKind of references) {
+      const comparison = comparisonFor(item, referenceKind);
+      if (!comparison) continue;
+      const truth = item.ground_truths.find((candidate) => candidate.reference_kind === referenceKind);
+      const agreementItems = comparison.agreement_items ?? [];
+      const overallItem = agreementItems.find((agreementItem) => agreementItem.level === "overall");
+      addMatch(referenceStats(overall, referenceKind), overallItem ? overallItem.matched : metricBool(comparison.metrics, "outcome_match"));
+
+      const detailedAgreementItems = agreementItems.filter((agreementItem) => agreementItem.level !== "overall");
+      if (detailedAgreementItems.length === 0 && item.generated_result && truth?.result) {
+        addFormAgreementRows(item.generated_result, truth.result, referenceKind);
+        continue;
+      }
+
+      for (const agreementItem of detailedAgreementItems) {
+        if (agreementItem.level === "overall") continue;
+        if (agreementItem.level === "question") {
+          const questionId = agreementItem.question_id ?? "Question";
+          const row = ensureAgreementRow(questionRows, questionId, agreementItem.question_text ?? questionId, questionId);
+          addMatch(referenceStats(row, referenceKind), agreementItem.matched);
+          continue;
+        }
+
+        const questionId = agreementItem.question_id ?? "Question";
+        const subquestionId = agreementItem.subquestion_id ?? "Sub-question";
+        const row = ensureAgreementRow(
+          subquestionRows,
+          `${questionId}:${subquestionId}`,
+          agreementItem.subquestion_text ?? subquestionId,
+          `${questionId} / ${subquestionId}`,
+        );
+        addMatch(referenceStats(row, referenceKind), agreementItem.matched);
+      }
+    }
+  }
+
+  const toBars = (row: AgreementAccumulator): EvalVisualizationBar[] =>
+    references.flatMap((referenceKind) => {
+      const stats = row.references[referenceKind];
+      if (!stats || stats.total === 0) return [];
+      const value = ratioFromStats(stats) * 100;
+      return [
+        {
+          key: referenceKind,
+          label: `${referenceKind} Agreement`,
+          value,
+          displayValue: percentDisplay(value, stats.matches, stats.total),
+          color: resultSeriesColors[referenceKind],
+        },
+      ];
+    });
+  const toRows = (rows: AgreementAccumulator[]) =>
+    rows
+      .map((row) => ({ id: row.id, label: row.label, context: row.context, bars: toBars(row) }))
+      .filter((row) => row.bars.length > 0);
+
+  return [
+    { id: "overall", title: "Overall Agreement", rows: toRows([overall]) },
+    { id: "question", title: "Question Agreement", rows: toRows(Array.from(questionRows.values()).sort((a, b) => comparePath(a.id, b.id))) },
+    {
+      id: "subquestion",
+      title: "Driver Agreement",
+      rows: toRows(Array.from(subquestionRows.values()).sort((a, b) => comparePath(a.id, b.id))),
+    },
+  ];
 }
 
 function primaryReferenceKind(run: EvalRunRecord | null, rows: Array<{ referenceKind: EvalReferenceKind }>): EvalReferenceKind {
@@ -624,6 +1304,8 @@ export function EvaluationWorkbench() {
       <RunResultsHierarchyTable run={analysisRun} items={analysisItems} />
 
       <PairResultsTable run={analysisRun} items={analysisItems} onViewPair={setViewingPair} />
+
+      <EvalResultsVisualization run={analysisRun} items={analysisItems} />
 
       <EvalRunDialog
         open={dialogOpen}
@@ -1038,10 +1720,15 @@ function RunResultsHierarchyTable({ run, items }: { run: EvalRunRecord | null; i
   const [referenceFilter, setReferenceFilter] = useState("primary");
   const [levelFilter, setLevelFilter] = useState("all");
   const [sortKey, setSortKey] = useState<"agreement" | "path" | "total">("agreement");
+  const [metricColumns, setMetricColumns] = useState<MetricColumnKey[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const rows = useMemo(() => buildHierarchyRows(items), [items]);
   const primaryRef = primaryReferenceKind(run, rows);
+  const selectedMetricDefinitions = useMemo(
+    () => metricColumns.map((key) => metricColumnDefinitionByKey.get(key)).filter((definition): definition is MetricColumnDefinition => Boolean(definition)),
+    [metricColumns],
+  );
   const visibleTopRows = useMemo(() => {
     const query = search.trim().toLowerCase();
     const subRowsByParent = new Map<string, HierarchyMetricRow[]>();
@@ -1103,6 +1790,13 @@ function RunResultsHierarchyTable({ run, items }: { run: EvalRunRecord | null; i
       return next;
     });
   };
+  const addMetricColumn = (key: string) => {
+    if (!key) return;
+    setMetricColumns((current) => (current.includes(key as MetricColumnKey) ? current : [...current, key as MetricColumnKey]));
+  };
+  const removeMetricColumn = (key: MetricColumnKey) => {
+    setMetricColumns((current) => current.filter((candidate) => candidate !== key));
+  };
 
   return (
     <Card className="overflow-hidden">
@@ -1139,6 +1833,16 @@ function RunResultsHierarchyTable({ run, items }: { run: EvalRunRecord | null; i
             <option value="path">Path</option>
             <option value="total">Volume</option>
           </SelectFilter>
+          <SelectFilter value="" onChange={addMetricColumn} label="Add metric column">
+            <option value="">Add metric column...</option>
+            {metricColumnDefinitions
+              .filter((definition) => !metricColumns.includes(definition.key))
+              .map((definition) => (
+                <option key={definition.key} value={definition.key}>
+                  {definition.label}
+                </option>
+              ))}
+          </SelectFilter>
           <Button
             type="button"
             variant="ghost"
@@ -1171,6 +1875,25 @@ function RunResultsHierarchyTable({ run, items }: { run: EvalRunRecord | null; i
             Clear
           </Button>
         </div>
+        {selectedMetricDefinitions.length ? (
+          <div className="flex flex-wrap gap-2 border-b px-4 py-2">
+            {selectedMetricDefinitions.map((definition) => (
+              <button
+                key={definition.key}
+                type="button"
+                onClick={() => removeMetricColumn(definition.key)}
+                className="inline-flex items-center gap-1 rounded-md border bg-background px-2 py-1 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground"
+                title={`Remove ${definition.label}`}
+              >
+                {definition.label}
+                <X className="h-3 w-3" />
+              </button>
+            ))}
+            <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setMetricColumns([])}>
+              Reset columns
+            </Button>
+          </div>
+        ) : null}
         <Table>
           <TableHeader>
             <TableRow className="bg-secondary/60">
@@ -1181,13 +1904,18 @@ function RunResultsHierarchyTable({ run, items }: { run: EvalRunRecord | null; i
               <TableHead>Agreement</TableHead>
               <TableHead>Matches</TableHead>
               <TableHead>Avg Score</TableHead>
+              {selectedMetricDefinitions.map((definition) => (
+                <TableHead key={definition.key} className="min-w-[130px]">
+                  {definition.label}
+                </TableHead>
+              ))}
               <TableHead>Label</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {!run || visibleTopRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={8 + selectedMetricDefinitions.length} className="h-24 text-center text-muted-foreground">
                   No hierarchy metrics available for this run.
                 </TableCell>
               </TableRow>
@@ -1197,9 +1925,15 @@ function RunResultsHierarchyTable({ run, items }: { run: EvalRunRecord | null; i
                 const isExpanded = expanded.has(row.id);
                 return (
                   <Fragment key={row.id}>
-                    <HierarchyTableRow row={row} canExpand={children.length > 0} expanded={isExpanded} onToggle={() => toggleExpanded(row.id)} />
+                    <HierarchyTableRow
+                      row={row}
+                      metricColumns={selectedMetricDefinitions}
+                      canExpand={children.length > 0}
+                      expanded={isExpanded}
+                      onToggle={() => toggleExpanded(row.id)}
+                    />
                     {isExpanded
-                      ? children.map((child) => <HierarchyTableRow key={child.id} row={child} child />)
+                      ? children.map((child) => <HierarchyTableRow key={child.id} row={child} metricColumns={selectedMetricDefinitions} child />)
                       : null}
                   </Fragment>
                 );
@@ -1217,12 +1951,14 @@ function RunResultsHierarchyTable({ run, items }: { run: EvalRunRecord | null; i
 
 function HierarchyTableRow({
   row,
+  metricColumns,
   child = false,
   canExpand = false,
   expanded = false,
   onToggle,
 }: {
   row: HierarchyMetricRow;
+  metricColumns: MetricColumnDefinition[];
   child?: boolean;
   canExpand?: boolean;
   expanded?: boolean;
@@ -1263,6 +1999,11 @@ function HierarchyTableRow({
       </TableCell>
       <TableCell className="tabular-nums">{row.matches}/{row.total}</TableCell>
       <TableCell className="tabular-nums">{scorePercent(row.averageScore)}</TableCell>
+      {metricColumns.map((definition) => (
+        <TableCell key={definition.key} className="tabular-nums">
+          {formatMetricValue(row, definition)}
+        </TableCell>
+      ))}
       <TableCell className="max-w-[460px]">
         <div className="truncate text-sm">{row.label}</div>
       </TableCell>
@@ -1433,6 +2174,163 @@ function PairResultsTable({
         />
       </CardContent>
     </Card>
+  );
+}
+
+function EvalResultsVisualization({ run, items }: { run: EvalRunRecord | null; items: EvalRunItemRecord[] }) {
+  const [mode, setMode] = useState<VisualizationMode>("results");
+  const [referenceView, setReferenceView] = useState<ReferenceView>("R2");
+  const initializedReferenceRunIdRef = useRef("");
+  const availableKinds = useMemo(() => availableReferenceKinds(items), [items]);
+  const effectiveReferenceView = useMemo(() => {
+    if (referenceView === "both" && availableKinds.length > 1) return referenceView;
+    if (referenceView !== "both" && availableKinds.includes(referenceView)) return referenceView;
+    return preferredReferenceView(run, availableKinds);
+  }, [availableKinds, referenceView, run]);
+  const sections = useMemo(
+    () =>
+      mode === "results"
+        ? buildResultSections(items, effectiveReferenceView)
+        : buildAgreementSections(items, effectiveReferenceView),
+    [effectiveReferenceView, items, mode],
+  );
+  const rowCount = sections.reduce((sum, section) => sum + section.rows.length, 0);
+  const canShowBoth = availableKinds.length > 1 && availableKinds.includes("R2");
+
+  useEffect(() => {
+    if (!run || availableKinds.length === 0) return;
+    setReferenceView((current) => {
+      if (initializedReferenceRunIdRef.current !== run.id) {
+        initializedReferenceRunIdRef.current = run.id;
+        return preferredReferenceView(run, availableKinds);
+      }
+      if (current === "both" && canShowBoth) return current;
+      if (current !== "both" && availableKinds.includes(current)) return current;
+      return preferredReferenceView(run, availableKinds);
+    });
+  }, [availableKinds, canShowBoth, run]);
+
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader className="border-b">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <BarChart3 className="h-4 w-4 text-primary" />
+            <CardTitle>Evaluation Comparison</CardTitle>
+          </div>
+          {run ? <Badge variant="outline">{run.name} {visibleVersion(run)}</Badge> : null}
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-md border bg-background p-0.5">
+              <button
+                type="button"
+                onClick={() => setMode("results")}
+                className={cn(
+                  "inline-flex h-7 items-center rounded px-2 text-xs font-medium",
+                  mode === "results" ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                Results
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("agreement")}
+                className={cn(
+                  "inline-flex h-7 items-center rounded px-2 text-xs font-medium",
+                  mode === "agreement" ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                Agreement
+              </button>
+            </div>
+            {canShowBoth ? (
+              <div className="inline-flex rounded-md border bg-background p-0.5">
+                {(["R1", "R2", "both"] as ReferenceView[]).map((referenceOption) => (
+                  <button
+                    key={referenceOption}
+                    type="button"
+                    onClick={() => setReferenceView(referenceOption)}
+                    className={cn(
+                      "inline-flex h-7 items-center rounded px-2 text-xs font-medium",
+                      effectiveReferenceView === referenceOption
+                        ? "bg-secondary text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {referenceOption === "both" ? "Both" : referenceOption}
+                  </button>
+                ))}
+              </div>
+            ) : availableKinds[0] ? (
+              <Badge variant="outline">{availableKinds[0]} ground truth</Badge>
+            ) : null}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        {!run || rowCount === 0 ? (
+          <div className="p-6">
+            <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+              Completed evaluation results will appear here once a run has comparisons.
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y">
+            {sections.map((section) => (
+              <HorizontalComparisonSection key={section.id} section={section} mode={mode} />
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function HorizontalComparisonSection({
+  section,
+  mode,
+}: {
+  section: EvalVisualizationSection;
+  mode: VisualizationMode;
+}) {
+  const maxValue = mode === "agreement" ? 100 : Math.max(1, ...section.rows.flatMap((row) => row.bars.map((bar) => bar.value)));
+
+  return (
+    <section className="px-4 py-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold">{section.title}</h3>
+        <span className="text-xs text-muted-foreground">{section.rows.length} rows</span>
+      </div>
+      {section.rows.length === 0 ? (
+        <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">No data in this level for the current selection.</p>
+      ) : (
+        <div className="space-y-3">
+          {section.rows.map((row) => (
+            <div key={row.id} className="grid gap-2 lg:grid-cols-[minmax(220px,360px)_1fr]">
+              <div className="min-w-0">
+                <p className="break-words text-sm font-medium leading-snug">{row.label}</p>
+                <p className="mt-0.5 break-words text-[11px] text-muted-foreground">{row.context}</p>
+              </div>
+              <div className="space-y-1.5">
+                {row.bars.map((bar) => {
+                  const width = Math.max(1, (bar.value / maxValue) * 100);
+                  return (
+                    <div key={bar.key} className="grid grid-cols-[112px_1fr_92px] items-center gap-2">
+                      <span className="truncate text-xs text-muted-foreground" title={bar.label}>
+                        {bar.label}
+                      </span>
+                      <div className="h-3 overflow-hidden rounded-full bg-secondary">
+                        <div className="h-full rounded-full" style={{ width: `${width}%`, backgroundColor: bar.color }} />
+                      </div>
+                      <span className="text-right text-xs font-medium tabular-nums">{bar.displayValue}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
