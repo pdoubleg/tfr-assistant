@@ -5,9 +5,11 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.schemas.prompts import PromptReference, ResolvedPrompt
+
 OptimizationRunStatus = Literal["queued", "running", "completed", "failed", "canceled"]
 OptimizationSplit = Literal["train", "val", "test"]
-OptimizationSeedSource = Literal["form", "manual"]
+OptimizationSeedSource = Literal["form", "manual", "prompt_registry"]
 OptimizationMetricMode = Literal["comparison", "comparison_with_judge"]
 OptimizationScoreKey = Literal[
     "score",
@@ -91,6 +93,8 @@ class OptimizationRunCreate(BaseModel):
     form_version: str
     seed_instruction_source: OptimizationSeedSource = "form"
     manual_instructions: str = ""
+    seed_prompt_ref: PromptReference | None = None
+    resolved_seed_prompt: ResolvedPrompt | None = None
     metric_mode: OptimizationMetricMode = "comparison"
     score_key: OptimizationScoreKey = "score"
     reference_policy: OptimizationReferencePolicy = "prefer_r2"
@@ -103,6 +107,10 @@ class OptimizationRunCreate(BaseModel):
     def validate_config(self) -> OptimizationRunCreate:
         if self.seed_instruction_source == "manual" and not self.manual_instructions.strip():
             raise ValueError("Manual instructions are required when seed source is manual.")
+        if self.seed_instruction_source == "prompt_registry" and self.seed_prompt_ref is None:
+            raise ValueError(
+                "A registry prompt reference is required when seed source is registry."
+            )
         split_counts = {split: 0 for split in ("train", "val", "test")}
         for item in self.case_splits:
             split_counts[item.split] += 1

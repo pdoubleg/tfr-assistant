@@ -35,6 +35,7 @@ from app.schemas.evaluations import (
     EvalRunItemRecord,
     EvalRunRecord,
 )
+from app.schemas.prompts import PromptReference
 from app.schemas.reviews import ReviewGenerateRequest
 from app.services.audit_generation import AuditGenerationService
 from app.services.catalog import FormCatalog
@@ -482,6 +483,9 @@ class EvaluationRepository:
             concurrency=run.concurrency,
             retry_limit=run.retry_limit,
             enable_mlflow=run.enable_mlflow,
+            prompt_ref=PromptReference.model_validate(run.input_json["prompt_ref"])
+            if (run.input_json or {}).get("prompt_ref")
+            else None,
             mlflow_run_id=run.mlflow_run_id,
             total_count=total,
             completed_count=completed,
@@ -794,6 +798,9 @@ class EvaluationRunService:
                     instructions=case.instructions,
                     form_id=dataset.form_id,
                     form_version=dataset.form_version,
+                    prompt_ref=PromptReference.model_validate(run.input_json["prompt_ref"])
+                    if (run.input_json or {}).get("prompt_ref")
+                    else None,
                     eval_run_id=run.id,
                     eval_run_name=run.name,
                     eval_dataset_id=dataset.id,

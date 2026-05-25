@@ -28,6 +28,7 @@ from app.services.catalog import FormCatalog
 from app.services.optimization.artifacts import OptimizationArtifactWriter
 from app.services.optimization.metrics import driver_count, issue_count
 from app.services.optimization.utils import now_utc
+from app.services.prompt_registry import PromptRegistryRepository
 
 
 def prompt_from_case(case: EvalCaseORM) -> str:
@@ -110,6 +111,13 @@ class OptimizationRepository:
             catalog.get_form(request.form_id, request.form_version)
         except KeyError as exc:
             raise ValueError(f"Unknown form {request.form_id}@{request.form_version}") from exc
+        if request.seed_instruction_source == "prompt_registry" and request.seed_prompt_ref:
+            resolved = await PromptRegistryRepository(self.session, catalog).resolve(
+                request.seed_prompt_ref,
+                form_id=request.form_id,
+                form_version=request.form_version,
+            )
+            request = request.model_copy(update={"resolved_seed_prompt": resolved})
         case_ids = [item.case_id for item in request.case_splits]
         cases = (
             await self.session.scalars(select(EvalCaseORM).where(EvalCaseORM.id.in_(case_ids)))

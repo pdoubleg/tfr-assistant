@@ -74,6 +74,7 @@ class FileReviewAgentDeps:
     instructions: str = ""
     tools: list[str] | None = None
     knowledge_docs: list[str] | None = None
+    include_form_instructions: bool = True
     form_path: Path = field(init=False)
     form_definition: AuditFormDefinition = field(init=False)
     canonical: AuditFormResult = field(init=False)
@@ -138,7 +139,7 @@ def build_file_review_agent(
             sections.extend(["", f"Claim Number: {ctx.deps.claim_number}"])
         if ctx.deps.effective_date:
             sections.extend(["", f"Effective Date: {ctx.deps.effective_date}"])
-        if definition.instructions:
+        if ctx.deps.include_form_instructions and definition.instructions:
             sections.extend(
                 [
                     "",
@@ -237,6 +238,8 @@ async def run_file_review_agent(
     user_prompt: str = "",
     tools: list[str] | None = None,
     knowledge_docs: list[str] | None = None,
+    base_instructions: str | None = None,
+    include_form_instructions: bool = True,
     active_settings: Settings | None = None,
 ) -> AuditFormResult:
     active_settings = active_settings or settings
@@ -249,6 +252,7 @@ async def run_file_review_agent(
         instructions=instructions,
         tools=list(tools) if tools is not None else None,
         knowledge_docs=list(knowledge_docs) if knowledge_docs is not None else None,
+        include_form_instructions=include_form_instructions,
     )
     prompt = _prompt_with_context(
         user_prompt or "Please run a TFR audit.",
@@ -257,7 +261,11 @@ async def run_file_review_agent(
         instructions=instructions,
     )
     try:
-        result = await agent.run(user_prompt=prompt, deps=deps)
+        if base_instructions:
+            with agent.override(instructions=_mode_instructions(agent, base_instructions)):
+                result = await agent.run(user_prompt=prompt, deps=deps)
+        else:
+            result = await agent.run(user_prompt=prompt, deps=deps)
     except Exception as exc:
         logger.exception(
             "File review agent failed for %s@%s",

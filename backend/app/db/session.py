@@ -94,14 +94,24 @@ async def repair_local_sqlite_schema(connection) -> None:
         await connection.execute(text("SELECT name FROM sqlite_master WHERE type='table'"))
     ).all()
     tables = {row[0] for row in table_rows}
-    if "eval_runs" not in tables:
-        return
+    if "eval_runs" in tables:
+        eval_run_columns = {
+            row[1] for row in (await connection.execute(text("PRAGMA table_info(eval_runs)"))).all()
+        }
+        if "metrics_json" not in eval_run_columns:
+            await connection.execute(text("ALTER TABLE eval_runs ADD COLUMN metrics_json JSON"))
 
-    eval_run_columns = {
-        row[1] for row in (await connection.execute(text("PRAGMA table_info(eval_runs)"))).all()
-    }
-    if "metrics_json" not in eval_run_columns:
-        await connection.execute(text("ALTER TABLE eval_runs ADD COLUMN metrics_json JSON"))
+    if "audit_batch_templates" in tables:
+        batch_template_columns = {
+            row[1]
+            for row in (
+                await connection.execute(text("PRAGMA table_info(audit_batch_templates)"))
+            ).all()
+        }
+        if "prompt_ref_json" not in batch_template_columns:
+            await connection.execute(
+                text("ALTER TABLE audit_batch_templates ADD COLUMN prompt_ref_json JSON")
+            )
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:

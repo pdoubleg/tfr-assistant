@@ -4,6 +4,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from app.models.audit import AuditFormResult
+from app.schemas.prompts import PromptReference, ResolvedPrompt
 
 ReviewStatus = Literal["queued", "running", "completed", "failed"]
 ReviewSource = Literal[
@@ -57,6 +58,8 @@ class ReviewGenerateRequest(BaseModel):
     instructions: str = ""
     form_id: str = "tfr_default"
     form_version: str = "v0.1"
+    prompt_ref: PromptReference | None = None
+    resolved_prompt: ResolvedPrompt | None = None
     source_file_ids: list[str] = Field(default_factory=list)
     synthetic: bool = False
     input_mode: BatchInputMode = "manual"
@@ -112,6 +115,7 @@ class BatchCreateRequest(BaseModel):
     synthetic_count: int = Field(default=0, ge=0)
     input_mode: BatchInputMode = "manual"
     generation_prompt: str = ""
+    prompt_ref: PromptReference | None = None
     excel_column_map: dict[str, str] = Field(default_factory=dict)
     items: list[BatchReviewInput] = Field(default_factory=list)
 
@@ -171,6 +175,7 @@ class BatchTemplateCreate(BaseModel):
     synthetic_count: int = Field(default=0, ge=0)
     input_mode: BatchInputMode = "manual"
     generation_prompt: str = ""
+    prompt_ref: PromptReference | None = None
     excel_column_map: dict[str, str] = Field(default_factory=dict)
     items: list[BatchReviewInput] = Field(default_factory=list)
 
@@ -183,6 +188,7 @@ class BatchTemplateUpdate(BaseModel):
     synthetic_count: int = Field(default=0, ge=0)
     input_mode: BatchInputMode = "manual"
     generation_prompt: str = ""
+    prompt_ref: PromptReference | None = None
     excel_column_map: dict[str, str] = Field(default_factory=dict)
     items: list[BatchReviewInput] = Field(default_factory=list)
 
@@ -197,6 +203,7 @@ class BatchTemplateRecord(BaseModel):
     synthetic_count: int = 0
     input_mode: BatchInputMode = "manual"
     generation_prompt: str = ""
+    prompt_ref: PromptReference | None = None
     excel_column_map: dict[str, str] = Field(default_factory=dict)
     items: list[BatchReviewInput] = Field(default_factory=list)
     item_count: int = 0

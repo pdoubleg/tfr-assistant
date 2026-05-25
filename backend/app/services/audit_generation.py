@@ -23,6 +23,7 @@ from app.schemas.reviews import (
 )
 from app.services.catalog import FormCatalog
 from app.services.intake_documents import IntakeDocumentStore
+from app.services.prompt_registry import PromptRegistryRepository
 from app.services.review_repository import ReviewRepository
 from app.services.status_reporter import NullStatusReporter, StatusReporter
 
@@ -85,6 +86,14 @@ class AgentAuditFormGenerator:
                 active_settings=self.settings,
             )
         else:
+            base_prompt = (
+                request.resolved_prompt.text
+                if (
+                    request.resolved_prompt
+                    and request.resolved_prompt.ref.ref_type != "form_default"
+                )
+                else None
+            )
             result = await run_file_review_agent(
                 claim_number=request.claim_number,
                 effective_date=request.effective_date,
@@ -93,6 +102,8 @@ class AgentAuditFormGenerator:
                 user_prompt=request.prompt,
                 tools=canonical.tools,
                 knowledge_docs=canonical.knowledge_docs,
+                base_instructions=base_prompt,
+                include_form_instructions=base_prompt is None,
                 active_settings=self.settings,
             )
         return GeneratedAuditResult(result=result)
@@ -186,6 +197,7 @@ class AuditGenerationService:
         reporter: StatusReporter | None = None,
     ) -> ReviewRecord:
         reporter = reporter or NullStatusReporter()
+        request = await self._with_resolved_prompt(request)
         reporter.in_progress("Preparing audit review record...", progress=15)
         review = await self.repository.create_review_placeholder(
             form_id=request.form_id,
@@ -209,6 +221,11 @@ class AuditGenerationService:
     ) -> ReviewRecord:
         reporter = reporter or NullStatusReporter()
         try:
+            request = await self._with_resolved_prompt(request)
+            await self.repository.merge_review_input_json(
+                review_id,
+                request.model_dump(mode="json"),
+            )
             reporter.in_progress("Loading canonical audit form...", progress=25)
             canonical = self.catalog.get_form(request.form_id, request.form_version)
             await self.repository.mark_review_running(review_id)
@@ -246,6 +263,16 @@ class AuditGenerationService:
         except Exception as exc:
             reporter.error("Audit review generation failed.", progress=100)
             return await self.repository.mark_review_failed(review_id, str(exc))
+
+    async def _with_resolved_prompt(self, request: ReviewGenerateRequest) -> ReviewGenerateRequest:
+        if request.resolved_prompt is not None or request.prompt_ref is None:
+            return request
+        resolved = await PromptRegistryRepository(self.session, self.catalog).resolve(
+            request.prompt_ref,
+            form_id=request.form_id,
+            form_version=request.form_version,
+        )
+        return request.model_copy(update={"resolved_prompt": resolved})
 
     def _generator_for(self, request: ReviewGenerateRequest) -> AuditFormGenerator:
         if request.input_mode == "manual_entry":
@@ -320,6 +347,7 @@ class BatchReviewGenerationService:
             synthetic_count=template.synthetic_count,
             input_mode=template.input_mode,
             generation_prompt=template.generation_prompt,
+            prompt_ref=template.prompt_ref,
             excel_column_map=template.excel_column_map,
             items=template.items,
         )
@@ -388,6 +416,7 @@ class BatchReviewGenerationService:
             ),
             form_id=batch_request.form_id,
             form_version=batch_request.form_version,
+            prompt_ref=batch_request.prompt_ref,
             source_file_ids=item.source_file_ids,
             manual_result=item.manual_result,
             synthetic=(

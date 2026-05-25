@@ -17,6 +17,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PromptSelector } from "@/components/forms/prompt-selector";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type {
@@ -25,6 +26,7 @@ import type {
   BatchTemplatePayload,
   BatchTemplateRecord,
   FormCatalogEntry,
+  PromptReference,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -53,6 +55,7 @@ interface DialogState {
   synthetic_count: number;
   input_mode: BatchInputMode;
   generation_prompt: string;
+  prompt_ref?: PromptReference | null;
   excel_column_map: ColumnMap;
   items: BatchReviewInput[];
 }
@@ -81,6 +84,7 @@ const initialState = (forms: FormCatalogEntry[], template?: BatchTemplateRecord 
     synthetic_count: template?.synthetic_count || 3,
     input_mode: template?.input_mode ?? (template?.synthetic ? "synthetic" : "manual"),
     generation_prompt: template?.generation_prompt ?? "",
+    prompt_ref: template?.prompt_ref ?? null,
     excel_column_map: template?.excel_column_map ?? {},
     items: template?.items?.length ? template.items : [emptyItem()],
   };
@@ -250,6 +254,7 @@ export function BatchRunDialog({
   const isDuplicate = dialogMode === "duplicate";
   const disabled = locked || saving;
   const selectedForm = forms.find((form) => `${form.id}@${form.version}` === state.formKey);
+  const promptForm = splitFormKey(state.formKey);
 
   useBodyScrollLock(open);
 
@@ -417,6 +422,7 @@ export function BatchRunDialog({
       synthetic_count: state.synthetic ? state.synthetic_count : 0,
       input_mode: inputMode,
       generation_prompt: state.synthetic ? state.generation_prompt.trim() : "",
+      prompt_ref: state.prompt_ref ?? null,
       excel_column_map: inputMode === "upload" ? state.excel_column_map : {},
       items: state.synthetic ? [] : usableItems,
     });
@@ -486,7 +492,7 @@ export function BatchRunDialog({
               <select
                 id="batch-form"
                 value={state.formKey}
-                onChange={(event) => setState((current) => ({ ...current, formKey: event.target.value }))}
+                onChange={(event) => setState((current) => ({ ...current, formKey: event.target.value, prompt_ref: null }))}
                 disabled={disabled}
                 className="h-12 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -496,6 +502,16 @@ export function BatchRunDialog({
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="grid gap-2 md:col-span-2">
+              <PromptSelector
+                formId={promptForm.form_id}
+                formVersion={promptForm.form_version}
+                value={state.prompt_ref}
+                onChange={(prompt_ref) => setState((current) => ({ ...current, prompt_ref }))}
+                disabled={disabled}
+                helperText="Aliases stay current when promoted; versions lock this batch to exact prompt text."
+              />
             </div>
             <div className="grid gap-2 md:col-span-2">
               <label htmlFor="batch-description" className="text-sm font-medium">

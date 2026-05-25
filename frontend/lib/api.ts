@@ -16,6 +16,10 @@ import type {
   OptimizationDemoFixtureRecord,
   OptimizationRunPayload,
   OptimizationRunRecord,
+  PromptAliasRecord,
+  PromptFamilyRecord,
+  PromptReference,
+  PromptVersionRecord,
   ReviewRecord,
 } from "@/lib/types";
 
@@ -178,6 +182,84 @@ export async function extractFormFromExcel(file: File): Promise<AuditFormDefinit
     body: formData,
   });
   return parseJsonResponse<AuditFormDefinition>(response);
+}
+
+export async function listPromptFamilies(
+  formId: string,
+  formVersion?: string,
+): Promise<PromptFamilyRecord[]> {
+  const params = new URLSearchParams();
+  if (formVersion) params.set("form_version", formVersion);
+  const response = await fetch(
+    `${apiBaseUrl}/api/prompts/forms/${encodeURIComponent(formId)}/families?${params.toString()}`,
+    { cache: "no-store" },
+  );
+  return parseJsonResponse<PromptFamilyRecord[]>(response);
+}
+
+export async function bootstrapPromptFamily(
+  formId: string,
+  formVersion: string,
+): Promise<PromptFamilyRecord> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/prompts/forms/${encodeURIComponent(formId)}/${encodeURIComponent(formVersion)}/bootstrap`,
+    { method: "POST" },
+  );
+  return parseJsonResponse<PromptFamilyRecord>(response);
+}
+
+export async function setPromptAlias(
+  familyId: string,
+  alias: string,
+  versionId: string,
+): Promise<PromptAliasRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/prompts/aliases`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ family_id: familyId, alias, version_id: versionId }),
+  });
+  return parseJsonResponse<PromptAliasRecord>(response);
+}
+
+export async function createPromptVersion(payload: {
+  family_id?: string | null;
+  form_id: string;
+  form_version?: string | null;
+  text: string;
+  source_kind?: "form_default" | "handcrafted" | "manual_edit" | "gepa_candidate";
+  commit_message?: string;
+  created_by?: string;
+  applicable_form_versions?: string[];
+  alias?: string | null;
+}): Promise<PromptVersionRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/prompts/versions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<PromptVersionRecord>(response);
+}
+
+export async function promoteOptimizationCandidate(payload: {
+  run_id: string;
+  candidate_index: number;
+  alias?: string | null;
+  commit_message?: string;
+  created_by?: string;
+}): Promise<PromptVersionRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/prompts/promote-optimization-candidate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<PromptVersionRecord>(response);
+}
+
+export function promptRefLabel(ref?: PromptReference | null): string {
+  if (!ref || ref.ref_type === "form_default") return "Form default";
+  if (ref.ref_type === "alias") return `${ref.alias ?? "alias"} prompt`;
+  if (ref.ref_type === "version") return "Specific prompt version";
+  return "Manual prompt";
 }
 
 export async function listBatchTemplates(): Promise<BatchTemplateRecord[]> {

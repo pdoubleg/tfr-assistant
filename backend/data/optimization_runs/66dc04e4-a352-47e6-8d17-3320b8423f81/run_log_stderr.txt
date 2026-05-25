@@ -1,9 +1,3 @@
-INFO:     Will watch for changes in these directories: ['C:\\Users\\pdoub\\my-projects\\tfr-assistant\\backend']
-INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
-INFO:     Started reloader process [8808] using WatchFiles
-INFO:     Started server process [11688]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
 Optimization rollout failed for case e03c1de7-8c06-4881-a699-fa0277113eaa
 Traceback (most recent call last):
   File "C:\Users\pdoub\my-projects\tfr-assistant\backend\app\services\optimization\adapter.py", line 92, in _run_instance

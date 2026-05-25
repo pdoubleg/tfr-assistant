@@ -1,0 +1,190 @@
+{
+  "count": 4,
+  "average_score": 0.7083333333333333,
+  "items": [
+    {
+      "case_id": "8ed983af-b654-4a17-b0c3-e3a847e68f98",
+      "claim_number": "RCPT-015",
+      "score": 1.0,
+      "success": true,
+      "feedback": "Reference R2\nSelected score `score` = 1.0000.\nScore components:\n- score: 1.0000\n- question_agreement: 1.0000\n- path_exact_rate: 1.0000\n- subquestion_f1: 1.0000\n- outcome_score: 1.0000",
+      "comparison": {
+        "score": 1.0,
+        "references": [
+          {
+            "metric_schema_version": "2",
+            "score": "1.0",
+            "score_percent": "100.0",
+            "outcome_match": "True",
+            "outcome_score": "1.0",
+            "generated_outcome": "'Does Not Meet'",
+            "reference_outcome": "'Does Not Meet'",
+            "generated_outcome_justification": "'Q1 Yes, Q2 Yes, but Q3 is No due to missing/unreadable receipt documentation (Q3.4).'",
+            "reference_outcome_justification": "'The reimbursement needs review because one or more policy drivers apply.'",
+            "question_total": "3",
+            "question_matches": "3",
+            "question_agreement": "1.0",
+            "question_agreement_percent": "100.0",
+            "question_no_precision": "1.0",
+            "question_no_recall": "1.0",
+            "question_no_f1": "1.0",
+            "question_no_f1_percent": "100.0",
+            "subquestion_eligible_question_count": "1",
+            "subquestion_total": "4",
+            "subquestion_matches": "4",
+            "subquestion_agreement": "1.0",
+            "subquestion_agreement_percent": "100.0",
+            "subquestion_precision": "1.0",
+            "subquestion_recall": "1.0",
+            "subquestion_f1": "1.0",
+            "subquestion_f1_percent": "100.0",
+            "path_exact_matches": "3",
+            "path_exact_rate": "1.0",
+            "path_exact_percent": "100.0",
+            "form_exact_match": "True",
+            "question_agreements": "{'Q1': 1.0, 'Q2': 1.0, 'Q3': 1.0}",
+            "questions": "[]"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "9a6e857f-d874-4886-b6a6-e6f5d56c2370",
+      "claim_number": "RCPT-016",
+      "score": 0.8333333333333333,
+      "success": true,
+      "feedback": "Reference R2\nSelected score `score` = 0.8333.\nScore components:\n- score: 0.8333\n- question_agreement: 1.0000\n- path_exact_rate: 0.6667\n- subquestion_f1: 0.6667\n- outcome_score: 1.0000\n- Q3 mismatch: generated `No` vs reference `No`\n- unexpected driver: Q3.4 Receipt or required documentation is missing.\n  Generated reasoning: The note does not mention any receipt or required documentation being missing; however, documentation status is not explicitly provided in the note. Under conservative literal rules, this driver cannot be applied without explicit mention of missing documentation.",
+      "comparison": {
+        "score": 0.8333333333333333,
+        "references": [
+          {
+            "metric_schema_version": "2",
+            "score": "0.8333333333333333",
+            "score_percent": "83.33",
+            "outcome_match": "True",
+            "outcome_score": "1.0",
+            "generated_outcome": "'Does Not Meet'",
+            "reference_outcome": "'Does Not Meet'",
+            "generated_outcome_justification": "'Q2 fails because $92 exceeds the $60 business meal limit, and Q3 fails because alcohol (cocktails) is explicitly present.'",
+            "reference_outcome_justification": "'The reimbursement needs review because one or more policy drivers apply.'",
+            "question_total": "3",
+            "question_matches": "3",
+            "question_agreement": "1.0",
+            "question_agreement_percent": "100.0",
+            "question_no_precision": "1.0",
+            "question_no_recall": "1.0",
+            "question_no_f1": "1.0",
+            "question_no_f1_percent": "100.0",
+            "subquestion_eligible_question_count": "2",
+            "subquestion_total": "4",
+            "subquestion_matches": "3",
+            "subquestion_agreement": "0.75",
+            "subquestion_agreement_percent": "75.0",
+            "subquestion_precision": "0.5",
+            "subquestion_recall": "1.0",
+            "subquestion_f1": "0.6666666666666666",
+            "subquestion_f1_percent": "66.67",
+            "path_exact_matches": "2",
+            "path_exact_rate": "0.6666666666666666",
+            "path_exact_percent": "66.67",
+            "form_exact_match": "False",
+            "question_agreements": "{'Q1': 1.0, 'Q2': 1.0, 'Q3': 1.0}",
+            "questions": "[{'id': 'Q3', 'text': 'Does the request avoid prohibited or review-required drivers?', 'generated_answer': 'No', 'reference_answer': 'No', 'sub_questions': [{'id': 'Q3.4', 'text': 'Receipt or required documentation is missing.', 'generated_answer': True, 'reference_answer': False, 'generated_reasoning': 'The note does not mention any receipt or required documentation being missing; however, documentation status is not explicitly provided in the note. Under conservative literal rules, this driver cannot be applied without explicit mention of missing documentation.', 'reference_reasoning': ''}]}]"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "c587156e-d3d7-4b10-b68f-fa7699553358",
+      "claim_number": "RCPT-009",
+      "score": 0.3333333333333333,
+      "success": true,
+      "feedback": "Reference R2\nSelected score `score` = 0.3333.\nScore components:\n- score: 0.3333\n- question_agreement: 0.6667\n- path_exact_rate: 0.6667\n- subquestion_f1: 0.0000\n- outcome_score: 0.0000\n- outcome mismatch: generated `Meets` vs reference `Does Not Meet`\n  Generated rationale: Q1 Yes (business-related per note), Q2 Yes (amount $14 within $60 limit), Q3 Yes (no prohibited/review drivers explicitly indicated).\n  Reference rationale: The reimbursement needs review because one or more policy drivers apply.\n- Q3 mismatch: generated `Yes` vs reference `No`\n- missed driver: Q3.3 Personal or non-business item is present.\n  Reference reasoning: Personal or non-business item is present. Evidence from note: Hotel minibar snacks $14 during trip.",
+      "comparison": {
+        "score": 0.3333333333333333,
+        "references": [
+          {
+            "metric_schema_version": "2",
+            "score": "0.3333333333333333",
+            "score_percent": "33.33",
+            "outcome_match": "False",
+            "outcome_score": "0.0",
+            "generated_outcome": "'Meets'",
+            "reference_outcome": "'Does Not Meet'",
+            "generated_outcome_justification": "'Q1 Yes (business-related per note), Q2 Yes (amount $14 within $60 limit), Q3 Yes (no prohibited/review drivers explicitly indicated).'",
+            "reference_outcome_justification": "'The reimbursement needs review because one or more policy drivers apply.'",
+            "question_total": "3",
+            "question_matches": "2",
+            "question_agreement": "0.6666666666666666",
+            "question_agreement_percent": "66.67",
+            "question_no_precision": "0.0",
+            "question_no_recall": "0.0",
+            "question_no_f1": "0.0",
+            "question_no_f1_percent": "0.0",
+            "subquestion_eligible_question_count": "0",
+            "subquestion_total": "0",
+            "subquestion_matches": "0",
+            "subquestion_agreement": "0.0",
+            "subquestion_agreement_percent": "0.0",
+            "subquestion_precision": "0.0",
+            "subquestion_recall": "0.0",
+            "subquestion_f1": "0.0",
+            "subquestion_f1_percent": "0.0",
+            "path_exact_matches": "2",
+            "path_exact_rate": "0.6666666666666666",
+            "path_exact_percent": "66.67",
+            "form_exact_match": "False",
+            "question_agreements": "{'Q1': 1.0, 'Q2': 1.0, 'Q3': 0.0}",
+            "questions": "[{'id': 'Q3', 'text': 'Does the request avoid prohibited or review-required drivers?', 'generated_answer': 'Yes', 'reference_answer': 'No', 'sub_questions': [{'id': 'Q3.3', 'text': 'Personal or non-business item is present.', 'generated_answer': False, 'reference_answer': True, 'generated_reasoning': '', 'reference_reasoning': 'Personal or non-business item is present. Evidence from note: Hotel minibar snacks $14 during trip.'}]}]"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "fb93f3a0-fc5c-4e42-af0e-30b1d044e100",
+      "claim_number": "RCPT-018",
+      "score": 0.6666666666666666,
+      "success": true,
+      "feedback": "Reference R2\nSelected score `score` = 0.6667.\nScore components:\n- score: 0.6667\n- question_agreement: 0.3333\n- path_exact_rate: 0.3333\n- subquestion_f1: 1.0000\n- outcome_score: 1.0000\n- Q1 mismatch: generated `No` vs reference `Yes`\n  Generated rationale: The note describes a \u201cVisa prepaid card $100 for vendor thank-you,\u201d which is a gift card/cash-equivalent type item and is not allowed under the stated policy (requires review).\n  Reference rationale: The purchase appears business related.\n- Q2 mismatch: generated `No` vs reference `Yes`\n  Generated rationale: Policy allows business meals up to $60; the note states $100, which exceeds the $60 limit and thus needs review.\n  Reference rationale: The amount is within the $60 policy threshold.",
+      "comparison": {
+        "score": 0.6666666666666666,
+        "references": [
+          {
+            "metric_schema_version": "2",
+            "score": "0.6666666666666666",
+            "score_percent": "66.67",
+            "outcome_match": "True",
+            "outcome_score": "1.0",
+            "generated_outcome": "'Does Not Meet'",
+            "reference_outcome": "'Does Not Meet'",
+            "generated_outcome_justification": "'Q1 = No (prepaid card for vendor thank-you is a prohibited/review gift-card/cash-equivalent driver). Q2 = No ($100 exceeds the $60 business-meal limit). Q3 = No (gift card/cash-equivalent present).'",
+            "reference_outcome_justification": "'The reimbursement needs review because one or more policy drivers apply.'",
+            "question_total": "3",
+            "question_matches": "1",
+            "question_agreement": "0.3333333333333333",
+            "question_agreement_percent": "33.33",
+            "question_no_precision": "0.3333333333333333",
+            "question_no_recall": "1.0",
+            "question_no_f1": "0.5",
+            "question_no_f1_percent": "50.0",
+            "subquestion_eligible_question_count": "1",
+            "subquestion_total": "4",
+            "subquestion_matches": "4",
+            "subquestion_agreement": "1.0",
+            "subquestion_agreement_percent": "100.0",
+            "subquestion_precision": "1.0",
+            "subquestion_recall": "1.0",
+            "subquestion_f1": "1.0",
+            "subquestion_f1_percent": "100.0",
+            "path_exact_matches": "1",
+            "path_exact_rate": "0.3333333333333333",
+            "path_exact_percent": "33.33",
+            "form_exact_match": "False",
+            "question_agreements": "{'Q1': 0.0, 'Q2': 0.0, 'Q3': 1.0}",
+            "questions": "[{'id': 'Q1', 'text': 'Is the purchase business related and allowed by policy?', 'generated_answer': 'No', 'reference_answer': 'Yes', 'sub_questions': []}, {'id': 'Q2', 'text': 'Is the expense amount within policy limits?', 'generated_answer': 'No', 'reference_answer': 'Yes', 'sub_questions': []}]"
+          }
+        ]
+      }
+    }
+  ]
+}

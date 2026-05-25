@@ -58,7 +58,6 @@ async def _prepare_run() -> str:
                 max_metric_calls=int(os.getenv("RUN_REAL_GEPA_DEMO_MAX_CALLS", "8")),
                 reflection_minibatch_size=int(os.getenv("RUN_REAL_GEPA_DEMO_MINIBATCH", "3")),
                 seed=int(os.getenv("RUN_REAL_GEPA_DEMO_SEED", "7")),
-                track_best_outputs=True,
             ),
             trace_config=OptimizationTraceConfig(
                 capture_traces=True,

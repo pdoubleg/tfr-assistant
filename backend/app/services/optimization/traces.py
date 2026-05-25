@@ -27,6 +27,14 @@ def serialize_messages(
     return [serialize_message(message, trace_config) for message in messages]
 
 
+def count_tool_calls(messages: list[ModelMessage]) -> int:
+    total = 0
+    for message in messages:
+        parts = getattr(message, "parts", [])
+        total += sum(1 for part in parts if isinstance(part, (ToolCallPart, BuiltinToolCallPart)))
+    return total
+
+
 def truncate_tool_return(content: str, limit: int) -> dict[str, Any]:
     digest = hashlib.sha256(content.encode("utf-8", errors="ignore")).hexdigest()
     truncated = len(content) > limit

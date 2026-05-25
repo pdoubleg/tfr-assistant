@@ -1,8 +1,20 @@
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import JSON as SqlJSON
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, MetaData, String, Text
+from sqlalchemy import (
+    JSON as SqlJSON,
+)
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    MetaData,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -66,6 +78,7 @@ class AuditBatchTemplateORM(Base):
     synthetic_count: Mapped[int] = mapped_column(Integer, default=0)
     input_mode: Mapped[str] = mapped_column(String(24), default="manual")
     generation_prompt: Mapped[str] = mapped_column(Text, default="")
+    prompt_ref_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
     excel_column_map: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
     items_json: Mapped[list[dict[str, Any]]] = mapped_column(
         PortableJSON,
@@ -474,3 +487,88 @@ class OptimizationEventORM(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     run: Mapped[OptimizationRunORM] = relationship(back_populates="events")
+
+
+class PromptFamilyORM(Base):
+    __tablename__ = "prompt_families"
+    __table_args__ = (
+        UniqueConstraint("form_id", "task", "prompt_kind", name="uq_prompt_family_scope"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    form_id: Mapped[str] = mapped_column(String(128), index=True)
+    task: Mapped[str] = mapped_column(String(64), default="audit_review", index=True)
+    prompt_kind: Mapped[str] = mapped_column(String(64), default="instructions", index=True)
+    name: Mapped[str] = mapped_column(String(160), default="")
+    description: Mapped[str] = mapped_column(Text, default="")
+    external_registry_uri: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+    versions: Mapped[list["PromptVersionORM"]] = relationship(
+        back_populates="family",
+        cascade="all, delete-orphan",
+    )
+    aliases: Mapped[list["PromptAliasORM"]] = relationship(
+        back_populates="family",
+        cascade="all, delete-orphan",
+    )
+
+
+class PromptVersionORM(Base):
+    __tablename__ = "prompt_versions"
+    __table_args__ = (
+        UniqueConstraint("family_id", "version_number", name="uq_prompt_version_number"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    family_id: Mapped[str] = mapped_column(ForeignKey("prompt_families.id"), index=True)
+    version_number: Mapped[int] = mapped_column(Integer, index=True)
+    text: Mapped[str] = mapped_column(Text)
+    text_hash: Mapped[str] = mapped_column(String(64), index=True)
+    components_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
+    source_kind: Mapped[str] = mapped_column(String(32), default="manual_edit", index=True)
+    source_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    source_candidate_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    source_metadata_json: Mapped[dict[str, Any] | None] = mapped_column(
+        PortableJSON,
+        nullable=True,
+    )
+    commit_message: Mapped[str] = mapped_column(Text, default="")
+    created_by: Mapped[str] = mapped_column(String(120), default="system")
+    metrics_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
+    applicable_form_versions_json: Mapped[list[str]] = mapped_column(
+        PortableJSON,
+        default=list,
+        nullable=False,
+    )
+    form_schema_fingerprint: Mapped[str] = mapped_column(String(64), default="", index=True)
+    external_prompt_uri: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    family: Mapped[PromptFamilyORM] = relationship(back_populates="versions")
+    aliases: Mapped[list["PromptAliasORM"]] = relationship(back_populates="version")
+
+
+class PromptAliasORM(Base):
+    __tablename__ = "prompt_aliases"
+    __table_args__ = (UniqueConstraint("family_id", "alias", name="uq_prompt_alias_name"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    family_id: Mapped[str] = mapped_column(ForeignKey("prompt_families.id"), index=True)
+    alias: Mapped[str] = mapped_column(String(64), index=True)
+    version_id: Mapped[str] = mapped_column(ForeignKey("prompt_versions.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+    family: Mapped[PromptFamilyORM] = relationship(back_populates="aliases")
+    version: Mapped[PromptVersionORM] = relationship(back_populates="aliases")

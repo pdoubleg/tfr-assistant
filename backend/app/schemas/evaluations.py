@@ -4,6 +4,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from app.models.audit import AuditFormResult
+from app.schemas.prompts import PromptReference
 
 EvalReferenceKind = Literal["R1", "R2"]
 EvalReferencePolicy = Literal["prefer_r2", "r1", "r2", "all"]
@@ -112,6 +113,7 @@ class EvalRunCreate(BaseModel):
     concurrency: int = Field(default=1, ge=1, le=10)
     retry_limit: int = Field(default=0, ge=0, le=3)
     enable_mlflow: bool = False
+    prompt_ref: PromptReference | None = None
     base_run_id: str | None = None
 
 
@@ -185,6 +187,7 @@ class EvalRunRecord(BaseModel):
     concurrency: int = 1
     retry_limit: int = 0
     enable_mlflow: bool = False
+    prompt_ref: PromptReference | None = None
     mlflow_run_id: str | None = None
     total_count: int = 0
     completed_count: int = 0

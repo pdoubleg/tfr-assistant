@@ -33,10 +33,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  bootstrapPromptFamily,
   extractFormFromExcel,
   getFormDefinition,
   listFormCatalog,
+  listPromptFamilies,
   registerForm,
+  setPromptAlias,
 } from "@/lib/api";
 import type {
   AuditFormDefinition,
@@ -45,6 +48,7 @@ import type {
   FormQuestion,
   FormSubQuestion,
   OverallOutcome,
+  PromptFamilyRecord,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -516,6 +520,284 @@ function QuestionPreview({ question }: { question: FormQuestion }) {
   );
 }
 
+function PromptRegistryPanel({
+  families,
+  loading,
+  saving,
+  promptError,
+  formId,
+  formVersion,
+  registeredInstructions,
+  onRefresh,
+  onInitialize,
+  onAssignAlias,
+}: {
+  families: PromptFamilyRecord[];
+  loading: boolean;
+  saving: boolean;
+  promptError: string;
+  formId: string;
+  formVersion: string;
+  registeredInstructions: string;
+  onRefresh: () => void;
+  onInitialize: () => Promise<void>;
+  onAssignAlias: (familyId: string, alias: string, versionId: string) => Promise<void>;
+}) {
+  const family = families[0] ?? null;
+  const versions = useMemo(() => family?.versions ?? [], [family?.versions]);
+  const [leftVersionId, setLeftVersionId] = useState("");
+  const [rightVersionId, setRightVersionId] = useState("");
+
+  useEffect(() => {
+    if (!versions.length) {
+      setLeftVersionId("");
+      setRightVersionId("");
+      return;
+    }
+    setLeftVersionId((current) => current || versions[Math.min(1, versions.length - 1)]?.id || versions[0].id);
+    setRightVersionId((current) => current || versions[0].id);
+  }, [versions]);
+
+  const leftVersion = versions.find((version) => version.id === leftVersionId) ?? versions[Math.min(1, versions.length - 1)];
+  const rightVersion = versions.find((version) => version.id === rightVersionId) ?? versions[0];
+  const aliasesByVersion = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const alias of family?.aliases ?? []) {
+      map.set(alias.version_id, [...(map.get(alias.version_id) ?? []), alias.alias]);
+    }
+    return map;
+  }, [family?.aliases]);
+  const diffLines = leftVersion && rightVersion ? buildLineDiff(leftVersion.text, rightVersion.text) : [];
+
+  return (
+    <div className="rounded-lg border bg-background">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <GitBranch className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-semibold">Prompt Registry</h3>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Immutable prompt versions with mutable aliases for batch audits, evaluations, and GEPA seeds.
+          </p>
+        </div>
+        <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={onRefresh} disabled={loading}>
+          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+          Refresh
+        </Button>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center gap-2 px-4 py-8 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading prompts
+        </div>
+      ) : !family ? (
+        <div className="grid gap-4 p-4">
+          {promptError ? (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {promptError}
+            </div>
+          ) : null}
+          <div className="rounded-md border bg-card p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-semibold">Registered Instructions</p>
+                  <Badge variant="outline" className="font-mono text-[10px]">
+                    {formId}@{formVersion}
+                  </Badge>
+                  <Badge variant="secondary">not yet persisted</Badge>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Initialize the registry from the instructions stored on this registered form.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <CopyButton text={registeredInstructions} label="Copy" />
+                <Button
+                  type="button"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={saving || !registeredInstructions.trim()}
+                  onClick={() => void onInitialize()}
+                >
+                  {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                  Initialize
+                </Button>
+              </div>
+            </div>
+            <p className="mt-3 max-h-48 overflow-y-auto whitespace-pre-wrap rounded-md border bg-secondary/20 p-3 text-sm leading-relaxed">
+              {registeredInstructions || "This form does not define custom instructions."}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="grid gap-4 p-4">
+          <div className="flex flex-wrap gap-2 text-xs">
+            <Badge variant="outline">{versions.length} versions</Badge>
+            {family.aliases.map((alias) => (
+              <Badge key={alias.id} variant="secondary">
+                {alias.alias} {"->"} v{alias.version_number ?? "?"}
+              </Badge>
+            ))}
+            {family.external_registry_uri ? <Badge variant="outline">{family.external_registry_uri}</Badge> : null}
+          </div>
+
+          <div className="grid gap-3">
+            {versions.map((version) => {
+              const aliases = aliasesByVersion.get(version.id) ?? [];
+              const applies =
+                version.applicable_form_versions.length === 0 ||
+                version.applicable_form_versions.includes(formVersion);
+              return (
+                <div key={version.id} className="rounded-md border bg-card p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold">v{version.version_number}</p>
+                        <Badge variant={version.source_kind === "gepa_candidate" ? "warning" : "outline"}>
+                          {version.source_kind.replaceAll("_", " ")}
+                        </Badge>
+                        <Badge variant={applies ? "success" : "secondary"}>
+                          {applies ? "applies here" : "other version"}
+                        </Badge>
+                        {aliases.map((alias) => (
+                          <Badge key={alias} variant="secondary">{alias}</Badge>
+                        ))}
+                      </div>
+                      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                        {version.commit_message || "No commit message"}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                        <span className="font-mono">{version.text_hash.slice(0, 12)}</span>
+                        {typeof version.metrics?.score === "number" ? <span>score {version.metrics.score.toFixed(4)}</span> : null}
+                        {version.source_run_id ? <span>GEPA run {version.source_run_id.slice(0, 8)}</span> : null}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap justify-end gap-1.5">
+                      {["production", "staging", "champion"].map((alias) => (
+                        <Button
+                          key={alias}
+                          type="button"
+                          variant={aliases.includes(alias) ? "default" : "outline"}
+                          size="sm"
+                          className="h-8 px-2 text-xs"
+                          disabled={saving}
+                          onClick={() => void onAssignAlias(family.id, alias, version.id)}
+                        >
+                          {alias}
+                        </Button>
+                      ))}
+                      <CopyButton text={version.text} label="Copy" />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {versions.length > 1 ? (
+            <div className="rounded-md border bg-secondary/20">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b px-3 py-2">
+                <p className="text-sm font-semibold">Prompt Diff</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={leftVersion?.id ?? ""}
+                    onChange={(event) => setLeftVersionId(event.target.value)}
+                    className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                  >
+                    {versions.map((version) => (
+                      <option key={version.id} value={version.id}>Base v{version.version_number}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={rightVersion?.id ?? ""}
+                    onChange={(event) => setRightVersionId(event.target.value)}
+                    className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                  >
+                    {versions.map((version) => (
+                      <option key={version.id} value={version.id}>Compare v{version.version_number}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <DiffBlock lines={diffLines} />
+            </div>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DiffBlock({ lines }: { lines: Array<{ kind: "same" | "add" | "remove"; text: string }> }) {
+  return (
+    <pre className="chat-scrollbar max-h-[520px] overflow-auto bg-slate-950 p-3 text-xs leading-relaxed text-slate-200">
+      {lines.map((line, index) => {
+        const prefix = line.kind === "add" ? "+" : line.kind === "remove" ? "-" : " ";
+        const className =
+          line.kind === "add"
+            ? "block bg-emerald-500/15 text-emerald-100"
+            : line.kind === "remove"
+              ? "block bg-rose-500/15 text-rose-100"
+              : "block text-slate-300";
+        return (
+          <span key={`${line.kind}-${index}`} className={className}>
+            {prefix} {line.text || " "}
+          </span>
+        );
+      })}
+    </pre>
+  );
+}
+
+function buildLineDiff(
+  before: string,
+  after: string,
+): Array<{ kind: "same" | "add" | "remove"; text: string }> {
+  const beforeLines = before.split(/\r?\n/);
+  const afterLines = after.split(/\r?\n/);
+  const table = Array.from({ length: beforeLines.length + 1 }, () =>
+    Array<number>(afterLines.length + 1).fill(0),
+  );
+
+  for (let i = beforeLines.length - 1; i >= 0; i -= 1) {
+    for (let j = afterLines.length - 1; j >= 0; j -= 1) {
+      table[i][j] =
+        beforeLines[i] === afterLines[j]
+          ? table[i + 1][j + 1] + 1
+          : Math.max(table[i + 1][j], table[i][j + 1]);
+    }
+  }
+
+  const output: Array<{ kind: "same" | "add" | "remove"; text: string }> = [];
+  let i = 0;
+  let j = 0;
+  while (i < beforeLines.length && j < afterLines.length) {
+    if (beforeLines[i] === afterLines[j]) {
+      output.push({ kind: "same", text: beforeLines[i] });
+      i += 1;
+      j += 1;
+    } else if (table[i + 1][j] >= table[i][j + 1]) {
+      output.push({ kind: "remove", text: beforeLines[i] });
+      i += 1;
+    } else {
+      output.push({ kind: "add", text: afterLines[j] });
+      j += 1;
+    }
+  }
+  while (i < beforeLines.length) {
+    output.push({ kind: "remove", text: beforeLines[i] });
+    i += 1;
+  }
+  while (j < afterLines.length) {
+    output.push({ kind: "add", text: afterLines[j] });
+    j += 1;
+  }
+  return output;
+}
+
 function FormPreviewContent({
   canonical,
   mode,
@@ -665,10 +947,13 @@ export function FormCatalog() {
   const [usageFilter, setUsageFilter] = useState<UsageFilter>("all");
   const [selectedKey, setSelectedKey] = useState("");
   const [selectedDefinition, setSelectedDefinition] = useState<AuditFormDefinition | null>(null);
+  const [promptFamilies, setPromptFamilies] = useState<PromptFamilyRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [definitionLoading, setDefinitionLoading] = useState(false);
+  const [promptLoading, setPromptLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [promptError, setPromptError] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<DialogMode>("create");
 
@@ -719,6 +1004,28 @@ export function FormCatalog() {
       active = false;
     };
   }, [selectedKey]);
+
+  const refreshPrompts = useCallback(async (definition: AuditFormDefinition | null) => {
+    if (!definition) {
+      setPromptFamilies([]);
+      setPromptError("");
+      return;
+    }
+    setPromptLoading(true);
+    setPromptError("");
+    try {
+      setPromptFamilies(await listPromptFamilies(definition.id, definition.version));
+    } catch (err) {
+      setPromptFamilies([]);
+      setPromptError(err instanceof Error ? err.message : "Failed to load prompt registry.");
+    } finally {
+      setPromptLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshPrompts(selectedDefinition);
+  }, [refreshPrompts, selectedDefinition]);
 
   const filteredForms = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -783,6 +1090,37 @@ export function FormCatalog() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to register form.");
       throw err;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const assignPromptAlias = async (
+    familyId: string,
+    alias: string,
+    versionId: string,
+  ) => {
+    setSaving(true);
+    setError("");
+    try {
+      await setPromptAlias(familyId, alias, versionId);
+      await refreshPrompts(selectedDefinition);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update prompt alias.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const initializePromptRegistry = async () => {
+    if (!selectedDefinition) return;
+    setSaving(true);
+    setPromptError("");
+    try {
+      await bootstrapPromptFamily(selectedDefinition.id, selectedDefinition.version);
+      await refreshPrompts(selectedDefinition);
+    } catch (err) {
+      setPromptError(err instanceof Error ? err.message : "Failed to initialize prompt registry.");
     } finally {
       setSaving(false);
     }
@@ -994,6 +1332,19 @@ export function FormCatalog() {
                     </Badge>
                   </div>
                 )}
+
+                <PromptRegistryPanel
+                  families={promptFamilies}
+                  loading={promptLoading}
+                  saving={saving}
+                  promptError={promptError}
+                  formId={selectedDefinition.id}
+                  formVersion={selectedDefinition.version}
+                  registeredInstructions={selectedDefinition.instructions ?? ""}
+                  onRefresh={() => void refreshPrompts(selectedDefinition)}
+                  onInitialize={initializePromptRegistry}
+                  onAssignAlias={assignPromptAlias}
+                />
 
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">

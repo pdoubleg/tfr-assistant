@@ -45,6 +45,76 @@ export interface AuditFormDefinition {
   created_at?: string;
 }
 
+export type PromptRefType = "form_default" | "alias" | "version" | "manual";
+
+export interface PromptReference {
+  ref_type: PromptRefType;
+  family_id?: string | null;
+  alias?: string | null;
+  version_id?: string | null;
+  form_id?: string | null;
+  task?: "audit_review";
+  prompt_kind?: "instructions";
+  manual_text?: string;
+}
+
+export interface ResolvedPrompt {
+  ref: PromptReference;
+  text: string;
+  text_hash: string;
+  family_id?: string | null;
+  version_id?: string | null;
+  version_number?: number | null;
+  alias?: string | null;
+  form_id?: string | null;
+  source_kind: string;
+  external_prompt_uri?: string | null;
+  resolved_at?: string;
+}
+
+export interface PromptAliasRecord {
+  id: string;
+  family_id: string;
+  alias: string;
+  version_id: string;
+  version_number?: number | null;
+  updated_at?: string;
+}
+
+export interface PromptVersionRecord {
+  id: string;
+  family_id: string;
+  version_number: number;
+  text: string;
+  text_hash: string;
+  source_kind: "form_default" | "handcrafted" | "manual_edit" | "gepa_candidate";
+  source_run_id?: string | null;
+  source_candidate_index?: number | null;
+  source_metadata: Record<string, unknown>;
+  commit_message: string;
+  created_by: string;
+  metrics: Record<string, unknown>;
+  applicable_form_versions: string[];
+  form_schema_fingerprint: string;
+  external_prompt_uri?: string | null;
+  created_at?: string;
+}
+
+export interface PromptFamilyRecord {
+  id: string;
+  form_id: string;
+  task: "audit_review";
+  prompt_kind: "instructions";
+  name: string;
+  description: string;
+  external_registry_uri?: string | null;
+  metadata: Record<string, unknown>;
+  aliases: PromptAliasRecord[];
+  versions: PromptVersionRecord[];
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface ReviewRecord {
   id: string;
   form_id?: string;
@@ -137,6 +207,7 @@ export interface BatchTemplateRecord {
   synthetic_count: number;
   input_mode: BatchInputMode;
   generation_prompt: string;
+  prompt_ref?: PromptReference | null;
   excel_column_map: Record<string, string>;
   items: BatchReviewInput[];
   item_count: number;
@@ -236,6 +307,7 @@ export interface EvalRunPayload {
   concurrency?: number;
   retry_limit: number;
   enable_mlflow: boolean;
+  prompt_ref?: PromptReference | null;
   base_run_id?: string | null;
 }
 
@@ -253,6 +325,7 @@ export interface EvalRunRecord {
   concurrency: number;
   retry_limit: number;
   enable_mlflow: boolean;
+  prompt_ref?: PromptReference | null;
   mlflow_run_id?: string | null;
   total_count: number;
   completed_count: number;
@@ -367,8 +440,10 @@ export interface OptimizationRunPayload {
   name: string;
   form_id: string;
   form_version: string;
-  seed_instruction_source: "form" | "manual";
+  seed_instruction_source: "form" | "manual" | "prompt_registry";
   manual_instructions: string;
+  seed_prompt_ref?: PromptReference | null;
+  resolved_seed_prompt?: ResolvedPrompt | null;
   metric_mode: OptimizationMetricMode;
   score_key: OptimizationScoreKey;
   reference_policy: OptimizationReferencePolicy;

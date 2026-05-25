@@ -21,8 +21,8 @@ from app.services.optimization.models import (
     OptimizationTrajectory,
 )
 from app.services.optimization.reflection import propose_new_texts
-from app.services.optimization.traces import serialize_messages
-from app.services.optimization.utils import json_hash, merge_usage, usage_to_dict
+from app.services.optimization.traces import count_tool_calls, serialize_messages
+from app.services.optimization.utils import json_hash, llm_visible_dump, merge_usage, usage_to_dict
 
 logger = logging.getLogger(__name__)
 
@@ -91,8 +91,9 @@ class TFRGepaAdapter:
             )
             result = self.agent.run_sync(user_prompt=instance.user_prompt, deps=deps)
             messages = result.new_messages()
-            merge_usage(self.token_usage, result.usage())
-            usage = usage_to_dict(result.usage())
+            tool_calls = count_tool_calls(messages)
+            merge_usage(self.token_usage, result.usage(), tool_calls=tool_calls)
+            usage = usage_to_dict(result.usage(), tool_calls=tool_calls)
             result_model = result.output
         except Exception as exc:
             logger.exception("Optimization rollout failed for case %s", instance.case_id)
@@ -113,7 +114,7 @@ class TFRGepaAdapter:
             if capture_traces and self.trace_config.include_debug_traces
             else []
         )
-        final_output = result_model.model_dump(mode="json") if result_model is not None else None
+        final_output = llm_visible_dump(result_model) if result_model is not None else None
         reflection_trace = {
             "case_id": instance.case_id,
             "claim_number": instance.claim_number,

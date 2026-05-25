@@ -54,7 +54,7 @@ def auto_budget(
     full_eval_steps: int = 5,
     num_preds: int = 1,
 ) -> int:
-    """Estimate GEPA metric calls using the local gepadantic budget formula."""
+    """Estimate metric calls using DSPy's GEPA auto-budget formula."""
     num_trials = int(max(2 * (num_preds * 2) * math.log2(num_candidates), 1.5 * num_candidates))
     if num_trials < 0 or valset_size < 0 or minibatch_size < 0:
         raise ValueError("num_trials, valset_size, and minibatch_size must be >= 0.")
@@ -155,11 +155,12 @@ class OptimizationRunService:
         catalog = FormCatalog(self.settings.form_catalog_dir)
         definition = catalog.get_form(request.form_id, request.form_version)
         form_path = catalog.path_for(request.form_id, request.form_version)
-        seed_instructions = (
-            request.manual_instructions
-            if request.seed_instruction_source == "manual"
-            else (definition.instructions or DEFAULT_REVIEW_INSTRUCTIONS)
-        )
+        if request.seed_instruction_source == "manual":
+            seed_instructions = request.manual_instructions
+        elif request.seed_instruction_source == "prompt_registry" and request.resolved_seed_prompt:
+            seed_instructions = request.resolved_seed_prompt.text
+        else:
+            seed_instructions = definition.instructions or DEFAULT_REVIEW_INSTRUCTIONS
         seed_candidate = seed_candidate_from_instructions(seed_instructions)
 
         instances = asyncio.run(self._load_instances(request, definition, str(form_path)))
@@ -171,11 +172,7 @@ class OptimizationRunService:
             train_count=len(trainset),
             val_count=len(valset),
         )
-        module_selector = (
-            "all"
-            if request.gepa_params.module_selector == "round_robin" and len(seed_candidate) == 1
-            else request.gepa_params.module_selector
-        )
+        module_selector = "all"
         proposer_model = self._model_config_for(request.gepa_params.reflection_model)
         judge_model = (
             self._model_config_for(request.judge_model)
@@ -212,11 +209,11 @@ class OptimizationRunService:
             valset=valset,
             max_metric_calls=max_metric_calls,
             candidate_selection_strategy=request.gepa_params.candidate_selection_strategy,  # type: ignore[arg-type]
-            frontier_type=request.gepa_params.frontier_type,  # type: ignore[arg-type]
-            skip_perfect_score=request.gepa_params.skip_perfect_score,
+            frontier_type="instance",
+            skip_perfect_score=True,
             batch_sampler=request.gepa_params.batch_sampler,  # type: ignore[arg-type]
             reflection_minibatch_size=request.gepa_params.reflection_minibatch_size,
-            perfect_score=request.gepa_params.perfect_score,
+            perfect_score=1.0,
             module_selector=module_selector,
             use_merge=request.gepa_params.use_merge,
             max_merge_invocations=request.gepa_params.max_merge_invocations,
@@ -227,7 +224,7 @@ class OptimizationRunService:
             use_mlflow=request.gepa_params.use_mlflow,
             mlflow_tracking_uri=request.gepa_params.mlflow_tracking_uri,
             mlflow_experiment_name=request.gepa_params.mlflow_experiment_name,
-            track_best_outputs=request.gepa_params.track_best_outputs,
+            track_best_outputs=False,
             display_progress_bar=request.gepa_params.display_progress_bar,
             cache_evaluation=request.gepa_params.cache_evaluation,
             seed=request.gepa_params.seed,

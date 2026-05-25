@@ -1,81 +1,5 @@
-INFO:     127.0.0.1:49197 - "GET /api/reviews HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49198 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49198 - "GET /api/batches/templates HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49198 - "GET /api/batches HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49211 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49207 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49208 - "GET /api/batches/templates HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49211 - "GET /api/batches/templates HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49207 - "GET /api/batches HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49210 - "GET /api/batches/summary HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49209 - "GET /api/batches HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49198 - "GET /api/batches/summary HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49208 - "GET /api/batches/summary HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49218 - "GET /api/prompts/forms/tfr_default/families?form_version=v0.1 HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:49219 - "GET /api/prompts/forms/tfr_default/families?form_version=v0.1 HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:49218 - "GET /api/prompts/forms/demo_receipt_policy/families?form_version=v0.1 HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:49220 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49221 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49221 - "GET /api/forms/exterior_hail/v0.1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49221 - "GET /api/prompts/forms/exterior_hail/families?form_version=v0.1 HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:49236 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49236 - "GET /api/forms/demo_receipt_policy/v0.1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49236 - "GET /api/prompts/forms/demo_receipt_policy/families?form_version=v0.1 HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:49237 - "GET /api/evaluations/datasets HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49237 - "GET /api/evaluations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49237 - "GET /api/evaluations/runs/9116b2dc-9ed2-4263-8209-91803c68e41e/items HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49237 - "GET /api/evaluations/runs/9116b2dc-9ed2-4263-8209-91803c68e41e/items HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49237 - "GET /api/evaluations/runs/fb024af7-49c2-48c3-b3bf-70d2c55ac2ec/items HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49237 - "GET /api/prompts/forms/tfr_default/families?form_version=v0.1 HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:49245 - "GET /api/prompts/forms/tfr_default/families?form_version=v0.1 HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:49246 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49246 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49246 - "GET /api/optimizations/cases?form_id=tfr_default&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49246 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49246 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49246 - "GET /api/optimizations/cases?form_id=tfr_default&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49246 - "GET /api/optimizations/cases?form_id=demo_receipt_policy&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49246 - "GET /api/optimizations/runs/da6292cf-419a-4872-95fe-72107768fe23/artifacts/dag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49246 - "GET /api/optimizations/runs/da6292cf-419a-4872-95fe-72107768fe23/events HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49256 - "GET /api/optimizations/runs/da6292cf-419a-4872-95fe-72107768fe23/artifacts/dag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49255 - "GET /api/optimizations/runs/da6292cf-419a-4872-95fe-72107768fe23 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49257 - "OPTIONS /api/prompts/promote-optimization-candidate HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49257 - "POST /api/prompts/promote-optimization-candidate HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:49257 - "POST /api/prompts/promote-optimization-candidate HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:49257 - "POST /api/prompts/promote-optimization-candidate HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:49258 - "GET /api/prompts/forms/demo_receipt_policy/families?form_version=v0.1 HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:49259 - "GET /api/prompts/forms/demo_receipt_policy/families?form_version=v0.1 HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:49286 - "OPTIONS /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49286 - "POST /api/optimizations/runs HTTP/1.1" 201 Created
-INFO:     127.0.0.1:49286 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49286 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/events HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49295 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49295 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49295 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/events HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49304 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49304 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49309 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49304 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49309 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49304 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49309 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49304 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49309 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49304 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 0: Base program full valset score: 0.7291666666666666 over 4 / 4 examples
 Iteration 1: Selected program 0 score: 0.7291666666666666
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 1: Proposed new text for instructions: Complete the receipt reimbursement audit from the note by following the registered form and policy exactly.
 
 Return a fully populated audit object for the receipt note. Use only the evidence in the note plus the runtime policy.
@@ -103,30 +27,8 @@ Reasoning strategy:
 5. Cite the exact note text supporting each answer.
 
 Be concise, avoid inventing facts, and do not include drivers or comments that are not supported by the note.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 1: New subsample score 2.5 is not better than old score 2.5, skipping
 Iteration 2: Selected program 0 score: 0.7291666666666666
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 2: Proposed new text for instructions: Complete the receipt reimbursement audit from the note using the provided policy and the exact form structure. Apply the policy literally and conservatively.
 
 Key policy facts to encode:
@@ -155,26 +57,8 @@ Example behavior:
 - `Client lunch $42 with itemized receipt; no alcohol.` -> Q1 Yes, Q2 Yes, Q3 Yes, overall Meets.
 - `Parking for client visit $16, receipt attached.` -> Q1 Yes, Q2 Yes, Q3 Yes, overall Meets.
 - `Personal headphones $49 bought during travel.` -> Q1 No, Q2 Yes, Q3 No with the personal-item sub-question, overall Does Not Meet.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 2: New subsample score 2.333333333333333 is not better than old score 2.333333333333333, skipping
 Iteration 3: Selected program 0 score: 0.7291666666666666
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 3: Proposed new text for instructions: Complete the receipt reimbursement audit from the note using the registered form and policy evidence. Follow these rules exactly:
 
 - Output one object that matches the form schema.
@@ -203,24 +87,8 @@ Iteration 3: Proposed new text for instructions: Complete the receipt reimbursem
   - "Does Not Meet" if any applicable question is No.
 
 When summarizing, keep the rationale concise, explicit, and tied to the note and policy text.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 3: New subsample score 1.5833333333333333 is not better than old score 2.1666666666666665, skipping
 Iteration 4: Selected program 0 score: 0.7291666666666666
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 4: Proposed new text for instructions: Complete the receipt reimbursement audit from the note by applying the policy exactly and conservatively.
 
 Return a valid audit form for the registered questionnaire and follow these rules:
@@ -243,25 +111,7 @@ Style guidance:
 - Be concise and evidence-based.
 - Cite the exact note fragment supporting each answer.
 - Avoid adding extra rationale that changes a question's scope or duplicates another question's finding.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 4: New subsample score 2.3333333333333335 is better than old score 2.25. Continue to full eval and add to candidate pool.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 4: Valset score for new program: 0.7291666666666666 (coverage 4 / 4)
 Iteration 4: Val aggregate for new program: 0.7291666666666666
 Iteration 4: Individual valset scores for new program: {0: 0.75, 1: 0.75, 2: 0.8333333333333333, 3: 0.5833333333333333}
@@ -274,18 +124,6 @@ Iteration 4: Best score on valset: 0.7291666666666666
 Iteration 4: Linear pareto front program index: 0
 Iteration 4: New program candidate index: 1
 Iteration 5: Selected program 1 score: 0.7291666666666666
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 5: Proposed new text for instructions: Complete the receipt reimbursement audit from the note by applying the policy exactly and conservatively.
 
 Return a valid audit form for the registered questionnaire and follow these rules:
@@ -317,29 +155,7 @@ Sub-question handling reminder:
 - Generate only the listed applicable sub-question drivers.
 - Do not include unsupported drivers even if the overall request fails for another reason.
 - If the note explicitly supports multiple drivers, include all of them; otherwise include only those directly evidenced.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 5: New subsample score 2.3499999999999996 is better than old score 1.9999999999999998. Continue to full eval and add to candidate pool.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 5: Valset score for new program: 0.625 (coverage 4 / 4)
 Iteration 5: Val aggregate for new program: 0.625
 Iteration 5: Individual valset scores for new program: {0: 0.75, 1: 0.3333333333333333, 2: 0.8333333333333333, 3: 0.5833333333333333}
@@ -352,18 +168,6 @@ Iteration 5: Best score on valset: 0.7291666666666666
 Iteration 5: Linear pareto front program index: 0
 Iteration 5: New program candidate index: 2
 Iteration 6: Selected program 1 score: 0.7291666666666666
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 6: Proposed new text for instructions: Complete the receipt reimbursement audit from the note by applying the policy exactly, conservatively, and only from explicitly stated evidence.
 
 Return a valid audit form for the registered questionnaire and preserve the form structure, question order, IDs, and overall outcome field exactly as provided. Use only the claim note, the registered form, and the runtime policy facts; do not infer missing details, do not add unstated documentation failures, and do not use outside policy knowledge.
@@ -405,21 +209,7 @@ Interpretation reminders from prior failure patterns:
 Overall outcome:
 - "Meets" only if all applicable question-level checks pass and no applicable Q3 driver is present.
 - Otherwise return "Does Not Meet".
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 6: New subsample score 2.583333333333333 is better than old score 2.4166666666666665. Continue to full eval and add to candidate pool.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 6: Valset score for new program: 0.7291666666666666 (coverage 4 / 4)
 Iteration 6: Val aggregate for new program: 0.7291666666666666
 Iteration 6: Individual valset scores for new program: {0: 0.75, 1: 0.75, 2: 0.8333333333333333, 3: 0.5833333333333333}
@@ -432,18 +222,6 @@ Iteration 6: Best score on valset: 0.7291666666666666
 Iteration 6: Linear pareto front program index: 0
 Iteration 6: New program candidate index: 3
 Iteration 7: Selected program 3 score: 0.7291666666666666
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 7: Proposed new text for instructions: Complete the receipt reimbursement audit from the note by applying the policy exactly, conservatively, and only from explicitly stated evidence.
 
 Return a valid audit form for the registered questionnaire and preserve the form structure, question order, IDs, and overall outcome field exactly as provided. Use only the claim note, the registered form, and the runtime policy facts; do not infer missing details, do not add unstated documentation failures, and do not use outside policy knowledge.
@@ -524,22 +302,8 @@ Few-shot examples:
 - Note: "Personal headphones $49 bought during travel." -> Q1 No; Q2 Yes; Q3 No with Q3.3 only.
 - Note: "Missing attendee list but receipt attached." -> Q1 depends on business purpose; Q2 depends on amount; Q3 No with Q3.4 only.
 - Note: "Client lunch $42 with itemized receipt; no alcohol." -> Q1 Yes; Q2 Yes; Q3 Yes with no sub_questions.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 7: New subsample score 2.25 is not better than old score 2.25, skipping
 Iteration 8: Selected program 3 score: 0.7291666666666666
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 8: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy conservatively and literally; do not infer unstated failures, do not use outside knowledge, and do not let one question’s answer contaminate another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -580,15 +344,7 @@ Quick examples:
 - "Dinner $61 with client, itemized receipt, no alcohol." -> Q1 Yes, Q2 No, Q3 Yes, outcome Does Not Meet.
 - "Coffee meeting $18, no receipt attached." -> Q1 Yes, Q2 Yes, Q3 No with Q3.4, outcome Does Not Meet.
 - "Parking for client visit $16, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 8: New subsample score 2.5 is better than old score 2.333333333333333. Continue to full eval and add to candidate pool.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 8: Found a better program on the valset with score 0.8125.
 Iteration 8: Valset score for new program: 0.8125 (coverage 4 / 4)
 Iteration 8: Val aggregate for new program: 0.8125
@@ -602,16 +358,6 @@ Iteration 8: Best score on valset: 0.8125
 Iteration 8: Linear pareto front program index: 4
 Iteration 8: New program candidate index: 4
 Iteration 9: Selected program 4 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 9: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy conservatively and literally; do not infer unstated failures, do not use outside knowledge, and do not let one question’s answer contaminate another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -654,22 +400,8 @@ Quick examples:
 - "Coffee meeting $18, no receipt attached." -> Q1 Yes, Q2 Yes, Q3 No with Q3.4, outcome Does Not Meet.
 - "Parking for client visit $16, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, sub_questions [], outcome Meets.
 - "Team dinner $87 with wine listed on receipt." -> Q1 Yes, Q2 No, Q3 No with Q3.1 only, outcome Does Not Meet.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 9: New subsample score 2.5 is not better than old score 2.5, skipping
 Iteration 10: Selected program 4 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 10: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy conservatively and literally; do not infer unstated failures, do not use outside knowledge, and do not let one question’s answer contaminate another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -718,22 +450,8 @@ Quick examples:
 - "Coffee meeting $18, no receipt attached." -> Q1 Yes, Q2 Yes, Q3 No with Q3.4, outcome Does Not Meet.
 - "Parking for client visit $16, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Personal headphones $49 bought during travel." -> Q1 Yes unless the note explicitly says personal/non-business; Q2 Yes; Q3 Yes unless a prohibited driver is explicitly mentioned.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 10: New subsample score 2.583333333333333 is not better than old score 2.583333333333333, skipping
 Iteration 11: Selected program 4 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 11: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively: do not infer unstated failures, do not use outside knowledge, and evaluate Q1, Q2, and Q3 independently.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -779,20 +497,8 @@ Few-shot guidance:
 - "Coffee meeting $18, no receipt attached." -> Q1 Yes, Q2 Yes, Q3 No with Q3.4 only, outcome Does Not Meet.
 - "Parking for client visit $16, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes with sub_questions null/[], outcome Meets.
 - "Printer paper $22 for project room, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes with sub_questions null/[], outcome Meets.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 11: New subsample score 2.5 is not better than old score 2.5, skipping
 Iteration 12: Selected program 4 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 12: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -839,17 +545,7 @@ Quick examples:
 - "Dinner $61 with client, itemized receipt, no alcohol." -> Q1 Yes, Q2 No, Q3 Yes, outcome Does Not Meet.
 - "Coffee meeting $18, no receipt attached." -> Q1 Yes, Q2 Yes, Q3 No with Q3.4, outcome Does Not Meet.
 - "Parking for client visit $16, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 12: New subsample score 2.5 is better than old score 2.333333333333333. Continue to full eval and add to candidate pool.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 12: Valset score for new program: 0.8125 (coverage 4 / 4)
 Iteration 12: Val aggregate for new program: 0.8125
 Iteration 12: Individual valset scores for new program: {0: 0.75, 1: 0.75, 2: 1.0, 3: 0.75}
@@ -862,14 +558,6 @@ Iteration 12: Best score on valset: 0.8125
 Iteration 12: Linear pareto front program index: 4
 Iteration 12: New program candidate index: 5
 Iteration 13: Selected program 5 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 13: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -918,31 +606,11 @@ Quick examples:
 - "Dinner $61 with client, itemized receipt, no alcohol." -> Q1 Yes, Q2 No, Q3 Yes, outcome Does Not Meet.
 - "Coffee meeting $18, no receipt attached." -> Q1 Yes, Q2 Yes, Q3 No with Q3.4, outcome Does Not Meet.
 - "Parking for client visit $16, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 13: New subsample score 2.25 is not better than old score 2.25, skipping
 Iteration 14: Selected program 5 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 14: All subsample scores perfect. Skipping.
 Iteration 14: Reflective mutation did not propose a new candidate
 Iteration 15: Selected program 5 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 15: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, labels, and overall outcome exactly as provided in the registered form. Use the form’s exact form_id, form_version, title, and question texts. Every question answer must be exactly "Yes" or "No".
@@ -998,20 +666,8 @@ Implementation detail for output formatting:
 - When Q3 is Yes: sub_questions must be null or an empty array, not a populated list.
 - When Q3 is No: populate only the applicable sub_question ids and provide their reasoning/citations; leave non-applicable sub_questions out entirely.
 - Do not fabricate or copy all listed sub_questions by default.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 15: New subsample score 2.25 is not better than old score 2.25, skipping
 Iteration 16: Selected program 5 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 16: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -1060,17 +716,7 @@ Quick examples:
 - "Coffee meeting $18, no receipt attached." -> Q1 Yes, Q2 Yes, Q3 No with Q3.4, outcome Does Not Meet.
 - "Parking for client visit $16, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Personal headphones $49 bought during travel." -> Q1 Yes if the note only gives travel context and does not explicitly say the item is personal/non-business; Q2 Yes; Q3 Yes unless a prohibited driver is explicitly stated.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 16: New subsample score 2.75 is better than old score 2.583333333333333. Continue to full eval and add to candidate pool.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 16: Valset score for new program: 0.8125 (coverage 4 / 4)
 Iteration 16: Val aggregate for new program: 0.8125
 Iteration 16: Individual valset scores for new program: {0: 0.75, 1: 0.75, 2: 1.0, 3: 0.75}
@@ -1083,14 +729,6 @@ Iteration 16: Best score on valset: 0.8125
 Iteration 16: Linear pareto front program index: 4
 Iteration 16: New program candidate index: 6
 Iteration 17: Selected program 6 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 17: Proposed new text for instructions: Complete the receipt reimbursement audit using only: (1) the claim note, (2) the registered form, and (3) the runtime policy facts. Apply the policy literally and conservatively. Do not use outside knowledge, do not infer unstated facts, and do not let an issue in one question change another question’s answer.
 
 Preserve the form structure exactly: same form_id/form_version/title/description, same question order, same question IDs, and the same overall outcome labels. Every question answer must be exactly "Yes" or "No".
@@ -1140,20 +778,8 @@ Quick examples
 - "Parking for client visit $16, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Printer paper $22 for project room, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Personal headphones $49 bought during travel." -> Q1 Yes only if the note does not explicitly say personal/non-business; Q2 Yes; Q3 Yes unless a prohibited driver is explicitly stated.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 17: New subsample score 2.5 is not better than old score 2.5, skipping
 Iteration 18: Selected program 6 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 18: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -1206,20 +832,8 @@ Quick examples:
 - "Coffee meeting $18, no receipt attached." -> Q1 Yes, Q2 Yes, Q3 No with Q3.4 only, outcome Does Not Meet.
 - "Parking for client visit $16, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes with sub_questions omitted/null, outcome Meets.
 - "Personal headphones $49 bought during travel." -> Q1 Yes if the note only gives travel context and does not explicitly say the item is personal/non-business; Q2 Yes; Q3 Yes with sub_questions omitted/null unless a prohibited driver is explicitly stated.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 18: New subsample score 2.25 is not better than old score 2.25, skipping
 Iteration 19: Selected program 6 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 19: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally, conservatively, and independently for each question. Do not infer unstated issues, do not use outside knowledge, and do not let Q1, Q2, or Q3 influence one another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -1270,22 +884,8 @@ Quick examples:
 - "Coffee meeting $18, no receipt attached." -> Q1 Yes, Q2 Yes, Q3 No with Q3.4, outcome Does Not Meet.
 - "Parking for client visit $16, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Personal headphones $49 bought during travel." -> Q1 Yes; Q2 Yes; Q3 No with Q3.3 only if the note explicitly says "personal" or otherwise clearly identifies a personal/non-business item. If the note only provides travel context, Q3 remains Yes.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 19: New subsample score 2.75 is not better than old score 2.75, skipping
 Iteration 20: Selected program 6 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 20: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -1340,22 +940,8 @@ Formatting discipline:
 - Keep the form’s original IDs and order.
 - For any question with listed sub-questions, include only the sub-question(s) explicitly supported by the note when Q3 is No; otherwise omit sub_questions or set them to null/[].
 - Keep question-level comments/citations null for Q3 when Q3 is Yes.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 20: New subsample score 2.75 is not better than old score 2.75, skipping
 Iteration 21: Selected program 6 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 21: Proposed new text for instructions: Complete the receipt reimbursement audit using only: (1) the claim note, (2) the registered form, and (3) the runtime policy facts. Apply the policy literally and conservatively. Do not use outside knowledge. Do not infer unstated issues. Evaluate Q1, Q2, and Q3 independently; a problem in one question must not change the others.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -1404,24 +990,8 @@ Quick examples:
 - "Coffee meeting $18, no receipt attached." -> Q1 Yes, Q2 Yes, Q3 No with Q3.4, outcome Does Not Meet.
 - "Parking for client visit $16, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Lunch $63, missing attendee list but receipt attached." -> Q1 Yes, Q2 No, Q3 Yes if the note does not explicitly say the receipt/document itself is missing; do not treat the attendee-list phrase as missing documentation unless the form/policy explicitly requires it.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 21: New subsample score 1.9166666666666665 is not better than old score 2.75, skipping
 Iteration 22: Selected program 6 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 22: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -1471,22 +1041,8 @@ Quick examples:
 - "Coffee meeting $18, no receipt attached." -> Q1 Yes, Q2 Yes, Q3 No with Q3.4, outcome Does Not Meet.
 - "Parking for client visit $16, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Personal headphones $49 bought during travel." -> Q1 Yes if the note only gives travel context and does not explicitly say the item is personal/non-business; Q2 Yes; Q3 Yes unless a prohibited driver is explicitly stated.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 22: New subsample score 2.333333333333333 is not better than old score 2.75, skipping
 Iteration 23: Selected program 6 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 23: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -1536,20 +1092,8 @@ Quick examples:
 - "Coffee meeting $18, no receipt attached." -> Q1 Yes, Q2 Yes, Q3 No with Q3.4, outcome Does Not Meet.
 - "Parking for client visit $16, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Personal headphones $49 bought during travel." -> Q1 Yes only if the note gives travel/work context and does not explicitly say the item is personal/non-business; Q2 Yes; Q3 Yes unless a prohibited driver is explicitly stated.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 23: New subsample score 2.5 is not better than old score 2.5, skipping
 Iteration 24: Selected program 6 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 24: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -1600,29 +1144,11 @@ Quick examples:
 - "Coffee meeting $18, no receipt attached." -> Q1 Yes, Q2 Yes, Q3 No with Q3.4, outcome Does Not Meet.
 - "Parking for client visit $16, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes with sub_questions omitted/null, outcome Meets.
 - "Personal headphones $49 bought during travel." -> Q1 Yes if the note only gives travel context and does not explicitly say the item is personal/non-business; Q2 Yes; Q3 Yes unless a prohibited driver is explicitly stated.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 24: New subsample score 2.25 is not better than old score 2.25, skipping
 Iteration 25: Selected program 6 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 25: All subsample scores perfect. Skipping.
 Iteration 25: Reflective mutation did not propose a new candidate
 Iteration 26: Selected program 6 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 26: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -1676,17 +1202,7 @@ Quick calibration examples:
 - "Parking for client visit $16, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Printer paper $22 for project room, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Personal headphones $49 bought during travel." -> Q1 Yes only if the note gives travel/work context and does not explicitly say the item is personal/non-business; Q2 Yes; Q3 Yes unless a prohibited driver is explicitly stated.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
 Iteration 26: New subsample score 2.25 is better than old score 2.0. Continue to full eval and add to candidate pool.
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 26: Valset score for new program: 0.8125 (coverage 4 / 4)
 Iteration 26: Val aggregate for new program: 0.8125
 Iteration 26: Individual valset scores for new program: {0: 0.75, 1: 0.75, 2: 1.0, 3: 0.75}
@@ -1699,14 +1215,6 @@ Iteration 26: Best score on valset: 0.8125
 Iteration 26: Linear pareto front program index: 4
 Iteration 26: New program candidate index: 7
 Iteration 27: Selected program 7 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 27: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -1762,23 +1270,7 @@ Quick calibration examples:
 - "Printer paper $22 for project room, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Personal headphones $49 bought during travel." -> Q1 Yes only if the note gives travel/work context and does not explicitly say the item is personal/non-business; Q2 Yes; Q3 Yes unless a prohibited driver is explicitly stated.
 - "Lunch $63, missing attendee list but receipt attached." -> Q1 Yes, Q2 No, Q3 No with Q3.4 because a required supporting document is explicitly missing; outcome Does Not Meet.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 27: New subsample score 2.583333333333333 is better than old score 2.333333333333333. Continue to full eval and add to candidate pool.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 27: Valset score for new program: 0.8125 (coverage 4 / 4)
 Iteration 27: Val aggregate for new program: 0.8125
 Iteration 27: Individual valset scores for new program: {0: 0.75, 1: 0.75, 2: 1.0, 3: 0.75}
@@ -1791,18 +1283,6 @@ Iteration 27: Best score on valset: 0.8125
 Iteration 27: Linear pareto front program index: 4
 Iteration 27: New program candidate index: 8
 Iteration 28: Selected program 8 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 28: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -1853,26 +1333,8 @@ Calibration examples:
 - "Printer paper $22 for project room, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Personal headphones $49 bought during travel." -> Q1 Yes only if the note gives travel/work context and does not explicitly say the item is personal/non-business; Q2 Yes; Q3 Yes unless a prohibited driver is explicitly stated.
 - "Lunch $63, missing attendee list but receipt attached." -> Q1 Yes, Q2 No, Q3 No with Q3.4 because a required supporting document is explicitly missing; outcome Does Not Meet.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 28: New subsample score 2.25 is not better than old score 2.25, skipping
 Iteration 29: Selected program 8 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 29: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -1960,24 +1422,8 @@ Complete the receipt reimbursement audit from the note. Apply policy carefully.
 Additional Runtime Instructions:
 Policy: business meals up to $60 are allowed; over $60 needs review. Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.
 Receipt note: Use the provided note exactly as the only evidence source.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 29: New subsample score 1.75 is not better than old score 2.5, skipping
 Iteration 30: Selected program 8 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 30: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every top-level question answer must be exactly "Yes" or "No".
@@ -2046,22 +1492,8 @@ Form completion requirements:
 - Mirror the registered form exactly: keep the same form_id, form_version, title, description, question order, and question IDs.
 - For Q3, do not create placeholder sub-question objects. If any sub-question is included, include only those that are explicitly supported.
 - If the registered form says a question has no sub-questions, put the reasoning in comments and citations; if it lists sub-questions, use the Q3 strict rules above.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 30: New subsample score 2.25 is not better than old score 2.25, skipping
 Iteration 31: Selected program 8 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 31: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -2120,28 +1552,8 @@ Quick calibration examples:
 - "Printer paper $22 for project room, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Personal headphones $49 bought during travel." -> Q1 Yes; Q2 Yes; Q3 Yes only if the note clearly states personal use/non-business use beyond the item name itself. If the note provides travel/work context and does not clearly state personal use, do not fail Q1 or Q3 solely because of the word "personal" in the item label.
 - "Lunch $63, missing attendee list but receipt attached." -> Q1 Yes, Q2 No, Q3 No with Q3.4 because a required supporting document is explicitly missing; outcome Does Not Meet.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 31: New subsample score 2.583333333333333 is not better than old score 2.583333333333333, skipping
 Iteration 32: Selected program 8 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 32: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -2197,28 +1609,8 @@ Quick calibration examples:
 - "Printer paper $22 for project room, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Personal headphones $49 bought during travel." -> Q1 Yes only if the note gives travel/work context and does not explicitly say the item is personal/non-business; Q2 Yes; Q3 Yes unless a prohibited driver is explicitly stated.
 - "Lunch $63, missing attendee list but receipt attached." -> Q1 Yes, Q2 No, Q3 No with Q3.4 because a required supporting document is explicitly missing; outcome Does Not Meet.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 32: New subsample score 2.75 is not better than old score 2.75, skipping
 Iteration 33: Selected program 8 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 33: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -2280,42 +1672,8 @@ Quick calibration examples:
 - "Printer paper $22 for project room, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Personal headphones $49 bought during travel." -> Q1 Yes only if the note gives travel/work context and does not explicitly say the item is personal/non-business; Q2 Yes; Q3 No if the note explicitly says personal, otherwise Q3 Yes.
 - "Lunch $63, missing attendee list but receipt attached." -> Q1 Yes, Q2 No, Q3 No with Q3.4 because a required supporting document is explicitly missing; outcome Does Not Meet.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 33: New subsample score 2.5 is not better than old score 2.5, skipping
 Iteration 34: Selected program 8 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 34: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -2378,22 +1736,8 @@ Form-handling rules:
 - When Q3 is No, include only the supported sub_question objects and no unsupported ones.
 - Keep question-level comments and citations null for Q3 when Q3 is Yes.
 - For Q1 and Q2, include brief comments and exact short citations that directly support the answer.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 34: New subsample score 2.75 is not better than old score 2.75, skipping
 Iteration 35: Selected program 8 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 35: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -2451,24 +1795,8 @@ Quick calibration examples:
 - "Printer paper $22 for project room, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Personal headphones $49 bought during travel." -> Q1 Yes only if the note gives travel/work context and does not explicitly say the item is personal/non-business; Q2 Yes; Q3 Yes unless a prohibited driver is explicitly stated.
 - "Lunch $63, missing attendee list but receipt attached." -> Q1 Yes, Q2 No, Q3 No with Q3.4 because a required supporting document is explicitly missing; outcome Does Not Meet.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 35: New subsample score 2.5 is not better than old score 2.5, skipping
 Iteration 36: Selected program 8 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 36: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -2531,24 +1859,8 @@ Quick calibration examples:
 - "Printer paper $22 for project room, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Personal headphones $49 bought during travel." -> Q1 Yes only if the note gives travel/work context and does not explicitly say the item is personal/non-business; Q2 Yes; Q3 No with Q3.3 if the item is explicitly identified as personal, otherwise Q3 Yes.
 - "Lunch $63, missing attendee list but receipt attached." -> Q1 Yes, Q2 No, Q3 No with Q3.4 because a required supporting document is explicitly missing; outcome Does Not Meet.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 36: New subsample score 2.0833333333333335 is not better than old score 2.5, skipping
 Iteration 37: Selected program 8 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 37: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -2607,20 +1919,8 @@ Quick calibration examples:
 - "Personal headphones $49 bought during travel." -> Q1 Yes only if the note gives travel/work context and does not explicitly say the item is personal/non-business; Q2 Yes; Q3 Yes unless a prohibited driver is explicitly stated.
 - "Lunch $63, missing attendee list but receipt attached." -> Q1 Yes, Q2 No, Q3 No with Q3.4 because a required supporting document is explicitly missing; outcome Does Not Meet.
 - "Team dinner $87 with wine listed on receipt." -> Q1 Yes, Q2 No, Q3 No with Q3.1 only; outcome Does Not Meet.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 37: New subsample score 2.75 is not better than old score 2.75, skipping
 Iteration 38: Selected program 8 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 38: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the registered form structure, question order, IDs, field names, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -2680,28 +1980,8 @@ Quick calibration examples:
 - "Printer paper $22 for project room, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Personal headphones $49 bought during travel." -> Q1 Yes only if the note gives travel/work context and does not explicitly say the item is personal/non-business; Q2 Yes; Q3 No with Q3.3 because "Personal" is explicit.
 - "Lunch $63, missing attendee list but receipt attached." -> Q1 Yes, Q2 No, Q3 No with Q3.4 because a required supporting document is explicitly missing; outcome Does Not Meet.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 38: New subsample score 2.333333333333333 is not better than old score 2.5, skipping
 Iteration 39: Selected program 8 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 39: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -2764,22 +2044,8 @@ Quick calibration examples:
 - "Printer paper $22 for project room, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Personal headphones $49 bought during travel." -> Q1 Yes only if the note gives travel/work context and does not explicitly say the item is personal/non-business; Q2 Yes; Q3 Yes unless a prohibited driver is explicitly stated.
 - "Lunch $63, missing attendee list but receipt attached." -> Q1 Yes, Q2 No, Q3 No with Q3.4 because a required supporting document is explicitly missing; outcome Does Not Meet.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 39: New subsample score 2.75 is not better than old score 2.75, skipping
 Iteration 40: Selected program 8 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 40: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -2838,20 +2104,8 @@ Quick calibration examples:
 - "Printer paper $22 for project room, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Personal headphones $49 bought during travel." -> Q1 Yes only if the note gives travel/work context and does not explicitly say the item is personal/non-business; Q2 Yes; Q3 Yes unless a prohibited driver is explicitly stated.
 - "Lunch $63, missing attendee list but receipt attached." -> Q1 Yes, Q2 No, Q3 No with Q3.4 because a required supporting document is explicitly missing; outcome Does Not Meet.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 40: New subsample score 2.25 is not better than old score 2.25, skipping
 Iteration 41: Selected program 8 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 41: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -2919,17 +2173,7 @@ Short calibration examples:
 - "Coffee meeting $18, no receipt attached." -> Q1 Yes, Q2 Yes, Q3 No with Q3.4, outcome Does Not Meet.
 - "Taxi from airport to client site $38, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Gift card purchase $25 for client raffle." -> Q1 Yes, Q2 Yes, Q3 No with Q3.2, outcome Does Not Meet.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 41: New subsample score 2.75 is better than old score 2.583333333333333. Continue to full eval and add to candidate pool.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 41: Valset score for new program: 0.8125 (coverage 4 / 4)
 Iteration 41: Val aggregate for new program: 0.8125
 Iteration 41: Individual valset scores for new program: {0: 0.75, 1: 0.75, 2: 1.0, 3: 0.75}
@@ -2942,16 +2186,6 @@ Iteration 41: Best score on valset: 0.8125
 Iteration 41: Linear pareto front program index: 4
 Iteration 41: New program candidate index: 9
 Iteration 42: Selected program 9 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 42: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -3028,26 +2262,8 @@ Short calibration examples:
 - "Coffee meeting $18, no receipt attached." -> Q1 Yes, Q2 Yes, Q3 No with Q3.4, outcome Does Not Meet.
 - "Taxi from airport to client site $38, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Gift card purchase $25 for client raffle." -> Q1 Yes, Q2 Yes, Q3 No with Q3.2, outcome Does Not Meet.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 42: New subsample score 1.4166666666666665 is not better than old score 2.25, skipping
 Iteration 43: Selected program 9 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 43: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -3147,26 +2363,8 @@ Complete the receipt reimbursement audit from the note. Apply policy carefully.
 Additional Runtime Instructions:
 Policy: business meals up to $60 are allowed; over $60 needs review. Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.
 Receipt note: Personal headphones $49 bought during travel.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 43: New subsample score 2.583333333333333 is not better than old score 2.583333333333333, skipping
 Iteration 44: Selected program 9 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 44: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -3261,22 +2459,8 @@ Complete the receipt reimbursement audit from the note. Apply policy carefully.
 Additional Runtime Instructions:
 Policy: business meals up to $60 are allowed; over $60 needs review. Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.
 Receipt note: {receipt_note}
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 44: New subsample score 2.5 is not better than old score 2.5, skipping
 Iteration 45: Selected program 9 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 45: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -3356,22 +2540,8 @@ Calibration examples:
 
 Registered Audit Form:
 Follow the form’s required structure exactly. When a question has no sub-questions in the form, set sub_questions to null or [] as appropriate. When a question has sub-questions, include only those that apply.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 45: New subsample score 2.5 is not better than old score 2.5, skipping
 Iteration 46: Selected program 9 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 46: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -3472,22 +2642,8 @@ Complete the receipt reimbursement audit from the note. Apply policy carefully.
 Additional Runtime Instructions:
 Policy: business meals up to $60 are allowed; over $60 needs review. Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.
 [Receipt note from the claim]
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 46: New subsample score 2.5 is not better than old score 2.5, skipping
 Iteration 47: Selected program 9 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 47: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -3559,24 +2715,8 @@ Short calibration examples:
 - "Coffee meeting $18, no receipt attached." -> Q1 Yes, Q2 Yes, Q3 No with Q3.4, outcome Does Not Meet.
 - "Taxi from airport to client site $38, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Gift card purchase $25 for client raffle." -> Q1 Yes, Q2 Yes, Q3 No with Q3.2, outcome Does Not Meet.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 47: New subsample score 2.75 is not better than old score 2.75, skipping
 Iteration 48: Selected program 9 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 48: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and keep Q1, Q2, and Q3 fully independent.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -3642,20 +2782,8 @@ Short calibration examples:
 - "Taxi from airport to client site $38, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Gift card purchase $25 for client raffle." -> Q1 Yes, Q2 Yes, Q3 No with Q3.2, outcome Does Not Meet.
 - "Personal headphones $49 bought during travel." -> Q1 Yes if the note only shows travel context and does not explicitly say personal/non-business; Q2 Yes; Q3 Yes unless another explicit trigger appears.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 48: New subsample score 2.333333333333333 is not better than old score 2.333333333333333, skipping
 Iteration 49: Selected program 9 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 49: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and keep Q1, Q2, and Q3 independent.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -3724,24 +2852,8 @@ Calibration examples:
 - "Coffee meeting $18, no receipt attached." -> Q1 Yes, Q2 Yes, Q3 No with Q3.4, overall Does Not Meet.
 - "Taxi from airport to client site $38, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, overall Meets.
 - "Gift card purchase $25 for client raffle." -> Q1 Yes, Q2 Yes, Q3 No with Q3.2, overall Does Not Meet.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 49: New subsample score 2.5 is not better than old score 2.5, skipping
 Iteration 50: Selected program 9 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 50: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -3838,31 +2950,7 @@ Complete the receipt reimbursement audit from the note. Apply policy carefully.
 
 Additional Runtime Instructions:
 Policy: business meals up to $60 are allowed; over $60 needs review. Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 50: New subsample score 2.75 is better than old score 2.583333333333333. Continue to full eval and add to candidate pool.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 50: Valset score for new program: 0.5208333333333333 (coverage 4 / 4)
 Iteration 50: Val aggregate for new program: 0.5208333333333333
 Iteration 50: Individual valset scores for new program: {0: 0.75, 1: 0.75, 2: 0.0, 3: 0.5833333333333333}
@@ -3875,16 +2963,6 @@ Iteration 50: Best score on valset: 0.8125
 Iteration 50: Linear pareto front program index: 4
 Iteration 50: New program candidate index: 10
 Iteration 51: Selected program 9 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 51: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -3954,30 +3032,8 @@ Short calibration examples:
 - "Taxi from airport to client site $38, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Gift card purchase $25 for client raffle." -> Q1 Yes, Q2 Yes, Q3 No with Q3.2, outcome Does Not Meet.
 - "Parking for client visit $16, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 51: New subsample score 2.583333333333333 is not better than old score 2.75, skipping
 Iteration 52: Selected program 9 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 52: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -4050,17 +3106,7 @@ Short calibration examples:
 - "Coffee meeting $18, no receipt attached." -> Q1 Yes, Q2 Yes, Q3 No with Q3.4, outcome Does Not Meet.
 - "Taxi from airport to client site $38, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Gift card purchase $25 for client raffle." -> Q1 Yes, Q2 Yes, Q3 No with Q3.2, outcome Does Not Meet.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 52: New subsample score 2.25 is better than old score 2.083333333333333. Continue to full eval and add to candidate pool.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 52: Valset score for new program: 0.7708333333333333 (coverage 4 / 4)
 Iteration 52: Val aggregate for new program: 0.7708333333333333
 Iteration 52: Individual valset scores for new program: {0: 0.75, 1: 0.75, 2: 1.0, 3: 0.5833333333333333}
@@ -4073,14 +3119,6 @@ Iteration 52: Best score on valset: 0.8125
 Iteration 52: Linear pareto front program index: 4
 Iteration 52: New program candidate index: 11
 Iteration 53: Selected program 9 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 53: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -4152,31 +3190,7 @@ Short calibration examples:
 - "Gift card purchase $25 for client raffle." -> Q1 Yes, Q2 Yes, Q3 No with Q3.2, outcome Does Not Meet.
 - "Dinner $61 with client, itemized receipt, no alcohol." -> Q1 Yes, Q2 No, Q3 Yes, outcome Does Not Meet.
 - "Team dinner $87 with wine listed on receipt." -> Q1 Yes, Q2 No, Q3 No with Q3.1 only; do not add Q3.4 because the receipt is present and the note does not say documentation is missing.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 53: New subsample score 2.75 is better than old score 2.583333333333333. Continue to full eval and add to candidate pool.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 53: Valset score for new program: 0.7708333333333333 (coverage 4 / 4)
 Iteration 53: Val aggregate for new program: 0.7708333333333333
 Iteration 53: Individual valset scores for new program: {0: 0.75, 1: 0.75, 2: 0.8333333333333333, 3: 0.75}
@@ -4189,18 +3203,6 @@ Iteration 53: Best score on valset: 0.8125
 Iteration 53: Linear pareto front program index: 4
 Iteration 53: New program candidate index: 12
 Iteration 54: Selected program 9 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 54: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and keep Q1, Q2, and Q3 independent.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -4302,22 +3304,8 @@ Output formatting requirements:
 - Keep Q3.sub_questions null or [] when Q3 is Yes.
 - Never include placeholder or blank Q3 sub-question objects.
 - Use exact, short note fragments as citations.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 54: New subsample score 1.75 is not better than old score 2.583333333333333, skipping
 Iteration 55: Selected program 9 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 55: Proposed new text for instructions: Complete the receipt reimbursement audit using only: (1) the claim note, (2) the registered form, and (3) the runtime policy facts. Apply the policy literally and conservatively. Do not use outside knowledge. Do not infer unstated issues. Do not let one question influence another.
 
 Preserve the provided form structure, question order, IDs, and overall outcome. Every answer must be exactly "Yes" or "No".
@@ -4387,24 +3375,8 @@ Calibration examples:
 - "Coffee meeting $18, no receipt attached." -> Q1 Yes, Q2 Yes, Q3 No with Q3.4, overall Does Not Meet.
 - "Taxi from airport to client site $38, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, overall Meets.
 - "Gift card purchase $25 for client raffle." -> Q1 Yes, Q2 Yes, Q3 No with Q3.2, overall Does Not Meet.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 55: New subsample score 2.5 is not better than old score 2.5, skipping
 Iteration 56: Selected program 9 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 56: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -4506,22 +3478,8 @@ Complete the receipt reimbursement audit from the note. Apply policy carefully.
 Additional Runtime Instructions:
 Policy: applicable limit is $60; amounts over $60 need review. Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.
 Receipt note: {{receipt_note}}
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 56: New subsample score 2.25 is not better than old score 2.25, skipping
 Iteration 57: Selected program 9 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 57: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally, conservatively, and independently for each question. Do not infer unstated issues, do not use outside knowledge, and do not let the result for one question change another question.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -4599,22 +3557,8 @@ Form handling reminders:
 - For questions without sub-questions, put reasoning in question.comments and supporting evidence in question.citations.
 - For Q3 Yes, leave comments/citations null and do not generate any Q3 sub-questions.
 - For Q3 No, include only the applicable sub-question(s) that are explicitly supported by the note.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 57: New subsample score 2.5 is not better than old score 2.5, skipping
 Iteration 58: Selected program 9 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 58: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly "Yes" or "No".
@@ -4684,20 +3628,8 @@ Short calibration examples:
 - "Taxi from airport to client site $38, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets.
 - "Gift card purchase $25 for client raffle." -> Q1 Yes, Q2 Yes, Q3 No with Q3.2, outcome Does Not Meet.
 - "Personal headphones $49 bought during travel." -> Q1 Yes when the note still indicates a business/travel context and does not clearly say the expense itself is non-business; Q2 Yes; Q3 No only if a prohibited/review trigger is explicitly stated.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 58: New subsample score 2.583333333333333 is not better than old score 2.583333333333333, skipping
 Iteration 59: Selected program 9 score: 0.8125
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 59: Proposed new text for instructions: Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and treat Q1, Q2, and Q3 as independent checks.
 
 Preserve the form structure, question order, IDs, and overall outcome exactly as provided. Every top-level question answer must be exactly "Yes" or "No".
@@ -4765,189 +3697,4 @@ Calibration examples:
 - "Coffee meeting $18, no receipt attached." -> Q1 Yes, Q2 Yes, Q3 No with Q3.4, overall Does Not Meet.
 - "Taxi from airport to client site $38, receipt attached." -> Q1 Yes, Q2 Yes, Q3 Yes, overall Meets.
 - "Gift card purchase $25 for client raffle." -> Q1 Yes, Q2 Yes, Q3 No with Q3.2, overall Does Not Meet.
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
 Iteration 59: New subsample score 2.25 is not better than old score 2.25, skipping
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/artifacts/dag HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49315 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49762 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49762 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/artifacts/dag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49762 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/events HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49761 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49764 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/artifacts/dag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49761 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50079 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/artifacts/native-html HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50102 - "GET /api/evaluations/datasets HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50103 - "GET /api/evaluations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50103 - "GET /api/evaluations/runs/9116b2dc-9ed2-4263-8209-91803c68e41e/items HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50103 - "GET /api/evaluations/runs/9116b2dc-9ed2-4263-8209-91803c68e41e/items HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50103 - "GET /api/evaluations/runs/fb024af7-49c2-48c3-b3bf-70d2c55ac2ec/items HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50104 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50104 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50104 - "GET /api/optimizations/cases?form_id=tfr_default&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50104 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50104 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50104 - "GET /api/optimizations/cases?form_id=tfr_default&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50104 - "GET /api/optimizations/cases?form_id=demo_receipt_policy&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50104 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/artifacts/dag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50104 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/events HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50182 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/artifacts/dag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50181 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50200 - "GET /api/evaluations/datasets HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50201 - "GET /api/evaluations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50201 - "GET /api/evaluations/runs/9116b2dc-9ed2-4263-8209-91803c68e41e/items HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50201 - "GET /api/evaluations/runs/9116b2dc-9ed2-4263-8209-91803c68e41e/items HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50201 - "GET /api/evaluations/runs/fb024af7-49c2-48c3-b3bf-70d2c55ac2ec/items HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50200 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50201 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50201 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50201 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50200 - "GET /api/optimizations/cases?form_id=tfr_default&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50201 - "GET /api/optimizations/cases?form_id=tfr_default&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50201 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/artifacts/dag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50201 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/events HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50200 - "GET /api/optimizations/cases?form_id=demo_receipt_policy&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50207 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/artifacts/dag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50200 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50208 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50209 - "GET /api/batches/templates HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50209 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50217 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50209 - "GET /api/batches/templates HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50210 - "GET /api/batches HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50208 - "GET /api/batches/summary HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50216 - "GET /api/batches/summary HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50215 - "GET /api/batches HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50217 - "GET /api/batches/templates HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50209 - "GET /api/batches HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50210 - "GET /api/batches/summary HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50229 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50232 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50228 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50231 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50230 - "GET /api/optimizations/cases?form_id=tfr_default&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50233 - "GET /api/optimizations/cases?form_id=tfr_default&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50230 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/artifacts/dag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50230 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/events HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50233 - "GET /api/optimizations/cases?form_id=demo_receipt_policy&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50231 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/artifacts/dag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50233 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50240 - "GET /api/optimizations/runs/da6292cf-419a-4872-95fe-72107768fe23/artifacts/dag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50241 - "GET /api/optimizations/runs/da6292cf-419a-4872-95fe-72107768fe23/events HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50242 - "GET /api/optimizations/runs/da6292cf-419a-4872-95fe-72107768fe23/artifacts/dag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50240 - "GET /api/optimizations/runs/da6292cf-419a-4872-95fe-72107768fe23 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50240 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/artifacts/dag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50240 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/events HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50242 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50242 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/artifacts/dag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50244 - "GET /api/evaluations/datasets HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50244 - "GET /api/evaluations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50244 - "GET /api/evaluations/runs/9116b2dc-9ed2-4263-8209-91803c68e41e/items HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50244 - "GET /api/evaluations/runs/9116b2dc-9ed2-4263-8209-91803c68e41e/items HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50251 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50251 - "GET /api/batches/templates HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50251 - "GET /api/batches HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50258 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50262 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50259 - "GET /api/batches/templates HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50258 - "GET /api/batches/templates HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50261 - "GET /api/batches/summary HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50260 - "GET /api/batches HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50262 - "GET /api/batches HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50251 - "GET /api/batches/summary HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50259 - "GET /api/batches/summary HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50271 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50274 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50273 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50270 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50274 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/artifacts/dag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50272 - "GET /api/optimizations/cases?form_id=tfr_default&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50272 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/events HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50275 - "GET /api/optimizations/cases?form_id=tfr_default&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50273 - "GET /api/optimizations/cases?form_id=demo_receipt_policy&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50275 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/artifacts/dag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50273 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50273 - "GET /api/evaluations/datasets HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50275 - "GET /api/evaluations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50275 - "GET /api/evaluations/runs/9116b2dc-9ed2-4263-8209-91803c68e41e/items HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50273 - "GET /api/evaluations/runs/9116b2dc-9ed2-4263-8209-91803c68e41e/items HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50284 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50287 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50283 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50286 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50285 - "GET /api/optimizations/cases?form_id=tfr_default&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50288 - "GET /api/optimizations/cases?form_id=tfr_default&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50285 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/artifacts/dag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50285 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/events HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50288 - "GET /api/optimizations/cases?form_id=demo_receipt_policy&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50286 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/artifacts/dag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50288 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50581 - "GET /api/reviews HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50582 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50582 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50582 - "GET /api/optimizations/cases?form_id=tfr_default&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50582 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50582 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50582 - "GET /api/optimizations/cases?form_id=tfr_default&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50582 - "GET /api/optimizations/cases?form_id=demo_receipt_policy&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50582 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/artifacts/dag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50582 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/events HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50593 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/artifacts/dag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50592 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50617 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/artifacts/dag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50617 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/events HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50620 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/artifacts/dag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50618 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50628 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/artifacts/native-html HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50635 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50634 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50634 - "GET /api/forms/demo_receipt_policy/v0.1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50634 - "GET /api/prompts/forms/demo_receipt_policy/families?form_version=v0.1 HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:50634 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50634 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50634 - "GET /api/optimizations/cases?form_id=tfr_default&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50634 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50634 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50634 - "GET /api/optimizations/cases?form_id=tfr_default&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50634 - "GET /api/optimizations/cases?form_id=demo_receipt_policy&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50634 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/artifacts/dag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50634 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/events HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50643 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/artifacts/dag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50642 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50644 - "OPTIONS /api/prompts/promote-optimization-candidate HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50644 - "POST /api/prompts/promote-optimization-candidate HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:50645 - "POST /api/prompts/promote-optimization-candidate HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:50646 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50646 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50646 - "GET /api/forms/demo_receipt_policy/v0.1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50646 - "GET /api/prompts/forms/demo_receipt_policy/families?form_version=v0.1 HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:50646 - "GET /api/prompts/forms/demo_receipt_policy/families?form_version=v0.1 HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:50653 - "GET /api/prompts/forms/demo_receipt_policy/families?form_version=v0.1 HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:50657 - "GET /api/forms/exterior_hail/v0.1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50657 - "GET /api/prompts/forms/exterior_hail/families?form_version=v0.1 HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:50657 - "GET /api/forms/demo_receipt_policy/v0.1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50657 - "GET /api/prompts/forms/demo_receipt_policy/families?form_version=v0.1 HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:50940 - "GET /api/prompts/forms/demo_receipt_policy/families?form_version=v0.1 HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:50941 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50941 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50941 - "GET /api/optimizations/cases?form_id=tfr_default&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50941 - "GET /api/forms HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50941 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50941 - "GET /api/optimizations/cases?form_id=tfr_default&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50941 - "GET /api/optimizations/cases?form_id=demo_receipt_policy&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50941 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/artifacts/dag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50941 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/events HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50952 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81/artifacts/dag HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50951 - "GET /api/optimizations/runs/66dc04e4-a352-47e6-8d17-3320b8423f81 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50953 - "OPTIONS /api/prompts/promote-optimization-candidate HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50953 - "POST /api/prompts/promote-optimization-candidate HTTP/1.1" 404 Not Found

@@ -1,0 +1,410 @@
+{
+  "schema_version": 1,
+  "nodes": [
+    {
+      "id": "0",
+      "candidate_index": 0,
+      "role": "seed",
+      "score": 0.7291666666666666,
+      "candidate": {
+        "instructions": "Complete the receipt reimbursement audit from the note. Apply policy carefully."
+      },
+      "parents": [
+        null
+      ]
+    },
+    {
+      "id": "1",
+      "candidate_index": 1,
+      "role": "candidate",
+      "score": 0.7291666666666666,
+      "candidate": {
+        "instructions": "Complete the receipt reimbursement audit from the note by applying the policy exactly and conservatively.\n\nReturn a valid audit form for the registered questionnaire and follow these rules:\n- Use the provided claim note and runtime policy only; do not invent facts.\n- For each question, answer exactly \"Yes\" or \"No\".\n- Choose the answer based on the specific question text, not on the overall outcome.\n- Keep Q1 focused on business purpose/allowance, Q2 focused only on the amount limit, and Q3 focused only on the listed prohibited/review drivers.\n- Do not let a missing receipt or other documentation issue override Q1 unless the note actually indicates the purchase is not business related or not allowed by policy.\n- For Q2, compare the amount to the policy threshold only; if the amount is within limit, answer \"Yes\" even if other issues exist.\n- For Q3, generate only the applicable listed sub-question drivers. Include only drivers that are explicitly supported by the note; never add unsupported drivers.\n- If Q3 is answered \"Yes\", omit sub_questions or set them to null/[]. If Q3 is answered \"No\", include at least one applicable sub_question with reasoning and citations.\n- For questions without sub-questions, put the explanation in comments and evidence in citations.\n- For questions with sub-questions, keep question-level comments/citations null unless the schema or validation requires otherwise.\n- When documentation is missing, unreadable, or incomplete, map it only to the matching documentation driver (e.g. missing receipt/required documentation). Do not infer other violation types.\n- Use the exact policy facts provided at runtime: business meals up to $60 are allowed; over $60 needs review; alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.\n- Preserve the form structure, question order, and IDs exactly as provided.\n- Overall outcome: \"Meets\" only if the request satisfies all applicable policy checks; otherwise \"Does Not Meet\".\n\nStyle guidance:\n- Be concise and evidence-based.\n- Cite the exact note fragment supporting each answer.\n- Avoid adding extra rationale that changes a question's scope or duplicates another question's finding."
+      },
+      "parents": [
+        0
+      ]
+    },
+    {
+      "id": "2",
+      "candidate_index": 2,
+      "role": "candidate",
+      "score": 0.625,
+      "candidate": {
+        "instructions": "Complete the receipt reimbursement audit from the note by applying the policy exactly and conservatively.\n\nReturn a valid audit form for the registered questionnaire and follow these rules:\n- Use only the provided claim note, registered form, and runtime policy; do not invent missing facts or treat silence as a violation.\n- Answer each question exactly \"Yes\" or \"No\".\n- Judge each question independently from its own wording; do not use the overall outcome to decide a question.\n- Q1 is only about whether the purchase is business related and otherwise allowed by policy. Mark Q1 \"Yes\" when the note indicates a business purpose such as client meal, team dinner, or similar business context, and do not downgrade Q1 for amount, alcohol, gift cards, or documentation issues that belong elsewhere.\n- Q2 is only about the dollar limit. Compare the amount to the policy threshold only; if the amount is at or below the allowed limit, answer \"Yes\" even if other policy issues exist.\n- Q3 is only about the listed prohibited/review drivers. Generate only drivers explicitly supported by the note; never add unsupported drivers. Use these drivers exactly as listed in the form/runtime policy: alcohol present, gift card/cash-equivalent purchase, personal/non-business item, and missing or unreadable required documentation.\n- Do not infer documentation missing just because a receipt is mentioned informally. If the note says \"receipt,\" \"itemized receipt,\" or similar without stating missing/unreadable/incomplete, treat documentation as not a Q3.4 violation. Only use the documentation driver when the note explicitly indicates missing, unreadable, incomplete, or unavailable documentation.\n- Map a documentation issue only to the matching documentation driver; do not infer alcohol, gift card, personal item, or other violations from it.\n- For Q3, if any supported driver is present, answer \"No\" and include only the applicable sub-question(s). If Q3 is \"Yes\", omit sub_questions or set them to null/[]; if Q3 is \"No\", include at least one applicable sub_question with reasoning and citations.\n- When a question has no sub-questions, put the explanation in question.comments and evidence in question.citations.\n- When a question has sub-questions, keep question-level comments/citations null unless required by schema/validation.\n- Preserve the form structure, question order, and IDs exactly as provided.\n- Overall outcome: \"Meets\" only if all applicable policy checks pass; otherwise \"Does Not Meet\".\n\nStyle guidance:\n- Be concise and evidence-based.\n- Cite the exact note fragment supporting each answer.\n- Avoid adding extra rationale that changes a question's scope or duplicates another question's finding.\n\nPolicy facts to apply exactly at runtime:\n- Business meals up to $60 are allowed.\n- Over $60 needs review.\n- Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.\n\nSub-question handling reminder:\n- Generate only the listed applicable sub-question drivers.\n- Do not include unsupported drivers even if the overall request fails for another reason.\n- If the note explicitly supports multiple drivers, include all of them; otherwise include only those directly evidenced."
+      },
+      "parents": [
+        1
+      ]
+    },
+    {
+      "id": "3",
+      "candidate_index": 3,
+      "role": "candidate",
+      "score": 0.7291666666666666,
+      "candidate": {
+        "instructions": "Complete the receipt reimbursement audit from the note by applying the policy exactly, conservatively, and only from explicitly stated evidence.\n\nReturn a valid audit form for the registered questionnaire and preserve the form structure, question order, IDs, and overall outcome field exactly as provided. Use only the claim note, the registered form, and the runtime policy facts; do not infer missing details, do not add unstated documentation failures, and do not use outside policy knowledge.\n\nCore rules:\n- For every question, answer exactly \"Yes\" or \"No\".\n- Base each answer on the specific question text only, not on the overall outcome or other questions.\n- Q1 must assess only whether the purchase is business related and allowed by policy. Do not fail Q1 for a missing receipt, missing attendee list, or other documentation issue unless the note explicitly shows the purchase is not business related or not allowed by policy.\n- Q2 must assess only the dollar amount against the runtime threshold. Compare the stated amount to the policy limit only. If the amount is within limit, answer \"Yes\" even if other issues exist. If the amount is over the limit, answer \"No\". Do not use item category (e.g. lunch, parking, headphones) to decide Q2 except insofar as it reveals the amount.\n- Q3 must assess only the listed prohibited/review drivers, and you may generate only drivers that are explicitly supported by the note. Never add unsupported drivers or infer a missing-documentation issue from silence.\n- Map documentation problems only when the note explicitly says documentation is missing, unreadable, incomplete, or absent; if the note says documentation is attached/present, Q3.4 must not be selected.\n- When a note states a prohibited item or review driver is present, include the matching sub-question(s) only.\n- When a note does not explicitly support any Q3 driver, answer Q3 \"Yes\" and omit sub_questions or set them to null/[].\n- If Q3 is answered \"No\", include at least one applicable sub_question with reasoning and citations. If Q3 is answered \"Yes\", omit sub_questions or set them to null/[].\n- For questions without sub-questions, put the explanation in comments and evidence in citations.\n- For questions with sub-questions, keep question-level comments/citations null unless the schema or validation requires otherwise.\n\nRuntime policy facts to apply exactly:\n- business meals up to $60 are allowed; over $60 needs review.\n- alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.\n\nEvidence and style requirements:\n- Use only exact note fragments as citations; cite the fragment that directly supports the answer.\n- Be concise and evidence-based.\n- Do not add extra rationale that broadens a question\u2019s scope or duplicates another question\u2019s finding.\n\nSub-question selection guidance:\n- Q3.1 Alcohol is present: select only when alcohol is explicitly mentioned.\n- Q3.2 Gift card or cash-equivalent purchase is present: select only when explicitly mentioned.\n- Q3.3 Personal or non-business item is present: select only when the note explicitly indicates the item is personal or non-business.\n- Q3.4 Receipt or required documentation is missing: select only when the note explicitly says a required document is missing, unreadable, incomplete, or not provided. Do not infer this from a bare note that merely omits documentation details.\n\nInterpretation reminders from prior failure patterns:\n- A note like \"receipt attached\" means documentation is present, so do not mark the missing-documentation driver.\n- A note like \"missing attendee list but receipt attached\" supports Q3.4 because it explicitly states a required document is missing.\n- A note like \"Personal headphones $49 bought during travel\" supports Q1 No and Q3.3 Yes, but does not support Q3.4 unless documentation is explicitly missing.\n- A note like \"Parking for client visit $16, receipt attached\" supports Q1 Yes, Q2 Yes, and Q3 Yes with no sub-questions.\n\nOve..."
+      },
+      "parents": [
+        1
+      ]
+    },
+    {
+      "id": "4",
+      "candidate_index": 4,
+      "role": "best",
+      "score": 0.8125,
+      "candidate": {
+        "instructions": "Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy conservatively and literally; do not infer unstated failures, do not use outside knowledge, and do not let one question\u2019s answer contaminate another.\n\nPreserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly \"Yes\" or \"No\".\n\nDecision rules by question:\n- Q1: Judge only whether the purchase is business related and allowed by policy. Do not fail Q1 for missing receipt, missing attendee list, or any other documentation issue unless the note explicitly says the purchase is not business related or not allowed.\n- Q2: Judge only the dollar amount against the runtime limit. Compare the stated amount to the policy threshold only. If the amount is at or below the limit, answer \"Yes\" even if other issues exist. If the amount is over the limit, answer \"No\". Do not use item category to decide Q2 except as it reveals the amount.\n- Q3: Judge only the listed prohibited/review drivers. Select a sub-question only when the note explicitly supports that driver. Never add a Q3 driver from silence, implication, or from Q2/Q1 failure. If no Q3 driver is explicitly supported, answer Q3 \"Yes\" and set sub_questions to null or [].\n\nRuntime policy facts:\n- Business meals up to $60 are allowed; over $60 needs review.\n- Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.\n\nQ3 sub-question selection:\n- Q3.1 Alcohol: only if alcohol is explicitly mentioned.\n- Q3.2 Gift card / cash equivalent: only if explicitly mentioned.\n- Q3.3 Personal or non-business item: only if the note explicitly says personal, non-business, or clearly indicates a personal item.\n- Q3.4 Missing documentation: only if the note explicitly says a required document is missing, unreadable, incomplete, absent, or not provided. Phrases like \"receipt attached\" or \"itemized receipt\" mean documentation is present and must not trigger Q3.4.\n\nCritical anti-error rules from prior failures:\n- Do not select Q3.4 merely because the note lacks extra paperwork details; silence is not missing documentation.\n- Do not mark Q3 \"No\" just because Q2 is over limit. Q3 is only for explicit prohibited/review drivers listed in Q3.\n- If the note says documentation is attached/present, Q3.4 must be absent.\n- If the note says a required document is missing (for example, missing attendee list or no receipt attached), Q3.4 applies.\n- If the note explicitly mentions a personal item, that supports Q1 No and Q3.3 Yes, but not Q3.4 unless documentation is also explicitly missing.\n\nCitations and comments:\n- Use only short exact note fragments as citations; cite the specific fragment that directly supports the answer.\n- For Q1 and Q2, always provide concise question-level comments and citations.\n- For Q3: if Q3 is Yes, omit sub_questions or set them to null/[] and keep question-level comments/citations null. If Q3 is No, include only the supported sub_question(s) with reasoning and citations; do not include unsupported sub-questions.\n- Do not put generic explanatory text into unsupported sub-questions.\n\nOverall outcome:\n- \"Meets\" only if Q1 = Yes, Q2 = Yes, and Q3 = Yes.\n- Otherwise return \"Does Not Meet\".\n\nQuick examples:\n- \"Dinner $61 with client, itemized receipt, no alcohol.\" -> Q1 Yes, Q2 No, Q3 Yes, outcome Does Not Meet.\n- \"Coffee meeting $18, no receipt attached.\" -> Q1 Yes, Q2 Yes, Q3 No with Q3.4, outcome Does Not Meet.\n- \"Parking for client visit $16, receipt attached.\" -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets."
+      },
+      "parents": [
+        3
+      ]
+    },
+    {
+      "id": "5",
+      "candidate_index": 5,
+      "role": "candidate",
+      "score": 0.8125,
+      "candidate": {
+        "instructions": "Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.\n\nPreserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly \"Yes\" or \"No\".\n\nUse this question-separation rule:\n- Q1 = business purpose / basic allowability only.\n- Q2 = amount vs. the limit only.\n- Q3 = explicit prohibited or review-trigger drivers only.\n\nDecision rules:\n- Q1: Answer Yes if the note supports that the expense is business related and does not explicitly say it is not allowed. Do not fail Q1 for gift cards, alcohol, personal items, missing documentation, missing attendee lists, unreadable receipts, or any other documentation issue unless the note explicitly says the purchase itself is not business related or not allowed.\n- Q2: Compare only the stated dollar amount to the runtime threshold. If the amount is at or below the limit, answer Yes. If it is over the limit, answer No. Do not use item type, documentation status, or Q1/Q3 issues to decide Q2.\n- Q3: Select sub-questions only when the note explicitly supports them. Never add a Q3 driver from silence, implication, Q1, or Q2. If no Q3 driver is explicitly supported, answer Q3 Yes and set sub_questions to null or [].\n\nRuntime policy facts:\n- Business meals up to $60 are allowed; over $60 needs review.\n- Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.\n\nQ3 sub-question triggers:\n- Q3.1 Alcohol: only if alcohol is explicitly mentioned.\n- Q3.2 Gift card / cash equivalent: only if a gift card, cash, or cash equivalent is explicitly mentioned.\n- Q3.3 Personal or non-business item: only if the note explicitly says personal, non-business, or clearly identifies a personal item.\n- Q3.4 Missing documentation: only if the note explicitly says a required document is missing, unreadable, incomplete, absent, or not provided. Do not trigger Q3.4 from silence. Phrases like \"receipt attached,\" \"receipt present,\" or \"itemized receipt\" mean documentation is present and must not trigger Q3.4.\n\nAnti-error rules:\n- A gift card purchase is a Q3.2 issue, but it does not automatically make Q1 No unless the note also says the purchase is not business related or not allowed.\n- A client-related purchase is still business related even if another Q3 issue exists.\n- Do not mark Q3 No just because Q2 is over limit; amount failures belong to Q2.\n- If the note says documentation is attached/present, Q3.4 must be absent.\n- If the note says a required document is missing (for example, \"no receipt attached\"), Q3.4 applies.\n\nCitations and comments:\n- Use only short exact note fragments as citations; cite the specific fragment that directly supports each answer.\n- For Q1 and Q2, always provide concise question-level comments and citations.\n- For Q3: if Q3 is Yes, omit sub_questions or set them to null/[] and keep question-level comments/citations null. If Q3 is No, include only the supported sub_question(s) with reasoning and citations; do not include unsupported sub-questions.\n- Do not add generic explanation to unsupported sub-questions.\n\nOverall outcome:\n- \"Meets\" only if Q1 = Yes, Q2 = Yes, and Q3 = Yes.\n- Otherwise return \"Does Not Meet\".\n\nQuick examples:\n- \"Gift card purchase $25 for client raffle.\" -> Q1 Yes, Q2 Yes, Q3 No with Q3.2, outcome Does Not Meet.\n- \"Dinner $61 with client, itemized receipt, no alcohol.\" -> Q1 Yes, Q2 No, Q3 Yes, outcome Does Not Meet.\n- \"Coffee meeting $18, no receipt attached.\" -> Q1 Yes, Q2 Yes, Q3 No with Q3.4, outcome Does Not Meet.\n- \"Parking for client visit $16, receipt attached.\" -> Q1 Yes, Q2 Yes, Q3 Yes, outcome Meets."
+      },
+      "parents": [
+        4
+      ]
+    },
+    {
+      "id": "6",
+      "candidate_index": 6,
+      "role": "candidate",
+      "score": 0.8125,
+      "candidate": {
+        "instructions": "Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.\n\nPreserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly \"Yes\" or \"No\".\n\nUse this question-separation rule:\n- Q1 = business purpose / basic allowability only.\n- Q2 = amount vs. the limit only.\n- Q3 = explicit prohibited or review-trigger drivers only.\n\nDecision rules:\n- Q1: Answer Yes if the note supports that the expense is business related and does not explicitly say it is not allowed. Treat business context phrases such as \"team dinner,\" \"client visit,\" \"client-related,\" \"travel,\" or other work context as sufficient support when the note does not explicitly state the purchase is personal or not allowed. Do not fail Q1 for the item category alone (for example, headphones, parking, dinner, coffee, gift cards, alcohol) unless the note explicitly says the purchase itself is personal, non-business, or not allowed.\n- Q2: Compare only the stated dollar amount to the runtime threshold. If the amount is at or below the limit, answer Yes. If it is over the limit, answer No. Use only the amount and the threshold; do not use item type, business purpose, documentation status, or Q3 issues to decide Q2. If no amount is stated, answer No only if the form or policy explicitly requires an amount for this question; otherwise follow the form\u2019s normal missing-data handling.\n- Q3: Select sub-questions only when the note explicitly supports them. Never add a Q3 driver from silence, implication, Q1, or Q2. If no Q3 driver is explicitly supported, answer Q3 Yes and set sub_questions to null or [].\n\nRuntime policy facts:\n- Business meals up to $60 are allowed; over $60 needs review.\n- Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.\n\nQ3 sub-question triggers:\n- Q3.1 Alcohol: only if alcohol is explicitly mentioned.\n- Q3.2 Gift card / cash equivalent: only if a gift card, cash, or cash equivalent is explicitly mentioned.\n- Q3.3 Personal or non-business item: only if the note explicitly says personal, non-business, or clearly identifies a personal item.\n- Q3.4 Missing documentation: only if the note explicitly says a required document is missing, unreadable, incomplete, absent, or not provided. Do not trigger Q3.4 from silence. Phrases like \"receipt attached,\" \"receipt present,\" or \"itemized receipt\" mean documentation is present and must not trigger Q3.4.\n\nAnti-error rules:\n- A gift card purchase is a Q3.2 issue, but it does not automatically make Q1 No unless the note also says the purchase is not business related or not allowed.\n- A client-related or travel-related purchase is still business related even if another Q3 issue exists.\n- Do not mark Q3 No just because Q2 is over limit; amount failures belong to Q2.\n- Do not mark Q2 No because the item is alcohol, personal, a gift card, or missing documentation; those belong to Q3.\n- If the note says documentation is attached/present, Q3.4 must be absent.\n- If the note says a required document is missing (for example, \"no receipt attached\"), Q3.4 applies.\n\nCitations and comments:\n- Use only short exact note fragments as citations; cite the specific fragment that directly supports each answer.\n- For Q1 and Q2, always provide concise question-level comments and citations.\n- For Q3: if Q3 is Yes, omit sub_questions or set them to null/[] and keep question-level comments/citations null. If Q3 is No, include only the supported sub_question(s) with reasoning and citations; do not include unsupported sub-questions.\n- Do not add generic explanation to unsupported sub-questions.\n\nOverall outcome:\n- \"Meets\" only if Q1 = Yes, Q2 = Yes, and Q3 = Yes.\n- Otherwise return \"Does Not Meet\".\n\nQuick examples:\n- \"Gift card purch..."
+      },
+      "parents": [
+        5
+      ]
+    },
+    {
+      "id": "7",
+      "candidate_index": 7,
+      "role": "candidate",
+      "score": 0.8125,
+      "candidate": {
+        "instructions": "Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.\n\nPreserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly \"Yes\" or \"No\".\n\nCore routing rule:\n- Treat Q1, Q2, and Q3 as independent checks.\n- The overall outcome is determined only by the three top-level answers: \"Meets\" if and only if Q1 = Yes, Q2 = Yes, and Q3 = Yes. Otherwise output \"Does Not Meet\".\n- Do not default to Does Not Meet because an item is unfamiliar, not named in the runtime policy, or not a business meal. Only use the explicit rules below.\n\nUse this question-separation rule:\n- Q1 = business purpose / basic allowability only.\n- Q2 = amount vs. the limit only.\n- Q3 = explicit prohibited or review-trigger drivers only.\n\nDecision rules:\n- Q1: Answer Yes if the note supports that the expense is business related and does not explicitly say it is not allowed. Treat business context phrases such as \"team dinner,\" \"client visit,\" \"client-related,\" \"project room,\" \"travel,\" or other work context as sufficient support when the note does not explicitly state the purchase is personal or not allowed. Do not fail Q1 for the item category alone (for example, printer paper, headphones, parking, dinner, coffee, gift cards, alcohol) unless the note explicitly says the purchase itself is personal, non-business, or not allowed.\n- Q2: Compare only the stated dollar amount to the runtime threshold. If the amount is at or below the limit, answer Yes. If it is over the limit, answer No. Use only the amount and the threshold; do not use item type, business purpose, documentation status, or Q3 issues to decide Q2. If no amount is stated, answer No only if the form or policy explicitly requires an amount for this question; otherwise follow the form\u2019s normal missing-data handling.\n- Q3: Select sub-questions only when the note explicitly supports them. Never add a Q3 driver from silence, implication, Q1, or Q2. If no Q3 driver is explicitly supported, answer Q3 Yes and set sub_questions to null or [].\n\nRuntime policy facts:\n- Business meals up to $60 are allowed; over $60 needs review.\n- Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable documentation need review.\n- The policy facts above are the only special item-based review triggers; do not invent additional prohibited categories.\n\nQ3 sub-question triggers:\n- Q3.1 Alcohol: only if alcohol is explicitly mentioned.\n- Q3.2 Gift card / cash equivalent: only if a gift card, cash, or cash equivalent is explicitly mentioned.\n- Q3.3 Personal or non-business item: only if the note explicitly says personal, non-business, or clearly identifies a personal item.\n- Q3.4 Missing documentation: only if the note explicitly says a required document is missing, unreadable, incomplete, absent, or not provided. Do not trigger Q3.4 from silence. Phrases like \"receipt attached,\" \"receipt present,\" or \"itemized receipt\" mean documentation is present and must not trigger Q3.4.\n\nAnti-error rules:\n- A gift card purchase is a Q3.2 issue, but it does not automatically make Q1 No unless the note also says the purchase is not business related or not allowed.\n- A client-related, project-related, room-related, or travel-related purchase is still business related even if another Q3 issue exists.\n- Do not mark Q3 No just because Q2 is over limit; amount failures belong to Q2.\n- Do not mark Q2 No because the item is alcohol, personal, a gift card, or missing documentation; those belong to Q3.\n- If the note says documentation is attached/present, Q3.4 must be absent.\n- If the note says a required document is missing (for example, \"no receipt attached\"), Q3.4 applies.\n- If Q1, Q2, and Q3 are all Yes, the overall outcome must be Meets.\n\nCitations and comments:\n-..."
+      },
+      "parents": [
+        6
+      ]
+    },
+    {
+      "id": "8",
+      "candidate_index": 8,
+      "role": "candidate",
+      "score": 0.8125,
+      "candidate": {
+        "instructions": "Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.\n\nPreserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly \"Yes\" or \"No\".\n\nCore routing rule:\n- Treat Q1, Q2, and Q3 as independent checks.\n- The overall outcome is determined only by the three top-level answers: \"Meets\" if and only if Q1 = Yes, Q2 = Yes, and Q3 = Yes. Otherwise output \"Does Not Meet\".\n- Do not default to Does Not Meet because an item is unfamiliar, not named in the runtime policy, or not a business meal. Only use the explicit rules below.\n\nUse this question-separation rule:\n- Q1 = business purpose / basic allowability only.\n- Q2 = amount vs. the limit only.\n- Q3 = explicit prohibited or review-trigger drivers only.\n\nDecision rules:\n- Q1: Answer Yes if the note supports that the expense is business related and does not explicitly say it is not allowed. Treat business context phrases such as \"team dinner,\" \"client visit,\" \"client-related,\" \"project room,\" \"travel,\" or other work context as sufficient support when the note does not explicitly state the purchase is personal or not allowed. Do not fail Q1 for the item category alone (for example, printer paper, headphones, parking, dinner, coffee, gift cards, alcohol) unless the note explicitly says the purchase itself is personal, non-business, or not allowed.\n- Q2: Compare only the stated dollar amount to the applicable runtime limit. If the amount is at or below the limit, answer Yes. If it is over the limit, answer No. Use only the amount and the limit; do not use item type, business purpose, documentation status, or Q3 issues to decide Q2. If no amount is stated, answer No only if the form or policy explicitly requires an amount for this question; otherwise follow the form\u2019s normal missing-data handling.\n- Q3: Select sub-questions only when the note explicitly supports them. Never add a Q3 driver from silence, implication, Q1, or Q2. If no Q3 driver is explicitly supported, answer Q3 Yes and set sub_questions to null or [].\n\nRuntime policy facts:\n- Business meals up to $60 are allowed; over $60 needs review.\n- Alcohol, gift cards/cash equivalents, personal items, and missing or unreadable required documentation need review.\n- The policy facts above are the only special item-based review triggers; do not invent additional prohibited categories.\n\nQ3 sub-question triggers:\n- Q3.1 Alcohol: only if alcohol is explicitly mentioned.\n- Q3.2 Gift card / cash equivalent: only if a gift card, cash, or cash equivalent is explicitly mentioned.\n- Q3.3 Personal or non-business item: only if the note explicitly says personal, non-business, or clearly identifies a personal item.\n- Q3.4 Missing documentation: only if the note explicitly says a required document is missing, unreadable, incomplete, absent, or not provided. This includes missing supporting documentation such as an attendee list, itemized receipt, invoice, or other required attachment when the note says it is missing. Do not trigger Q3.4 from silence. Phrases like \"receipt attached,\" \"receipt present,\" or \"itemized receipt\" mean documentation is present and must not trigger Q3.4.\n\nAnti-error rules:\n- A gift card purchase is a Q3.2 issue, but it does not automatically make Q1 No unless the note also says the purchase is not business related or not allowed.\n- A client-related, project-related, room-related, or travel-related purchase is still business related even if another Q3 issue exists.\n- Do not mark Q3 No just because Q2 is over limit; amount failures belong to Q2.\n- Do not mark Q2 No because the item is alcohol, personal, a gift card, or missing documentation; those belong to Q3.\n- If the note says documentation is attached/present, Q3.4 must be absent.\n- If the note says a ..."
+      },
+      "parents": [
+        7
+      ]
+    },
+    {
+      "id": "9",
+      "candidate_index": 9,
+      "role": "pareto",
+      "score": 0.8125,
+      "candidate": {
+        "instructions": "Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.\n\nPreserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly \"Yes\" or \"No\".\n\nDecision flow:\n1) Evaluate Q1 from business purpose/allowability only.\n2) Evaluate Q2 from the stated amount versus the applicable limit only.\n3) Evaluate Q3 from explicit prohibited/review-trigger wording only.\nDo not let Q3 issues affect Q1 or Q2, and do not let Q2 failures affect Q3.\n\nCore routing rule:\n- Treat Q1, Q2, and Q3 as independent checks.\n- The overall outcome is \"Meets\" if and only if Q1 = Yes, Q2 = Yes, and Q3 = Yes. Otherwise output \"Does Not Meet\".\n- Do not default to Does Not Meet because an item is unfamiliar, not named in the runtime policy, or not a business meal. Use only the explicit rules below.\n\nQ1 \u2014 business related and allowed:\n- Answer Yes if the note supports that the expense is business related and does not explicitly say it is personal, non-business, or not allowed.\n- Treat business/work context phrases as sufficient support when present, including: \"team dinner,\" \"client visit,\" \"client-related,\" \"project room,\" \"travel,\" \"meeting,\" \"business,\" or similar work context.\n- Do not fail Q1 because a documentation issue is mentioned (for example, missing receipt, missing attendee list, invoice absent, unreadable attachment). Documentation problems belong to Q3.4, not Q1.\n- Do not fail Q1 for the item category alone (for example, printer paper, headphones, parking, dinner, coffee, gift cards, alcohol) unless the note explicitly says the purchase itself is personal, non-business, or not allowed.\n- Special rule: a missing attendee list, missing receipt, or other missing attachment does NOT make Q1 No by itself if the purchase is otherwise business-related.\n\nQ2 \u2014 amount vs. limit only:\n- Compare only the stated dollar amount to the applicable runtime limit.\n- If the amount is at or below the limit, answer Yes. If it is over the limit, answer No.\n- Use only the amount and the limit; do not use item type, business purpose, documentation status, alcohol, gift card status, personal status, or Q3 issues to decide Q2.\n- If no amount is stated, follow the form\u2019s normal missing-data handling only if the form explicitly requires an amount; otherwise do not invent a failure.\n- Runtime policy fact: business meals up to $60 are allowed; over $60 needs review.\n\nQ3 \u2014 explicit prohibited/review triggers only:\n- Select sub-questions only when the note explicitly supports them.\n- Never add a Q3 driver from silence, implication, Q1, or Q2.\n- If no Q3 driver is explicitly supported, answer Q3 Yes and set sub_questions to null or [].\n- Runtime policy facts: alcohol, gift cards/cash equivalents, personal items, and missing or unreadable required documentation need review.\n- These are the only special item-based review triggers; do not invent additional prohibited categories.\n\nQ3 sub-question triggers:\n- Q3.1 Alcohol: only if alcohol is explicitly mentioned.\n- Q3.2 Gift card / cash equivalent: only if a gift card, cash, or cash equivalent is explicitly mentioned.\n- Q3.3 Personal or non-business item: only if the note explicitly says personal, non-business, or clearly identifies a personal item.\n- Q3.4 Missing documentation: only if the note explicitly says a required document is missing, unreadable, incomplete, absent, or not provided.\n  - This includes missing supporting documentation such as an attendee list, itemized receipt, invoice, or other required attachment when the note says it is missing.\n  - Phrases like \"receipt attached,\" \"receipt present,\" or \"itemized receipt\" mean documentation is present and must not trigger Q3.4.\n  - Phrases like \"missing attendee list,\" \"no receipt attached,\" or \"invoice not provid..."
+      },
+      "parents": [
+        8
+      ]
+    },
+    {
+      "id": "10",
+      "candidate_index": 10,
+      "role": "candidate",
+      "score": 0.5208333333333333,
+      "candidate": {
+        "instructions": "Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.\n\nPreserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly \"Yes\" or \"No\".\n\nDecision flow:\n1) Evaluate Q1 from business purpose/allowability only.\n2) Evaluate Q2 from the stated amount versus the applicable limit only.\n3) Evaluate Q3 from explicit prohibited/review-trigger wording only.\nTreat Q1, Q2, and Q3 as independent checks. Do not let Q3 issues affect Q1 or Q2, and do not let Q2 failures affect Q3.\n\nCore routing rule:\n- The overall outcome is \"Meets\" if and only if Q1 = Yes, Q2 = Yes, and Q3 = Yes. Otherwise output \"Does Not Meet\".\n- Do not default to Does Not Meet because an item is unfamiliar, not named in the runtime policy, or not a business meal. Use only the explicit rules below.\n\nQ1 \u2014 business related and allowed:\n- Answer Yes if the note supports that the expense is business related and does not explicitly say it is personal use, non-business, or not allowed.\n- Treat work/travel/business context as sufficient support when present, including phrases like \"team dinner,\" \"client visit,\" \"client-related,\" \"project room,\" \"travel,\" \"meeting,\" \"business,\" or similar work context.\n- A mere item label that sounds personal or consumer-oriented (for example, \"personal headphones\") does NOT by itself make Q1 No unless the note explicitly says the purchase is for personal use, non-business, or otherwise not allowed.\n- Do not fail Q1 because a documentation issue is mentioned (for example, missing receipt, missing attendee list, invoice absent, unreadable attachment). Documentation problems belong to Q3.4, not Q1.\n- Do not fail Q1 for the item category alone (for example, printer paper, headphones, parking, dinner, coffee, gift cards, alcohol) unless the note explicitly says the purchase itself is personal use, non-business, or not allowed.\n- Special rule: a missing attendee list, missing receipt, or other missing attachment does NOT make Q1 No by itself if the purchase is otherwise business-related.\n- If the note includes a business/work context such as travel or client-related use and does not explicitly state personal use, prefer Q1 Yes.\n\nQ2 \u2014 amount vs. limit only:\n- Compare only the stated dollar amount to the applicable runtime limit.\n- If the amount is at or below the limit, answer Yes. If it is over the limit, answer No.\n- Use only the amount and the limit; do not use item type, business purpose, documentation status, alcohol, gift card status, personal status, or Q3 issues to decide Q2.\n- If no amount is stated, follow the form\u2019s normal missing-data handling only if the form explicitly requires an amount; otherwise do not invent a failure.\n- Runtime policy fact: business meals up to $60 are allowed; over $60 needs review.\n\nQ3 \u2014 explicit prohibited/review triggers only:\n- Select sub-questions only when the note explicitly supports them.\n- Never add a Q3 driver from silence, implication, Q1, or Q2.\n- If no Q3 driver is explicitly supported, answer Q3 Yes and set sub_questions to null or [].\n- Runtime policy facts: alcohol, gift cards/cash equivalents, personal items, and missing or unreadable required documentation need review.\n- These are the only special item-based review triggers; do not invent additional prohibited categories.\n\nQ3 sub-question triggers:\n- Q3.1 Alcohol: only if alcohol is explicitly mentioned.\n- Q3.2 Gift card / cash equivalent: only if a gift card, cash, or cash equivalent is explicitly mentioned.\n- Q3.3 Personal or non-business item: only if the note explicitly says personal, non-business, or clearly identifies a personal item or personal use.\n- Q3.4 Missing documentation: only if the note explicitly says a required document is missing, unreadable, incomplete, abs..."
+      },
+      "parents": [
+        9
+      ]
+    },
+    {
+      "id": "11",
+      "candidate_index": 11,
+      "role": "candidate",
+      "score": 0.7708333333333333,
+      "candidate": {
+        "instructions": "Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.\n\nPreserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly \"Yes\" or \"No\".\n\nDecision flow:\n1) Evaluate Q1 from business purpose/allowability only.\n2) Evaluate Q2 from the stated amount versus the applicable limit only.\n3) Evaluate Q3 from explicit prohibited/review-trigger wording only.\nDo not let Q3 issues affect Q1 or Q2, and do not let Q2 failures affect Q3.\n\nCore routing rule:\n- Treat Q1, Q2, and Q3 as independent checks.\n- The overall outcome is \"Meets\" if and only if Q1 = Yes, Q2 = Yes, and Q3 = Yes. Otherwise output \"Does Not Meet\".\n- Do not default to Does Not Meet because an item is unfamiliar, not named in the runtime policy, or not a business meal. Use only the explicit rules below.\n\nQ1 \u2014 business related and allowed:\n- Answer Yes if the note supports that the expense is business related and does not explicitly say it is personal, non-business, or not allowed.\n- Treat business/work context phrases as sufficient support when present, including: \"team dinner,\" \"client visit,\" \"client-related,\" \"project room,\" \"travel,\" \"meeting,\" \"business,\" or similar work context.\n- Do not fail Q1 because a documentation issue is mentioned (for example, missing receipt, missing attendee list, invoice absent, unreadable attachment). Documentation problems belong to Q3.4, not Q1.\n- Do not fail Q1 for the item category alone (for example, printer paper, headphones, parking, dinner, coffee, gift cards, alcohol) unless the note explicitly says the purchase itself is personal, non-business, or not allowed.\n- Special rule: a missing attendee list, missing receipt, or other missing attachment does NOT make Q1 No by itself if the purchase is otherwise business-related.\n\nQ2 \u2014 amount vs. limit only:\n- Compare only the stated dollar amount to the applicable runtime limit.\n- If the amount is at or below the limit, answer Yes. If it is over the limit, answer No.\n- Use only the amount and the limit; do not use item type, business purpose, documentation status, alcohol, gift card status, personal status, or Q3 issues to decide Q2.\n- If no amount is stated, follow the form\u2019s normal missing-data handling only if the form explicitly requires an amount; otherwise do not invent a failure.\n- Runtime policy fact: business meals up to $60 are allowed; over $60 needs review.\n\nQ3 \u2014 explicit prohibited/review triggers only:\n- First determine whether the note explicitly supports any Q3 driver.\n- Only if at least one Q3 driver is explicitly supported should Q3 be marked No.\n- If no Q3 driver is explicitly supported, answer Q3 Yes and set sub_questions to null or [] exactly. Do not include any sub_question objects when Q3 is Yes.\n- Never add a Q3 driver from silence, implication, Q1, or Q2.\n- Runtime policy facts: alcohol, gift cards/cash equivalents, personal items, and missing or unreadable required documentation need review.\n- These are the only special item-based review triggers; do not invent additional prohibited categories.\n\nQ3 sub-question triggers:\n- Q3.1 Alcohol: only if alcohol is explicitly mentioned.\n- Q3.2 Gift card / cash equivalent: only if a gift card, cash, or cash equivalent is explicitly mentioned.\n- Q3.3 Personal or non-business item: only if the note explicitly says personal, non-business, or clearly identifies a personal item.\n- Q3.4 Missing documentation: only if the note explicitly says a required document is missing, unreadable, incomplete, absent, or not provided.\n  - This includes missing supporting documentation such as an attendee list, itemized receipt, invoice, or other required attachment when the note says it is missing.\n  - Phrases like \"receipt attached,\" \"receipt present,\" \"itemized receipt,\"..."
+      },
+      "parents": [
+        9
+      ]
+    },
+    {
+      "id": "12",
+      "candidate_index": 12,
+      "role": "candidate",
+      "score": 0.7708333333333333,
+      "candidate": {
+        "instructions": "Complete the receipt reimbursement audit using only the claim note, the registered form, and the runtime policy facts. Apply the policy literally and conservatively. Do not infer unstated issues, do not use outside knowledge, and do not let one question affect another.\n\nPreserve the form structure, question order, IDs, and overall outcome exactly as provided. Every question answer must be exactly \"Yes\" or \"No\".\n\nDecision flow:\n1) Evaluate Q1 from business purpose/allowability only.\n2) Evaluate Q2 from the stated amount versus the applicable limit only.\n3) Evaluate Q3 from explicit prohibited/review-trigger wording only.\nTreat Q1, Q2, and Q3 as fully independent checks.\n\nCore routing rule:\n- The overall outcome is \"Meets\" if and only if Q1 = Yes, Q2 = Yes, and Q3 = Yes. Otherwise output \"Does Not Meet\".\n- Do not default to Does Not Meet because an item is unfamiliar, not named in the runtime policy, or not a business meal. Use only the explicit rules below.\n\nQ1 \u2014 business related and allowed:\n- Answer Yes if the note supports that the expense is business related and does not explicitly say it is personal, non-business, or not allowed.\n- Treat business/work context phrases as sufficient support when present, including: \"team dinner,\" \"client visit,\" \"client-related,\" \"project room,\" \"travel,\" \"meeting,\" \"business,\" or similar work context.\n- Do not fail Q1 because a documentation issue is mentioned (for example, missing receipt, missing attendee list, invoice absent, unreadable attachment). Documentation problems belong to Q3.4, not Q1.\n- Do not fail Q1 for the item category alone (for example, printer paper, headphones, parking, dinner, coffee, gift cards, alcohol) unless the note explicitly says the purchase itself is personal, non-business, or not allowed.\n- Special rule: a missing attendee list, missing receipt, or other missing attachment does NOT make Q1 No by itself if the purchase is otherwise business-related.\n\nQ2 \u2014 amount vs. limit only:\n- Compare only the stated dollar amount to the applicable runtime limit.\n- If the amount is at or below the limit, answer Yes. If it is over the limit, answer No.\n- Use only the amount and the limit; do not use item type, business purpose, documentation status, alcohol, gift card status, personal status, or Q3 issues to decide Q2.\n- If no amount is stated, follow the form\u2019s normal missing-data handling only if the form explicitly requires an amount; otherwise do not invent a failure.\n- Runtime policy fact: business meals up to $60 are allowed; over $60 needs review.\n\nQ3 \u2014 explicit prohibited/review triggers only:\n- Select sub-questions only when the note explicitly supports them.\n- Never add a Q3 driver from silence, implication, Q1, Q2, or from the presence of a different item on the receipt.\n- If no Q3 driver is explicitly supported, answer Q3 Yes and set sub_questions to null or [].\n- Runtime policy facts: alcohol, gift cards/cash equivalents, personal items, and missing or unreadable required documentation need review.\n- These are the only special item-based review triggers; do not invent additional prohibited categories.\n\nQ3 sub-question triggers:\n- Q3.1 Alcohol: only if alcohol is explicitly mentioned.\n  - Examples that DO trigger: \"wine,\" \"beer,\" \"cocktail,\" \"alcohol\".\n  - Examples that do NOT trigger: a receipt that merely lists items while separately showing the receipt is present.\n- Q3.2 Gift card / cash equivalent: only if a gift card, cash, or cash equivalent is explicitly mentioned.\n- Q3.3 Personal or non-business item: only if the note explicitly says personal, non-business, or clearly identifies a personal item.\n- Q3.4 Missing documentation: only if the note explicitly says a required document is missing, unreadable, incomplete, absent, or not provided.\n  - This includes missing supporting documentation such as an attendee list, itemized receipt, invoice, or other required attachment when the note says it is missing.\n  - Phrases like \"receipt attached,\" \"receipt present,..."
+      },
+      "parents": [
+        9
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "0-1",
+      "source": "0",
+      "target": "1"
+    },
+    {
+      "id": "1-2",
+      "source": "1",
+      "target": "2"
+    },
+    {
+      "id": "1-3",
+      "source": "1",
+      "target": "3"
+    },
+    {
+      "id": "3-4",
+      "source": "3",
+      "target": "4"
+    },
+    {
+      "id": "4-5",
+      "source": "4",
+      "target": "5"
+    },
+    {
+      "id": "5-6",
+      "source": "5",
+      "target": "6"
+    },
+    {
+      "id": "6-7",
+      "source": "6",
+      "target": "7"
+    },
+    {
+      "id": "7-8",
+      "source": "7",
+      "target": "8"
+    },
+    {
+      "id": "8-9",
+      "source": "8",
+      "target": "9"
+    },
+    {
+      "id": "9-10",
+      "source": "9",
+      "target": "10"
+    },
+    {
+      "id": "9-11",
+      "source": "9",
+      "target": "11"
+    },
+    {
+      "id": "9-12",
+      "source": "9",
+      "target": "12"
+    }
+  ],
+  "best_idx": 4,
+  "pareto_front": [
+    9
+  ],
+  "config": {
+    "name": "GEPA Prompt Optimization",
+    "form_id": "demo_receipt_policy",
+    "form_version": "v0.1",
+    "seed_instruction_source": "form",
+    "manual_instructions": "",
+    "metric_mode": "comparison",
+    "score_key": "score",
+    "reference_policy": "prefer_r2",
+    "judge_model": null,
+    "gepa_params": {
+      "auto": "light",
+      "max_full_evals": null,
+      "max_metric_calls": null,
+      "reflection_model": null,
+      "reflection_minibatch_size": 3,
+      "perfect_score": 1.0,
+      "skip_perfect_score": true,
+      "candidate_selection_strategy": "pareto",
+      "frontier_type": "instance",
+      "batch_sampler": "epoch_shuffled",
+      "module_selector": "all",
+      "use_merge": false,
+      "max_merge_invocations": 5,
+      "merge_val_overlap_floor": 5,
+      "cache_evaluation": false,
+      "track_best_outputs": false,
+      "display_progress_bar": false,
+      "raise_on_exception": false,
+      "val_evaluation_policy": null,
+      "use_mlflow": false,
+      "mlflow_tracking_uri": null,
+      "mlflow_experiment_name": null,
+      "seed": 0
+    },
+    "trace_config": {
+      "capture_traces": true,
+      "max_tool_return_chars": 2000,
+      "include_debug_traces": true,
+      "include_thinking": true
+    },
+    "case_splits": [
+      {
+        "case_id": "b24f6a6c-2238-4153-8d10-a8aa6e1d0ed1",
+        "split": "train"
+      },
+      {
+        "case_id": "2b510207-6e87-4c12-96d2-f0937cef0b89",
+        "split": "train"
+      },
+      {
+        "case_id": "25f7e784-e4fb-49d0-9183-bc4925c9d2b8",
+        "split": "train"
+      },
+      {
+        "case_id": "e03c1de7-8c06-4881-a699-fa0277113eaa",
+        "split": "train"
+      },
+      {
+        "case_id": "950e9c61-0912-4666-b401-c371ddeb61d3",
+        "split": "train"
+      },
+      {
+        "case_id": "d01a8b93-5265-41c8-96df-bd1eb07dcf76",
+        "split": "train"
+      },
+      {
+        "case_id": "4d8a1b2c-52cf-446a-8cad-37965f613d2c",
+        "split": "train"
+      },
+      {
+        "case_id": "4464fa3e-b108-43a5-ac97-0e2274392222",
+        "split": "train"
+      },
+      {
+        "case_id": "8d754a1e-7536-483c-9997-b9a39406ac50",
+        "split": "train"
+      },
+      {
+        "case_id": "217bbc32-d602-45fe-8041-cdd63be6e743",
+        "split": "train"
+      },
+      {
+        "case_id": "6b16acae-4e60-4702-8756-8ad52536058c",
+        "split": "train"
+      },
+      {
+        "case_id": "d590ef9d-a671-4ea5-affd-cd08b88a3878",
+        "split": "train"
+      },
+      {
+        "case_id": "6afec42a-b0b6-4075-9be2-0ed59670ad14",
+        "split": "val"
+      },
+      {
+        "case_id": "01687966-1a8d-4fd2-8de3-675995a90dc8",
+        "split": "val"
+      },
+      {
+        "case_id": "6c4189b4-5bb2-4831-b410-1eb66f639665",
+        "split": "val"
+      },
+      {
+        "case_id": "0d36ce92-0851-40c2-82d0-8e2c3fa9e589",
+        "split": "val"
+      },
+      {
+        "case_id": "8ed983af-b654-4a17-b0c3-e3a847e68f98",
+        "split": "test"
+      },
+      {
+        "case_id": "c587156e-d3d7-4b10-b68f-fa7699553358",
+        "split": "test"
+      },
+      {
+        "case_id": "fb93f3a0-fc5c-4e42-af0e-30b1d044e100",
+        "split": "test"
+      },
+      {
+        "case_id": "9a6e857f-d874-4886-b6a6-e6f5d56c2370",
+        "split": "test"
+      }
+    ]
+  },
+  "test_report": {
+    "count": 4,
+    "average_score": 0.7083333333333333,
+    "items": [
+      {
+        "case_id": "8ed983af-b654-4a17-b0c3-e3a847e68f98",
+        "claim_number": "RCPT-015",
+        "score": 1.0,
+        "success": true,
+        "feedback": "Reference R2\nSelected score `score` = 1.0000.\nScore components:\n- score: 1.0000\n- question_agreement: 1.0000\n- path_exact_rate: 1.0000\n- subquestion_f1: 1.0000\n- outcome_score: 1.0000",
+        "comparison": {
+          "score": 1.0,
+          "references": [
+            "{'metric_schema_version': 2, 'score': 1.0, 'score_percent': 100.0, 'outcome_match': True, 'outcome_score': 1.0, 'generated_outcome': 'Does Not Meet', 'reference_outcome': 'Does Not Meet', 'generated_outcome_justification': 'Q1 Yes, Q2 Yes, but Q3 is No due to missing/unreadable receipt documentation (Q3.4).', 'reference_outcome_justification': 'The reimbursement needs review because one or more policy drivers apply.', 'question_total': 3, 'question_matches': 3, 'question_agreement': 1.0, 'question_agreement_percent': 100.0, 'question_no_precision': 1.0, 'question_no_recall': 1.0, 'question_no_f1': 1.0, 'question_no_f1_percent': 100.0, 'subquestion_eligible_question_count': 1, 'subquestion_total': 4, 'subquestion_matches': 4, 'subquestion_agreement': 1.0, 'subquestion_agreement_percent': 100.0, 'subquestion_precision': 1.0, 'subquestion_recall': 1.0, 'subquestion_f1': 1.0, 'subquestion_f1_percent': 100.0, 'path_exact_matches': 3, 'path_exact_rate': 1.0, 'path_exact_percent': 100.0, 'form_exact_match': True, 'question_agreements': {'Q1': 1.0, 'Q2': 1.0, 'Q3': 1.0}, 'questions': []}"
+          ]
+        }
+      },
+      {
+        "case_id": "9a6e857f-d874-4886-b6a6-e6f5d56c2370",
+        "claim_number": "RCPT-016",
+        "score": 0.8333333333333333,
+        "success": true,
+        "feedback": "Reference R2\nSelected score `score` = 0.8333.\nScore components:\n- score: 0.8333\n- question_agreement: 1.0000\n- path_exact_rate: 0.6667\n- subquestion_f1: 0.6667\n- outcome_score: 1.0000\n- Q3 mismatch: generated `No` vs reference `No`\n- unexpected driver: Q3.4 Receipt or required documentation is missing.\n  Generated reasoning: The note does not mention any receipt or required documentation being missing; however, documentation status is not explicitly provided in the note. Under conservative literal rules, this driver cannot be applied without explicit mention of missing documentation.",
+        "comparison": {
+          "score": 0.8333333333333333,
+          "references": [
+            "{'metric_schema_version': 2, 'score': 0.8333333333333333, 'score_percent': 83.33, 'outcome_match': True, 'outcome_score': 1.0, 'generated_outcome': 'Does Not Meet', 'reference_outcome': 'Does Not Meet', 'generated_outcome_justification': 'Q2 fails because $92 exceeds the $60 business meal limit, and Q3 fails because alcohol (cocktails) is explicitly present.', 'reference_outcome_justification': 'The reimbursement needs review because one or more policy drivers apply.', 'question_total': 3, 'question_matches': 3, 'question_agreement': 1.0, 'question_agreement_percent': 100.0, 'question_no_precision': 1.0, 'question_no_recall': 1.0, 'question_no_f1': 1.0, 'question_no_f1_percent': 100.0, 'subquestion_eligible_question_count': 2, 'subquestion_total': 4, 'subquestion_matches': 3, 'subquestion_agreement': 0.75, 'subquestion_agreement_percent': 75.0, 'subquestion_precision': 0.5, 'subquestion_recall': 1.0, 'subquestion_f1': 0.6666666666666666, 'subquestion_f1_percent': 66.67, 'path_exact_matches': 2, 'path_exact_rate': 0.6666666666666666, 'path_exact_percent': 66.67, 'form_exact_match': False, 'question_agreements': {'Q1': 1.0, 'Q2': 1.0, 'Q3': 1.0}, 'questions': [{'id': 'Q3', 'text': 'Does the request avoid prohibited or review-required drivers?', 'generated_answer': 'No', 'reference_answer': 'No', 'sub_questions': [{'id': 'Q3.4', 'text': 'Receipt or required documentation is missing.', 'generated_answer': True, 'reference_answer': False, 'generated_reasoning': 'The note does not mention any receipt or required documentation being missing; however, documentation status is not explicitly provided in the note. Under conservative literal rules, this driver cannot be applied without explicit mention of missing documentation.', 'reference_reasoning': ''}]}]}"
+          ]
+        }
+      },
+      {
+        "case_id": "c587156e-d3d7-4b10-b68f-fa7699553358",
+        "claim_number": "RCPT-009",
+        "score": 0.3333333333333333,
+        "success": true,
+        "feedback": "Reference R2\nSelected score `score` = 0.3333.\nScore components:\n- score: 0.3333\n- question_agreement: 0.6667\n- path_exact_rate: 0.6667\n- subquestion_f1: 0.0000\n- outcome_score: 0.0000\n- outcome mismatch: generated `Meets` vs reference `Does Not Meet`\n  Generated rationale: Q1 Yes (business-related per note), Q2 Yes (amount $14 within $60 limit), Q3 Yes (no prohibited/review drivers explicitly indicated).\n  Reference rationale: The reimbursement needs review because one or more policy drivers apply.\n- Q3 mismatch: generated `Yes` vs reference `No`\n- missed driver: Q3.3 Personal or non-business item is present.\n  Reference reasoning: Personal or non-business item is present. Evidence from note: Hotel minibar snacks $14 during trip.",
+        "comparison": {
+          "score": 0.3333333333333333,
+          "references": [
+            "{'metric_schema_version': 2, 'score': 0.3333333333333333, 'score_percent': 33.33, 'outcome_match': False, 'outcome_score': 0.0, 'generated_outcome': 'Meets', 'reference_outcome': 'Does Not Meet', 'generated_outcome_justification': 'Q1 Yes (business-related per note), Q2 Yes (amount $14 within $60 limit), Q3 Yes (no prohibited/review drivers explicitly indicated).', 'reference_outcome_justification': 'The reimbursement needs review because one or more policy drivers apply.', 'question_total': 3, 'question_matches': 2, 'question_agreement': 0.6666666666666666, 'question_agreement_percent': 66.67, 'question_no_precision': 0.0, 'question_no_recall': 0.0, 'question_no_f1': 0.0, 'question_no_f1_percent': 0.0, 'subquestion_eligible_question_count': 0, 'subquestion_total': 0, 'subquestion_matches': 0, 'subquestion_agreement': 0.0, 'subquestion_agreement_percent': 0.0, 'subquestion_precision': 0.0, 'subquestion_recall': 0.0, 'subquestion_f1': 0.0, 'subquestion_f1_percent': 0.0, 'path_exact_matches': 2, 'path_exact_rate': 0.6666666666666666, 'path_exact_percent': 66.67, 'form_exact_match': False, 'question_agreements': {'Q1': 1.0, 'Q2': 1.0, 'Q3': 0.0}, 'questions': [{'id': 'Q3', 'text': 'Does the request avoid prohibited or review-required drivers?', 'generated_answer': 'Yes', 'reference_answer': 'No', 'sub_questions': [{'id': 'Q3.3', 'text': 'Personal or non-business item is present.', 'generated_answer': False, 'reference_answer': True, 'generated_reasoning': '', 'reference_reasoning': 'Personal or non-business item is present. Evidence from note: Hotel minibar snacks $14 during trip.'}]}]}"
+          ]
+        }
+      },
+      {
+        "case_id": "fb93f3a0-fc5c-4e42-af0e-30b1d044e100",
+        "claim_number": "RCPT-018",
+        "score": 0.6666666666666666,
+        "success": true,
+        "feedback": "Reference R2\nSelected score `score` = 0.6667.\nScore components:\n- score: 0.6667\n- question_agreement: 0.3333\n- path_exact_rate: 0.3333\n- subquestion_f1: 1.0000\n- outcome_score: 1.0000\n- Q1 mismatch: generated `No` vs reference `Yes`\n  Generated rationale: The note describes a \u201cVisa prepaid card $100 for vendor thank-you,\u201d which is a gift card/cash-equivalent type item and is not allowed under the stated policy (requires review).\n  Reference rationale: The purchase appears business related.\n- Q2 mismatch: generated `No` vs reference `Yes`\n  Generated rationale: Policy allows business meals up to $60; the note states $100, which exceeds the $60 limit and thus needs review.\n  Reference rationale: The amount is within the $60 policy threshold.",
+        "comparison": {
+          "score": 0.6666666666666666,
+          "references": [
+            "{'metric_schema_version': 2, 'score': 0.6666666666666666, 'score_percent': 66.67, 'outcome_match': True, 'outcome_score': 1.0, 'generated_outcome': 'Does Not Meet', 'reference_outcome': 'Does Not Meet', 'generated_outcome_justification': 'Q1 = No (prepaid card for vendor thank-you is a prohibited/review gift-card/cash-equivalent driver). Q2 = No ($100 exceeds the $60 business-meal limit). Q3 = No (gift card/cash-equivalent present).', 'reference_outcome_justification': 'The reimbursement needs review because one or more policy drivers apply.', 'question_total': 3, 'question_matches': 1, 'question_agreement': 0.3333333333333333, 'question_agreement_percent': 33.33, 'question_no_precision': 0.3333333333333333, 'question_no_recall': 1.0, 'question_no_f1': 0.5, 'question_no_f1_percent': 50.0, 'subquestion_eligible_question_count': 1, 'subquestion_total': 4, 'subquestion_matches': 4, 'subquestion_agreement': 1.0, 'subquestion_agreement_percent': 100.0, 'subquestion_precision': 1.0, 'subquestion_recall': 1.0, 'subquestion_f1': 1.0, 'subquestion_f1_percent': 100.0, 'path_exact_matches': 1, 'path_exact_rate': 0.3333333333333333, 'path_exact_percent': 33.33, 'form_exact_match': False, 'question_agreements': {'Q1': 0.0, 'Q2': 0.0, 'Q3': 1.0}, 'questions': [{'id': 'Q1', 'text': 'Is the purchase business related and allowed by policy?', 'generated_answer': 'No', 'reference_answer': 'Yes', 'sub_questions': []}, {'id': 'Q2', 'text': 'Is the expense amount within policy limits?', 'generated_answer': 'No', 'reference_answer': 'Yes', 'sub_questions': []}]}"
+          ]
+        }
+      }
+    ]
+  },
+  "total_metric_calls": 400
+}

@@ -264,6 +264,9 @@ class ReviewRepository:
             synthetic_count=request.synthetic_count,
             input_mode=request.input_mode,
             generation_prompt=request.generation_prompt,
+            prompt_ref_json=(
+                request.prompt_ref.model_dump(mode="json") if request.prompt_ref else None
+            ),
             excel_column_map=request.excel_column_map,
             items_json=[item.model_dump(mode="json") for item in request.items],
         )
@@ -290,6 +293,9 @@ class ReviewRepository:
         record.synthetic_count = request.synthetic_count
         record.input_mode = request.input_mode
         record.generation_prompt = request.generation_prompt
+        record.prompt_ref_json = (
+            request.prompt_ref.model_dump(mode="json") if request.prompt_ref else None
+        )
         record.excel_column_map = request.excel_column_map
         record.items_json = [item.model_dump(mode="json") for item in request.items]
         record.updated_at = _now()
@@ -833,6 +839,7 @@ class ReviewRepository:
             synthetic_count=template.synthetic_count,
             input_mode=template.input_mode,  # type: ignore[arg-type]
             generation_prompt=template.generation_prompt or "",
+            prompt_ref=template.prompt_ref_json,
             excel_column_map=template.excel_column_map or {},
             items=items,
             item_count=(

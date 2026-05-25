@@ -4,8 +4,15 @@ import pytest
 from gepa.core.adapter import EvaluationBatch
 from pydantic import ValidationError
 from pydantic_ai import Agent
-from pydantic_ai.messages import ModelRequest, ModelResponse, ThinkingPart, ToolReturnPart
+from pydantic_ai.messages import (
+    ModelRequest,
+    ModelResponse,
+    ThinkingPart,
+    ToolCallPart,
+    ToolReturnPart,
+)
 from pydantic_ai.models.test import TestModel
+from pydantic_ai.usage import RunUsage
 
 from app.models.audit import AuditFormResult, FormQuestion, FormSubQuestion
 from app.schemas.optimizations import (
@@ -14,6 +21,7 @@ from app.schemas.optimizations import (
     OptimizationTraceConfig,
 )
 from app.services.optimization.runner import auto_budget, estimate_metric_budget
+from app.services.optimization.utils import llm_visible_dump, usage_to_dict
 from app.services.optimization_service import (
     AuditPromptProgram,
     OptimizationDataInstance,
@@ -154,6 +162,7 @@ def test_trace_serializer_truncates_tool_returns_and_keeps_thinking() -> None:
         ModelResponse(
             parts=[
                 ThinkingPart(content="full thinking trace", provider_name="test"),
+                ToolCallPart(tool_name="lookup", args={"query": "x"}, tool_call_id="call-1"),
                 ToolReturnPart(tool_name="lookup", content="x" * 140, tool_call_id="call-1"),
             ],
             model_name="test",
@@ -167,10 +176,30 @@ def test_trace_serializer_truncates_tool_returns_and_keeps_thinking() -> None:
     parts = trace[0]["parts"]
     assert parts[0]["type"] == "thinking"
     assert parts[0]["content"] == "full thinking trace"
-    assert parts[1]["type"] == "tool_return"
-    assert parts[1]["content"] == "x" * 100
-    assert parts[1]["original_char_count"] == 140
-    assert parts[1]["truncated"] is True
+    assert parts[1]["type"] == "tool_call"
+    assert parts[2]["type"] == "tool_return"
+    assert parts[2]["content"] == "x" * 100
+    assert parts[2]["original_char_count"] == 140
+    assert parts[2]["truncated"] is True
+
+
+def test_llm_visible_dump_omits_skip_json_schema_fields_and_usage_tracks_tools() -> None:
+    dumped = llm_visible_dump(_result(q3_drivers=(True, False)))
+
+    assert "id" not in dumped
+    assert "cost" not in dumped
+    assert "image_cost" not in dumped
+    assert "latency" not in dumped
+    assert "ground_truth" not in dumped
+    assert "extras" not in dumped
+    assert "help_text" not in dumped["questions"][0]
+    sub_question = dumped["questions"][2]["sub_questions"][0]
+    assert "answer" not in sub_question
+    assert "help_text" not in sub_question
+
+    usage = usage_to_dict(RunUsage(input_tokens=5, output_tokens=7, requests=1), tool_calls=2)
+    assert usage["tool_calls"] == 2
+    assert usage["total_tokens"] == 12
 
 
 def test_reflection_input_ports_gepadantic_component_contract() -> None:
@@ -256,6 +285,7 @@ def test_gepa_budget_modes_are_mutually_exclusive() -> None:
 
 
 def test_gepa_budget_estimator_matches_config_modes() -> None:
+    assert auto_budget(num_candidates=6, valset_size=4) == 396
     assert (
         estimate_metric_budget(
             OptimizationGepaParams(max_metric_calls=9),
