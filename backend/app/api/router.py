@@ -5,7 +5,6 @@ from app.api.routers import (
     chat,
     evaluations,
     forms,
-    generated_images,
     health,
     optimizations,
     prompts,
@@ -21,8 +20,3 @@ api_router.include_router(prompts.router, prefix="/prompts", tags=["prompts"])
 api_router.include_router(reviews.router, prefix="/reviews", tags=["reviews"])
 api_router.include_router(evaluations.router, prefix="/evaluations", tags=["evaluations"])
 api_router.include_router(optimizations.router, prefix="/optimizations", tags=["optimizations"])
-api_router.include_router(
-    generated_images.router,
-    prefix="/generated-images",
-    tags=["generated-images"],
-)

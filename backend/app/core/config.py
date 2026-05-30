@@ -27,8 +27,6 @@ class Settings(BaseSettings):
     default_questionnaire_path: Path = Path("data/form_catalog/tfr_default__v0.1.json")
     completed_intake_docs_dir: Path = Path("data/intake_docs")
     batch_concurrency: int = 2
-    image_model: str = "gpt-image-2"
-    generated_images_dir: Path = Path("data/generated_images")
     chat_artifacts_dir: Path = Path("data/chat_artifacts")
     optimization_runs_dir: Path = Path("data/optimization_runs")
     agent_workspace_dir: Path = Path("data/workspace")

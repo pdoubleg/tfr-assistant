@@ -3,7 +3,6 @@
 from typing import Any
 
 from app.models.a2ui import A2UIComponent
-from app.services.image_generation import GeneratedImage
 
 
 def generate_data_table(
@@ -52,27 +51,6 @@ def generate_code_disclosure(
             "caption": caption,
             "defaultOpen": default_open,
             "copyable": copyable,
-        },
-        layout={"width": "full"},
-        zone="chat",
-    )
-
-
-def generate_image_card(image: GeneratedImage) -> A2UIComponent:
-    """Build an image component payload for generated chat artifacts."""
-
-    return A2UIComponent(
-        type="a2ui.GeneratedImage",
-        props={
-            "imageUrl": image.url,
-            "prompt": image.prompt,
-            "revisedPrompt": image.revised_prompt,
-            "filename": image.filename,
-            "model": image.model,
-            "size": image.size,
-            "quality": image.quality,
-            "mimeType": image.mime_type,
-            "createdAt": image.created_at,
         },
         layout={"width": "full"},
         zone="chat",
