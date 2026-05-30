@@ -24,7 +24,6 @@ import {
 } from "lucide-react";
 
 import { TablePagination } from "@/components/dashboard/table-pagination";
-import { PromptSelector } from "@/components/forms/prompt-selector";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,7 +50,6 @@ import type {
   EvalRunRecord,
   EvalRunStatus,
   FormQuestion,
-  PromptReference,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -98,7 +96,6 @@ interface EvalRunDialogState {
   reference_policy: EvalReferencePolicy;
   retry_limit: number;
   enable_mlflow: boolean;
-  prompt_ref?: PromptReference | null;
 }
 
 interface HierarchyMetricRow {
@@ -462,7 +459,6 @@ function initialDialogState(datasets: EvalDatasetRecord[], run?: EvalRunRecord |
     reference_policy: run?.reference_policy ?? "prefer_r2",
     retry_limit: run?.retry_limit ?? 0,
     enable_mlflow: run?.enable_mlflow ?? false,
-    prompt_ref: run?.prompt_ref ?? null,
   };
 }
 
@@ -2578,7 +2574,7 @@ function EvalRunDialog({
       reference_policy: state.reference_policy,
       retry_limit: state.retry_limit,
       enable_mlflow: state.enable_mlflow,
-      prompt_ref: state.prompt_ref ?? null,
+      prompt_ref: null,
       base_run_id: editingRun?.id ?? null,
     });
   };
@@ -2630,7 +2626,7 @@ function EvalRunDialog({
             <span className="text-sm font-medium">Dataset</span>
             <select
               value={state.dataset_id}
-              onChange={(event) => setState((current) => ({ ...current, dataset_id: event.target.value, prompt_ref: null }))}
+              onChange={(event) => setState((current) => ({ ...current, dataset_id: event.target.value }))}
               disabled={saving}
               className="h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
@@ -2652,18 +2648,10 @@ function EvalRunDialog({
                 <Badge variant="secondary">R2 {selectedDataset.r2_count}</Badge>
               </div>
               <p className="mt-2 text-sm text-muted-foreground">{selectedDataset.description || selectedDataset.source_kind}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Eval runs use the active prompt configured on this form version.
+              </p>
             </div>
-          ) : null}
-
-          {selectedDataset ? (
-            <PromptSelector
-              formId={selectedDataset.form_id}
-              formVersion={selectedDataset.form_version}
-              value={state.prompt_ref}
-              onChange={(prompt_ref) => setState((current) => ({ ...current, prompt_ref }))}
-              disabled={saving}
-              helperText="Use production for normal evals, staging or a fixed version for prompt comparisons."
-            />
           ) : null}
 
           <div className="grid gap-4">

@@ -518,6 +518,10 @@ class PromptFamilyORM(Base):
         back_populates="family",
         cascade="all, delete-orphan",
     )
+    activations: Mapped[list["PromptActivationORM"]] = relationship(
+        back_populates="family",
+        cascade="all, delete-orphan",
+    )
 
 
 class PromptVersionORM(Base):
@@ -553,6 +557,7 @@ class PromptVersionORM(Base):
 
     family: Mapped[PromptFamilyORM] = relationship(back_populates="versions")
     aliases: Mapped[list["PromptAliasORM"]] = relationship(back_populates="version")
+    activations: Mapped[list["PromptActivationORM"]] = relationship(back_populates="version")
 
 
 class PromptAliasORM(Base):
@@ -572,3 +577,28 @@ class PromptAliasORM(Base):
 
     family: Mapped[PromptFamilyORM] = relationship(back_populates="aliases")
     version: Mapped[PromptVersionORM] = relationship(back_populates="aliases")
+
+
+class PromptActivationORM(Base):
+    __tablename__ = "prompt_activations"
+    __table_args__ = (
+        UniqueConstraint("family_id", "scope_key", name="uq_prompt_activation_scope"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    family_id: Mapped[str] = mapped_column(ForeignKey("prompt_families.id"), index=True)
+    version_id: Mapped[str] = mapped_column(ForeignKey("prompt_versions.id"), index=True)
+    scope_key: Mapped[str] = mapped_column(String(96), index=True)
+    scope: Mapped[str] = mapped_column(String(32), default="form_version", index=True)
+    form_version: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    activated_by: Mapped[str] = mapped_column(String(120), default="user")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+    family: Mapped[PromptFamilyORM] = relationship(back_populates="activations")
+    version: Mapped[PromptVersionORM] = relationship(back_populates="activations")

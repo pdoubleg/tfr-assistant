@@ -34,12 +34,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   bootstrapPromptFamily,
+  createPromptVersion,
   extractFormFromExcel,
   getFormDefinition,
   listFormCatalog,
   listPromptFamilies,
   registerForm,
-  setPromptAlias,
+  setPromptActivation,
 } from "@/lib/api";
 import type {
   AuditFormDefinition,
@@ -530,7 +531,8 @@ function PromptRegistryPanel({
   registeredInstructions,
   onRefresh,
   onInitialize,
-  onAssignAlias,
+  onRegisterPrompt,
+  onSetActive,
 }: {
   families: PromptFamilyRecord[];
   loading: boolean;
@@ -541,12 +543,16 @@ function PromptRegistryPanel({
   registeredInstructions: string;
   onRefresh: () => void;
   onInitialize: () => Promise<void>;
-  onAssignAlias: (familyId: string, alias: string, versionId: string) => Promise<void>;
+  onRegisterPrompt: (familyId: string | null, text: string, commitMessage: string) => Promise<void>;
+  onSetActive: (familyId: string, versionId: string) => Promise<void>;
 }) {
   const family = families[0] ?? null;
   const versions = useMemo(() => family?.versions ?? [], [family?.versions]);
   const [leftVersionId, setLeftVersionId] = useState("");
   const [rightVersionId, setRightVersionId] = useState("");
+  const [registerOpen, setRegisterOpen] = useState(false);
+  const [newPromptText, setNewPromptText] = useState("");
+  const [newPromptMessage, setNewPromptMessage] = useState("");
 
   useEffect(() => {
     if (!versions.length) {
@@ -560,14 +566,23 @@ function PromptRegistryPanel({
 
   const leftVersion = versions.find((version) => version.id === leftVersionId) ?? versions[Math.min(1, versions.length - 1)];
   const rightVersion = versions.find((version) => version.id === rightVersionId) ?? versions[0];
-  const aliasesByVersion = useMemo(() => {
-    const map = new Map<string, string[]>();
-    for (const alias of family?.aliases ?? []) {
-      map.set(alias.version_id, [...(map.get(alias.version_id) ?? []), alias.alias]);
-    }
-    return map;
-  }, [family?.aliases]);
+  const activeForVersion = useMemo(
+    () => family?.activations.find((activation) => activation.scope === "form_version" && activation.form_version === formVersion) ?? null,
+    [family?.activations, formVersion],
+  );
+  const activeDefault = useMemo(
+    () => family?.activations.find((activation) => activation.scope === "form_default") ?? null,
+    [family?.activations],
+  );
+  const activeVersionId = activeForVersion?.version_id ?? activeDefault?.version_id ?? "";
   const diffLines = leftVersion && rightVersion ? buildLineDiff(leftVersion.text, rightVersion.text) : [];
+  const submitManualPrompt = async () => {
+    if (!newPromptText.trim()) return;
+    await onRegisterPrompt(family?.id ?? null, newPromptText, newPromptMessage);
+    setNewPromptText("");
+    setNewPromptMessage("");
+    setRegisterOpen(false);
+  };
 
   return (
     <div className="rounded-lg border bg-background">
@@ -578,13 +593,27 @@ function PromptRegistryPanel({
             <h3 className="text-sm font-semibold">Prompt Registry</h3>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Immutable prompt versions with mutable aliases for batch audits, evaluations, and GEPA seeds.
+            Register instruction prompt versions here, then mark the active prompt for this form version.
           </p>
         </div>
-        <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={onRefresh} disabled={loading}>
-          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-          Refresh
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={onRefresh} disabled={loading}>
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            Refresh
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => {
+              setRegisterOpen((current) => !current);
+              setNewPromptText((current) => current || registeredInstructions || "");
+            }}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Register Prompt
+          </Button>
+        </div>
       </div>
 
       {loading ? (
@@ -597,6 +626,41 @@ function PromptRegistryPanel({
           {promptError ? (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {promptError}
+            </div>
+          ) : null}
+          {registerOpen ? (
+            <div className="rounded-md border bg-secondary/20 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold">Register Manual Prompt</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    This creates the prompt registry for the form and saves a new immutable prompt version.
+                  </p>
+                </div>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setRegisterOpen(false)}>
+                  <X className="h-3.5 w-3.5" />
+                  Close
+                </Button>
+              </div>
+              <Textarea
+                value={newPromptText}
+                onChange={(event) => setNewPromptText(event.target.value)}
+                className="mt-3 min-h-44 font-mono text-xs"
+                placeholder="Instruction prompt text"
+              />
+              <Input
+                value={newPromptMessage}
+                onChange={(event) => setNewPromptMessage(event.target.value)}
+                className="mt-2"
+                placeholder="Change note, e.g. First handcrafted review prompt"
+              />
+              <div className="mt-3 flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setRegisterOpen(false)}>Cancel</Button>
+                <Button type="button" disabled={saving || !newPromptText.trim()} onClick={() => void submitManualPrompt()}>
+                  {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                  Register
+                </Button>
+              </div>
             </div>
           ) : null}
           <div className="rounded-md border bg-card p-4">
@@ -634,37 +698,69 @@ function PromptRegistryPanel({
         </div>
       ) : (
         <div className="grid gap-4 p-4">
+          {registerOpen ? (
+            <div className="rounded-md border bg-secondary/20 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold">Register Manual Prompt</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    This creates a prompt version only. Activation stays explicit.
+                  </p>
+                </div>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setRegisterOpen(false)}>
+                  <X className="h-3.5 w-3.5" />
+                  Close
+                </Button>
+              </div>
+              <Textarea
+                value={newPromptText}
+                onChange={(event) => setNewPromptText(event.target.value)}
+                className="mt-3 min-h-44 font-mono text-xs"
+                placeholder="Instruction prompt text"
+              />
+              <Input
+                value={newPromptMessage}
+                onChange={(event) => setNewPromptMessage(event.target.value)}
+                className="mt-2"
+                placeholder="Change note, e.g. Tightened citation rules"
+              />
+              <div className="mt-3 flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setRegisterOpen(false)}>Cancel</Button>
+                <Button type="button" disabled={saving || !newPromptText.trim()} onClick={() => void submitManualPrompt()}>
+                  {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                  Register
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
           <div className="flex flex-wrap gap-2 text-xs">
             <Badge variant="outline">{versions.length} versions</Badge>
-            {family.aliases.map((alias) => (
-              <Badge key={alias.id} variant="secondary">
-                {alias.alias} {"->"} v{alias.version_number ?? "?"}
-              </Badge>
-            ))}
+            <Badge variant={activeVersionId ? "success" : "secondary"}>
+              active {activeForVersion ? `${formVersion} -> v${activeForVersion.version_number ?? "?"}` : activeDefault ? `default -> v${activeDefault.version_number ?? "?"}` : "not set"}
+            </Badge>
             {family.external_registry_uri ? <Badge variant="outline">{family.external_registry_uri}</Badge> : null}
           </div>
 
           <div className="grid gap-3">
             {versions.map((version) => {
-              const aliases = aliasesByVersion.get(version.id) ?? [];
               const applies =
                 version.applicable_form_versions.length === 0 ||
                 version.applicable_form_versions.includes(formVersion);
+              const active = activeVersionId === version.id;
               return (
-                <div key={version.id} className="rounded-md border bg-card p-3">
+                <div key={version.id} className={cn("rounded-md border bg-card p-3", active && "border-emerald-400 bg-emerald-500/5")}>
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-sm font-semibold">v{version.version_number}</p>
+                        {active ? <Badge variant="success">active</Badge> : null}
                         <Badge variant={version.source_kind === "gepa_candidate" ? "warning" : "outline"}>
                           {version.source_kind.replaceAll("_", " ")}
                         </Badge>
                         <Badge variant={applies ? "success" : "secondary"}>
                           {applies ? "applies here" : "other version"}
                         </Badge>
-                        {aliases.map((alias) => (
-                          <Badge key={alias} variant="secondary">{alias}</Badge>
-                        ))}
                       </div>
                       <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                         {version.commit_message || "No commit message"}
@@ -676,19 +772,16 @@ function PromptRegistryPanel({
                       </div>
                     </div>
                     <div className="flex flex-wrap justify-end gap-1.5">
-                      {["production", "staging", "champion"].map((alias) => (
-                        <Button
-                          key={alias}
-                          type="button"
-                          variant={aliases.includes(alias) ? "default" : "outline"}
-                          size="sm"
-                          className="h-8 px-2 text-xs"
-                          disabled={saving}
-                          onClick={() => void onAssignAlias(family.id, alias, version.id)}
-                        >
-                          {alias}
-                        </Button>
-                      ))}
+                      <Button
+                        type="button"
+                        variant={active ? "default" : "outline"}
+                        size="sm"
+                        className="h-8 px-2 text-xs"
+                        disabled={saving || active}
+                        onClick={() => void onSetActive(family.id, version.id)}
+                      >
+                        {active ? "Active" : "Set Active"}
+                      </Button>
                       <CopyButton text={version.text} label="Copy" />
                     </div>
                   </div>
@@ -1095,18 +1188,46 @@ export function FormCatalog() {
     }
   };
 
-  const assignPromptAlias = async (
-    familyId: string,
-    alias: string,
-    versionId: string,
+  const registerPromptVersion = async (
+    familyId: string | null,
+    text: string,
+    commitMessage: string,
   ) => {
     setSaving(true);
     setError("");
     try {
-      await setPromptAlias(familyId, alias, versionId);
+      await createPromptVersion({
+        family_id: familyId,
+        form_id: selectedDefinition?.id ?? "",
+        form_version: selectedDefinition?.version ?? "",
+        text,
+        source_kind: "manual_edit",
+        commit_message: commitMessage || "Registered manual prompt.",
+        applicable_form_versions: selectedDefinition ? [selectedDefinition.version] : [],
+      });
       await refreshPrompts(selectedDefinition);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update prompt alias.");
+      setError(err instanceof Error ? err.message : "Failed to register prompt.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const setActivePrompt = async (familyId: string, versionId: string) => {
+    if (!selectedDefinition) return;
+    setSaving(true);
+    setError("");
+    try {
+      await setPromptActivation({
+        family_id: familyId,
+        version_id: versionId,
+        form_version: selectedDefinition.version,
+        scope: "form_version",
+        notes: `Activated for ${selectedDefinition.id}@${selectedDefinition.version}.`,
+      });
+      await refreshPrompts(selectedDefinition);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to activate prompt.");
     } finally {
       setSaving(false);
     }
@@ -1343,7 +1464,8 @@ export function FormCatalog() {
                   registeredInstructions={selectedDefinition.instructions ?? ""}
                   onRefresh={() => void refreshPrompts(selectedDefinition)}
                   onInitialize={initializePromptRegistry}
-                  onAssignAlias={assignPromptAlias}
+                  onRegisterPrompt={registerPromptVersion}
+                  onSetActive={setActivePrompt}
                 />
 
                 <div className="space-y-3">

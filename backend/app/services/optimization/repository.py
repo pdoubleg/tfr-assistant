@@ -111,11 +111,19 @@ class OptimizationRepository:
             catalog.get_form(request.form_id, request.form_version)
         except KeyError as exc:
             raise ValueError(f"Unknown form {request.form_id}@{request.form_version}") from exc
-        if request.seed_instruction_source == "prompt_registry" and request.seed_prompt_ref:
-            resolved = await PromptRegistryRepository(self.session, catalog).resolve(
-                request.seed_prompt_ref,
-                form_id=request.form_id,
-                form_version=request.form_version,
+        if request.seed_instruction_source == "prompt_registry":
+            prompt_repository = PromptRegistryRepository(self.session, catalog)
+            resolved = (
+                await prompt_repository.resolve(
+                    request.seed_prompt_ref,
+                    form_id=request.form_id,
+                    form_version=request.form_version,
+                )
+                if request.seed_prompt_ref
+                else await prompt_repository.resolve_active(
+                    form_id=request.form_id,
+                    form_version=request.form_version,
+                )
             )
             request = request.model_copy(update={"resolved_seed_prompt": resolved})
         case_ids = [item.case_id for item in request.case_splits]

@@ -81,6 +81,19 @@ export interface PromptAliasRecord {
   updated_at?: string;
 }
 
+export interface PromptActivationRecord {
+  id: string;
+  family_id: string;
+  version_id: string;
+  version_number?: number | null;
+  scope: "form_version" | "form_default";
+  form_version?: string | null;
+  activated_by: string;
+  notes: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface PromptVersionRecord {
   id: string;
   family_id: string;
@@ -110,6 +123,7 @@ export interface PromptFamilyRecord {
   external_registry_uri?: string | null;
   metadata: Record<string, unknown>;
   aliases: PromptAliasRecord[];
+  activations: PromptActivationRecord[];
   versions: PromptVersionRecord[];
   created_at?: string;
   updated_at?: string;

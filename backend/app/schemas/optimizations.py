@@ -91,7 +91,7 @@ class OptimizationRunCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
     form_id: str
     form_version: str
-    seed_instruction_source: OptimizationSeedSource = "form"
+    seed_instruction_source: OptimizationSeedSource = "prompt_registry"
     manual_instructions: str = ""
     seed_prompt_ref: PromptReference | None = None
     resolved_seed_prompt: ResolvedPrompt | None = None
@@ -107,10 +107,6 @@ class OptimizationRunCreate(BaseModel):
     def validate_config(self) -> OptimizationRunCreate:
         if self.seed_instruction_source == "manual" and not self.manual_instructions.strip():
             raise ValueError("Manual instructions are required when seed source is manual.")
-        if self.seed_instruction_source == "prompt_registry" and self.seed_prompt_ref is None:
-            raise ValueError(
-                "A registry prompt reference is required when seed source is registry."
-            )
         split_counts = {split: 0 for split in ("train", "val", "test")}
         for item in self.case_splits:
             split_counts[item.split] += 1

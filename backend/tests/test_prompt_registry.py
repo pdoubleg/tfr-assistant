@@ -9,6 +9,7 @@ from app.core.config import get_settings
 from app.db.models import Base, OptimizationCandidateORM, OptimizationRunORM
 from app.schemas.prompts import (
     OptimizationCandidatePromotion,
+    PromptActivationUpdate,
     PromptAliasUpdate,
     PromptReference,
     PromptVersionCreate,
@@ -42,6 +43,12 @@ async def test_prompt_registry_bootstraps_versions_aliases_and_resolution(sessio
     family = families[0]
     assert family.versions
     assert {alias.alias for alias in family.aliases} >= {"baseline", "production"}
+    active = next(
+        activation
+        for activation in family.activations
+        if activation.scope == "form_version" and activation.form_version == "v0.1"
+    )
+    assert active.version_number == family.versions[-1].version_number
 
     edited = await repository.create_version(
         PromptVersionCreate(
@@ -68,9 +75,24 @@ async def test_prompt_registry_bootstraps_versions_aliases_and_resolution(sessio
     assert resolved.text == edited.text
     assert resolved.alias == "production"
 
+    await repository.set_activation(
+        PromptActivationUpdate(
+            family_id=family.id,
+            version_id=edited.id,
+            form_version="v0.1",
+            notes="Test activation.",
+        )
+    )
+    active_resolved = await repository.resolve_active(
+        form_id="tfr_default",
+        form_version="v0.1",
+    )
+    assert active_resolved.version_id == edited.id
+    assert active_resolved.activation_scope == "v0.1"
+
 
 @pytest.mark.anyio
-async def test_prompt_registry_promotes_gepa_candidate_to_alias(session) -> None:
+async def test_prompt_registry_registers_gepa_candidate_and_can_activate(session) -> None:
     catalog = FormCatalog(get_settings().form_catalog_dir)
     repository = PromptRegistryRepository(session, catalog)
     run = OptimizationRunORM(
@@ -101,16 +123,24 @@ async def test_prompt_registry_promotes_gepa_candidate_to_alias(session) -> None
     await session.commit()
 
     version = await repository.promote_optimization_candidate(
-        OptimizationCandidatePromotion(run_id=run.id, candidate_index=2, alias="champion")
+        OptimizationCandidatePromotion(
+            run_id=run.id,
+            candidate_index=2,
+            activate_for_form_version=True,
+        )
     )
     families = await repository.list_form_families("tfr_default", form_version="v0.1")
     family = families[0]
-    champion = next(alias for alias in family.aliases if alias.alias == "champion")
+    active = next(
+        activation
+        for activation in family.activations
+        if activation.scope == "form_version" and activation.form_version == "v0.1"
+    )
 
     assert version.source_kind == "gepa_candidate"
     assert version.source_run_id == run.id
     assert version.source_candidate_index == 2
-    assert champion.version_id == version.id
+    assert active.version_id == version.id
 
 
 @pytest.mark.anyio

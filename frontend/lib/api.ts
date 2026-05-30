@@ -16,6 +16,7 @@ import type {
   OptimizationDemoFixtureRecord,
   OptimizationRunPayload,
   OptimizationRunRecord,
+  PromptActivationRecord,
   PromptAliasRecord,
   PromptFamilyRecord,
   PromptReference,
@@ -221,6 +222,22 @@ export async function setPromptAlias(
   return parseJsonResponse<PromptAliasRecord>(response);
 }
 
+export async function setPromptActivation(payload: {
+  family_id: string;
+  version_id: string;
+  form_version?: string | null;
+  scope?: "form_version" | "form_default";
+  activated_by?: string;
+  notes?: string;
+}): Promise<PromptActivationRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/prompts/activations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<PromptActivationRecord>(response);
+}
+
 export async function createPromptVersion(payload: {
   family_id?: string | null;
   form_id: string;
@@ -233,6 +250,21 @@ export async function createPromptVersion(payload: {
   alias?: string | null;
 }): Promise<PromptVersionRecord> {
   const response = await fetch(`${apiBaseUrl}/api/prompts/versions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<PromptVersionRecord>(response);
+}
+
+export async function registerOptimizationCandidate(payload: {
+  run_id: string;
+  candidate_index: number;
+  activate_for_form_version?: boolean;
+  commit_message?: string;
+  created_by?: string;
+}): Promise<PromptVersionRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/prompts/register-optimization-candidate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),

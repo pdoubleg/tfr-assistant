@@ -42,7 +42,6 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import { PromptSelector } from "@/components/forms/prompt-selector";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -59,7 +58,7 @@ import {
   listOptimizationRuns,
   optimizationArtifactUrl,
   optimizationEventsUrl,
-  promoteOptimizationCandidate,
+  registerOptimizationCandidate,
 } from "@/lib/api";
 import type {
   FormCatalogEntry,
@@ -70,7 +69,6 @@ import type {
   OptimizationRunPayload,
   OptimizationRunRecord,
   OptimizationSplit,
-  PromptReference,
 } from "@/lib/types";
 
 const pollMs = 3500;
@@ -186,9 +184,9 @@ function seedSourceLabel(payload: OptimizationRunPayload): string {
     const ref = payload.seed_prompt_ref;
     if (ref?.ref_type === "alias") return `${ref.alias ?? "registry"} seed`;
     if (ref?.ref_type === "version") return "version seed";
-    return "registry seed";
+    return "active prompt seed";
   }
-  return "form seed";
+  return "form default seed";
 }
 
 function runConfigPayload(run: OptimizationRunRecord): OptimizationRunPayload {
@@ -422,8 +420,7 @@ export default function OptimizationPage() {
   const [formKey, setFormKey] = useState("tfr_default@v0.1");
   const [search, setSearch] = useState("");
   const [runName, setRunName] = useState("GEPA Prompt Optimization");
-  const [seedSource, setSeedSource] = useState<SeedSource>("form");
-  const [seedPromptRef, setSeedPromptRef] = useState<PromptReference | null>(null);
+  const [seedSource, setSeedSource] = useState<SeedSource>("prompt_registry");
   const [manualInstructions, setManualInstructions] = useState("");
   const [metricMode, setMetricMode] = useState<"comparison" | "comparison_with_judge">("comparison");
   const [scoreKey, setScoreKey] = useState<OptimizationRunPayload["score_key"]>("score");
@@ -613,7 +610,7 @@ export default function OptimizationPage() {
     form_version: formVersion,
     seed_instruction_source: seedSource,
     manual_instructions: seedSource === "manual" ? manualInstructions : "",
-    seed_prompt_ref: seedSource === "prompt_registry" ? seedPromptRef : null,
+    seed_prompt_ref: null,
     metric_mode: metricMode,
     score_key: scoreKey,
     reference_policy: referencePolicy,
@@ -627,12 +624,12 @@ export default function OptimizationPage() {
     counts.train > 0 &&
     counts.val > 0 &&
     (seedSource === "form" ||
-      (seedSource === "manual" && Boolean(manualInstructions.trim())) ||
-      (seedSource === "prompt_registry" && Boolean(seedPromptRef)));
+      seedSource === "prompt_registry" ||
+      (seedSource === "manual" && Boolean(manualInstructions.trim())));
 
   const stageConfig = () => {
     if (!canStageConfig) {
-      setError("Select at least one train case, one validation case, and provide the required seed prompt.");
+      setError("Select at least one train case and one validation case. Manual seed runs also need instructions.");
       return;
     }
     setError("");
@@ -660,7 +657,6 @@ export default function OptimizationPage() {
     setRunName(payload.name);
     setFormKey(`${payload.form_id}@${payload.form_version}`);
     setSeedSource(payload.seed_instruction_source);
-    setSeedPromptRef(payload.seed_prompt_ref ?? null);
     setManualInstructions(payload.manual_instructions);
     setMetricMode(payload.metric_mode);
     setScoreKey(payload.score_key);
@@ -682,6 +678,7 @@ export default function OptimizationPage() {
     const config = runConfigPayload(run);
     const payload = {
       ...config,
+      seed_prompt_ref: null,
       name: `${run.name} copy`,
       case_splits: run.case_splits?.length
         ? run.case_splits
@@ -717,19 +714,19 @@ export default function OptimizationPage() {
     }
   };
 
-  const promoteCandidate = async (candidateIndex: number, alias: string) => {
+  const registerCandidate = async (candidateIndex: number, activateForFormVersion: boolean) => {
     if (!selectedRun) return;
     setSaving(true);
     setError("");
     try {
-      await promoteOptimizationCandidate({
+      await registerOptimizationCandidate({
         run_id: selectedRun.id,
         candidate_index: candidateIndex,
-        alias,
+        activate_for_form_version: activateForFormVersion,
       });
       await refreshRuns();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to promote optimization candidate.");
+      setError(err instanceof Error ? err.message : "Failed to register optimization candidate.");
       throw err;
     } finally {
       setSaving(false);
@@ -829,7 +826,7 @@ export default function OptimizationPage() {
               onNodeSelect={setSelectedNode}
               onCancel={cancelRun}
               onClear={clearMonitor}
-              onPromoteCandidate={promoteCandidate}
+              onRegisterCandidate={registerCandidate}
               saving={saving}
             />
           </main>
@@ -857,8 +854,6 @@ export default function OptimizationPage() {
           setRunName={setRunName}
           seedSource={seedSource}
           setSeedSource={setSeedSource}
-          seedPromptRef={seedPromptRef}
-          setSeedPromptRef={setSeedPromptRef}
           manualInstructions={manualInstructions}
           setManualInstructions={setManualInstructions}
           metricMode={metricMode}
@@ -1217,8 +1212,6 @@ function OptimizationConfigDialog(props: {
   setRunName: (value: string) => void;
   seedSource: SeedSource;
   setSeedSource: (value: SeedSource) => void;
-  seedPromptRef: PromptReference | null;
-  setSeedPromptRef: (value: PromptReference | null) => void;
   manualInstructions: string;
   setManualInstructions: (value: string) => void;
   metricMode: "comparison" | "comparison_with_judge";
@@ -1278,8 +1271,6 @@ function OptimizationConfigDialog(props: {
               setRunName={props.setRunName}
               seedSource={props.seedSource}
               setSeedSource={props.setSeedSource}
-              seedPromptRef={props.seedPromptRef}
-              setSeedPromptRef={props.setSeedPromptRef}
               manualInstructions={props.manualInstructions}
               setManualInstructions={props.setManualInstructions}
               metricMode={props.metricMode}
@@ -1336,8 +1327,6 @@ function RunConfig(props: {
   setRunName: (value: string) => void;
   seedSource: SeedSource;
   setSeedSource: (value: SeedSource) => void;
-  seedPromptRef: PromptReference | null;
-  setSeedPromptRef: (value: PromptReference | null) => void;
   manualInstructions: string;
   setManualInstructions: (value: string) => void;
   metricMode: "comparison" | "comparison_with_judge";
@@ -1355,7 +1344,6 @@ function RunConfig(props: {
   counts: { train: number; val: number; test: number };
 }) {
   const budgetMode = getBudgetMode(props.gepaParams);
-  const [selectedFormId, selectedFormVersion] = props.formKey.split("@");
 
   return (
     <Card>
@@ -1374,10 +1362,7 @@ function RunConfig(props: {
           Form
           <select
             value={props.formKey}
-            onChange={(event) => {
-              props.setFormKey(event.target.value);
-              props.setSeedPromptRef(null);
-            }}
+            onChange={(event) => props.setFormKey(event.target.value)}
             className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {props.forms.map((form) => (
@@ -1388,29 +1373,24 @@ function RunConfig(props: {
           </select>
         </label>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <Button type="button" variant={props.seedSource === "form" ? "default" : "outline"} onClick={() => props.setSeedSource("form")}>
-            Form Seed
-          </Button>
           <Button
             type="button"
             variant={props.seedSource === "prompt_registry" ? "default" : "outline"}
             onClick={() => props.setSeedSource("prompt_registry")}
           >
-            Registry Seed
+            Active Prompt
+          </Button>
+          <Button type="button" variant={props.seedSource === "form" ? "default" : "outline"} onClick={() => props.setSeedSource("form")}>
+            Form Default
           </Button>
           <Button type="button" variant={props.seedSource === "manual" ? "default" : "outline"} onClick={() => props.setSeedSource("manual")}>
             Manual Seed
           </Button>
         </div>
         {props.seedSource === "prompt_registry" ? (
-          <PromptSelector
-            formId={selectedFormId || "tfr_default"}
-            formVersion={selectedFormVersion || "v0.1"}
-            value={props.seedPromptRef}
-            onChange={props.setSeedPromptRef}
-            includeFormDefault={false}
-            helperText="Seed GEPA from an existing promoted prompt alias or an exact immutable version."
-          />
+          <p className="rounded-md border bg-secondary/25 px-3 py-2 text-xs text-muted-foreground">
+            Uses the active prompt selected in Forms for this form version.
+          </p>
         ) : null}
         {props.seedSource === "manual" ? (
           <Textarea
@@ -1697,7 +1677,7 @@ function RunMonitor({
   onNodeSelect,
   onCancel,
   onClear,
-  onPromoteCandidate,
+  onRegisterCandidate,
   saving,
 }: {
   run: OptimizationRunRecord | null;
@@ -1707,7 +1687,7 @@ function RunMonitor({
   onNodeSelect: (node: CandidateNodeData | null) => void;
   onCancel: () => Promise<void>;
   onClear: () => void;
-  onPromoteCandidate: (candidateIndex: number, alias: string) => Promise<void>;
+  onRegisterCandidate: (candidateIndex: number, activateForFormVersion: boolean) => Promise<void>;
   saving: boolean;
 }) {
   const [view, setView] = useState<MonitorView>("graph");
@@ -1826,7 +1806,7 @@ function RunMonitor({
               <NodeDetailDrawer
                 node={selectedNode}
                 run={run}
-                onPromoteCandidate={onPromoteCandidate}
+                onRegisterCandidate={onRegisterCandidate}
                 onClose={() => onNodeSelect(null)}
               />
             ) : null}
@@ -1844,19 +1824,19 @@ function RunMonitor({
 function NodeDetailDrawer({
   node,
   run,
-  onPromoteCandidate,
+  onRegisterCandidate,
   onClose,
 }: {
   node: CandidateNodeData;
   run: OptimizationRunRecord;
-  onPromoteCandidate: (candidateIndex: number, alias: string) => Promise<void>;
+  onRegisterCandidate: (candidateIndex: number, activateForFormVersion: boolean) => Promise<void>;
   onClose: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [viewer, setViewer] = useState<{ title: string; content: string; mode: TextViewMode } | null>(null);
   const [drawerSize, setDrawerSize] = useState({ width: 760, height: 560 });
-  const [promotingAlias, setPromotingAlias] = useState("");
-  const [selectedPromotionAlias, setSelectedPromotionAlias] = useState("");
+  const [registeringPrompt, setRegisteringPrompt] = useState(false);
+  const [activateRegisteredPrompt, setActivateRegisteredPrompt] = useState(false);
   const [promotionMessage, setPromotionMessage] = useState("");
   useBodyScrollLock(expanded || Boolean(viewer));
   const candidateIndex = node.newCandidateIndex ?? node.candidateIndex ?? null;
@@ -1873,22 +1853,21 @@ function NodeDetailDrawer({
   const reflectionDetails = formatReflectionDetails(node.events ?? []);
   const reflectionStats = reflectionStatsFromEvents(node.events ?? []);
   const promote = async () => {
-    const alias = selectedPromotionAlias;
     if (!canPromote || candidateIndex === null) return;
-    if (!alias) {
-      setPromotionMessage("Choose an alias before promoting this prompt.");
-      return;
-    }
     setPromotionMessage("");
-    setPromotingAlias(alias);
+    setRegisteringPrompt(true);
     try {
-      await onPromoteCandidate(candidateIndex, alias);
-      setPromotionMessage(`Promoted candidate ${candidateIndex} to ${alias}.`);
-      setSelectedPromotionAlias("");
+      await onRegisterCandidate(candidateIndex, activateRegisteredPrompt);
+      setPromotionMessage(
+        activateRegisteredPrompt
+          ? `Registered candidate ${candidateIndex} and set it active for ${run.form_version}.`
+          : `Registered candidate ${candidateIndex}.`,
+      );
+      setActivateRegisteredPrompt(false);
     } catch (err) {
-      setPromotionMessage(err instanceof Error ? err.message : "Promotion failed.");
+      setPromotionMessage(err instanceof Error ? err.message : "Registration failed.");
     } finally {
-      setPromotingAlias("");
+      setRegisteringPrompt(false);
     }
   };
   const startResize = useCallback((
@@ -1973,37 +1952,33 @@ function NodeDetailDrawer({
           <div className="mb-3 rounded-lg border bg-secondary/25 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <p className="text-xs font-semibold uppercase text-muted-foreground">Promote Prompt</p>
+                <p className="text-xs font-semibold uppercase text-muted-foreground">Register Prompt</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Create an immutable registry version from this candidate and move the selected alias.
+                  Save this candidate as an immutable prompt version. Activation can stay in Forms, or happen now for this version.
                 </p>
               </div>
-              <div className="flex flex-wrap gap-1.5">
-                {["champion", "staging", "production"].map((alias) => (
-                  <Button
-                    key={alias}
-                    type="button"
-                    variant={selectedPromotionAlias === alias ? "default" : "outline"}
-                    size="sm"
-                    className="h-8 px-2 text-xs"
-                    disabled={Boolean(promotingAlias)}
-                    onClick={() => {
-                      setSelectedPromotionAlias((current) => (current === alias ? "" : alias));
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="flex items-center gap-2 rounded-md border bg-background px-2 py-1 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={activateRegisteredPrompt}
+                    disabled={registeringPrompt}
+                    onChange={(event) => {
+                      setActivateRegisteredPrompt(event.target.checked);
                       setPromotionMessage("");
                     }}
-                  >
-                    {alias}
-                  </Button>
-                ))}
+                  />
+                  Set active for {run.form_version}
+                </label>
                 <Button
                   type="button"
                   size="sm"
                   className="h-8 px-2 text-xs"
-                  disabled={!selectedPromotionAlias || Boolean(promotingAlias)}
+                  disabled={registeringPrompt}
                   onClick={() => void promote()}
                 >
-                  {promotingAlias ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                  Submit
+                  {registeringPrompt ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                  Register
                 </Button>
               </div>
             </div>

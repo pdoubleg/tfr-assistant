@@ -9,6 +9,7 @@ PromptTask = Literal["audit_review"]
 PromptKind = Literal["instructions"]
 PromptSourceKind = Literal["form_default", "handcrafted", "manual_edit", "gepa_candidate"]
 PromptRefType = Literal["form_default", "alias", "version", "manual"]
+PromptActivationScope = Literal["form_version", "form_default"]
 
 
 class PromptReference(BaseModel):
@@ -42,6 +43,7 @@ class ResolvedPrompt(BaseModel):
     alias: str | None = None
     form_id: str | None = None
     source_kind: str = "form_default"
+    activation_scope: str | None = None
     external_prompt_uri: str | None = None
     resolved_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
@@ -52,6 +54,19 @@ class PromptAliasRecord(BaseModel):
     alias: str
     version_id: str
     version_number: int | None = None
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class PromptActivationRecord(BaseModel):
+    id: str
+    family_id: str
+    version_id: str
+    version_number: int | None = None
+    scope: PromptActivationScope = "form_version"
+    form_version: str | None = None
+    activated_by: str = "user"
+    notes: str = ""
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
@@ -84,6 +99,7 @@ class PromptFamilyRecord(BaseModel):
     external_registry_uri: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     aliases: list[PromptAliasRecord] = Field(default_factory=list)
+    activations: list[PromptActivationRecord] = Field(default_factory=list)
     versions: list[PromptVersionRecord] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -106,6 +122,23 @@ class PromptVersionCreate(BaseModel):
     alias: str | None = None
 
 
+class PromptActivationUpdate(BaseModel):
+    family_id: str
+    version_id: str
+    form_version: str | None = None
+    scope: PromptActivationScope = "form_version"
+    activated_by: str = "user"
+    notes: str = ""
+
+    @model_validator(mode="after")
+    def validate_scope(self) -> PromptActivationUpdate:
+        if self.scope == "form_version" and not self.form_version:
+            raise ValueError("Form-version activation requires form_version.")
+        if self.scope == "form_default":
+            self.form_version = None
+        return self
+
+
 class PromptAliasUpdate(BaseModel):
     family_id: str
     alias: str = Field(..., min_length=1, max_length=64)
@@ -115,6 +148,7 @@ class PromptAliasUpdate(BaseModel):
 class OptimizationCandidatePromotion(BaseModel):
     run_id: str
     candidate_index: int
-    alias: str | None = "champion"
+    alias: str | None = None
+    activate_for_form_version: bool = False
     commit_message: str = ""
     created_by: str = "user"

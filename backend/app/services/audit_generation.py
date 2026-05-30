@@ -265,13 +265,20 @@ class AuditGenerationService:
             return await self.repository.mark_review_failed(review_id, str(exc))
 
     async def _with_resolved_prompt(self, request: ReviewGenerateRequest) -> ReviewGenerateRequest:
-        if request.resolved_prompt is not None or request.prompt_ref is None:
+        if request.resolved_prompt is not None:
             return request
-        resolved = await PromptRegistryRepository(self.session, self.catalog).resolve(
-            request.prompt_ref,
-            form_id=request.form_id,
-            form_version=request.form_version,
-        )
+        repository = PromptRegistryRepository(self.session, self.catalog)
+        if request.prompt_ref is None:
+            resolved = await repository.resolve_active(
+                form_id=request.form_id,
+                form_version=request.form_version,
+            )
+        else:
+            resolved = await repository.resolve(
+                request.prompt_ref,
+                form_id=request.form_id,
+                form_version=request.form_version,
+            )
         return request.model_copy(update={"resolved_prompt": resolved})
 
     def _generator_for(self, request: ReviewGenerateRequest) -> AuditFormGenerator:

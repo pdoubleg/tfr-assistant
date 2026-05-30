@@ -7,6 +7,8 @@ from app.core.config import Settings, get_settings
 from app.db.session import get_session
 from app.schemas.prompts import (
     OptimizationCandidatePromotion,
+    PromptActivationRecord,
+    PromptActivationUpdate,
     PromptAliasRecord,
     PromptAliasUpdate,
     PromptFamilyRecord,
@@ -81,6 +83,36 @@ async def set_prompt_alias(
 ) -> PromptAliasRecord:
     try:
         return await _repository(session, settings).set_alias(request)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/activations", response_model=PromptActivationRecord)
+async def set_prompt_activation(
+    request: PromptActivationUpdate,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> PromptActivationRecord:
+    try:
+        return await _repository(session, settings).set_activation(request)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post(
+    "/register-optimization-candidate",
+    response_model=PromptVersionRecord,
+    status_code=201,
+)
+async def register_optimization_candidate(
+    request: OptimizationCandidatePromotion,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> PromptVersionRecord:
+    try:
+        return await _repository(session, settings).promote_optimization_candidate(request)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

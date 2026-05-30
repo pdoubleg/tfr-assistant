@@ -12,6 +12,7 @@ from app.agents.review_agent import DEFAULT_REVIEW_INSTRUCTIONS
 from app.db.models import (
     OptimizationCandidateORM,
     OptimizationRunORM,
+    PromptActivationORM,
     PromptAliasORM,
     PromptFamilyORM,
     PromptVersionORM,
@@ -19,6 +20,8 @@ from app.db.models import (
 from app.schemas.forms import AuditFormDefinition
 from app.schemas.prompts import (
     OptimizationCandidatePromotion,
+    PromptActivationRecord,
+    PromptActivationUpdate,
     PromptAliasRecord,
     PromptAliasUpdate,
     PromptFamilyRecord,
@@ -52,6 +55,10 @@ def form_schema_fingerprint(definition: AuditFormDefinition) -> str:
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def activation_scope_key(scope: str, form_version: str | None = None) -> str:
+    return form_version if scope == "form_version" and form_version else "*"
 
 
 class PromptRegistryRepository:
@@ -122,6 +129,12 @@ class PromptRegistryRepository:
                 PromptAliasUpdate(family_id=family.id, alias="baseline", version_id=version.id),
                 commit=False,
             )
+            await self.ensure_activation(
+                family_id=family.id,
+                version_id=version.id,
+                form_version=form_version,
+                commit=False,
+            )
         production_alias = await self.session.scalar(
             select(PromptAliasORM).where(
                 PromptAliasORM.family_id == family.id,
@@ -131,6 +144,13 @@ class PromptRegistryRepository:
         if version is not None and (not existing_count or production_alias is None):
             await self.set_alias(
                 PromptAliasUpdate(family_id=family.id, alias="production", version_id=version.id),
+                commit=False,
+            )
+            await self.ensure_activation(
+                family_id=family.id,
+                version_id=version.id,
+                form_version=None,
+                scope="form_default",
                 commit=False,
             )
         await self.session.commit()
@@ -219,6 +239,84 @@ class PromptRegistryRepository:
             await self.session.commit()
             await self.session.refresh(record)
         return self._version_to_schema(record)
+
+    async def ensure_activation(
+        self,
+        *,
+        family_id: str,
+        version_id: str,
+        form_version: str | None,
+        scope: str = "form_version",
+        commit: bool = True,
+    ) -> PromptActivationRecord:
+        key = activation_scope_key(scope, form_version)
+        record = await self.session.scalar(
+            select(PromptActivationORM).where(
+                PromptActivationORM.family_id == family_id,
+                PromptActivationORM.scope_key == key,
+            )
+        )
+        if record is None:
+            record = PromptActivationORM(
+                id=str(uuid4()),
+                family_id=family_id,
+                version_id=version_id,
+                scope_key=key,
+                scope=scope,
+                form_version=form_version if scope == "form_version" else None,
+                activated_by="system",
+                notes="Initialized from registered form instructions.",
+            )
+            self.session.add(record)
+            await self.session.flush()
+        if commit:
+            await self.session.commit()
+            await self.session.refresh(record)
+        version = await self.session.get(PromptVersionORM, record.version_id)
+        return self._activation_to_schema(
+            record,
+            {version.id: version.version_number} if version else {},
+        )
+
+    async def set_activation(
+        self,
+        request: PromptActivationUpdate,
+        *,
+        commit: bool = True,
+    ) -> PromptActivationRecord:
+        version = await self.session.get(PromptVersionORM, request.version_id)
+        if not version or version.family_id != request.family_id:
+            raise ValueError("Active prompt target version does not belong to the family.")
+        scope_key = activation_scope_key(request.scope, request.form_version)
+        record = await self.session.scalar(
+            select(PromptActivationORM).where(
+                PromptActivationORM.family_id == request.family_id,
+                PromptActivationORM.scope_key == scope_key,
+            )
+        )
+        if record is None:
+            record = PromptActivationORM(
+                id=str(uuid4()),
+                family_id=request.family_id,
+                version_id=request.version_id,
+                scope_key=scope_key,
+                scope=request.scope,
+                form_version=request.form_version,
+                activated_by=request.activated_by,
+                notes=request.notes.strip(),
+            )
+            self.session.add(record)
+        else:
+            record.version_id = request.version_id
+            record.scope = request.scope
+            record.form_version = request.form_version
+            record.activated_by = request.activated_by
+            record.notes = request.notes.strip()
+        await self.session.flush()
+        if commit:
+            await self.session.commit()
+            await self.session.refresh(record)
+        return self._activation_to_schema(record, {version.id: version.version_number})
 
     async def set_alias(
         self,
@@ -314,6 +412,16 @@ class PromptRegistryRepository:
                 alias=request.alias,
             )
         )
+        if request.activate_for_form_version:
+            await self.set_activation(
+                PromptActivationUpdate(
+                    family_id=version.family_id,
+                    version_id=version.id,
+                    form_version=run.form_version,
+                    activated_by=request.created_by,
+                    notes=f"Activated from GEPA candidate {request.candidate_index} in {run.name}.",
+                )
+            )
         return version
 
     def _candidate_from_dag_artifact(
@@ -394,6 +502,67 @@ class PromptRegistryRepository:
             external_prompt_uri=version.external_prompt_uri,
         )
 
+    async def resolve_active(
+        self,
+        *,
+        form_id: str,
+        form_version: str,
+    ) -> ResolvedPrompt:
+        await self.bootstrap_form_prompt(form_id, form_version)
+        family = await self.ensure_family(form_id)
+        activation = await self._activation_for_family(family.id, form_version)
+        if activation is None:
+            definition = self.catalog.get_form(form_id, form_version)
+            text = definition.instructions or DEFAULT_REVIEW_INSTRUCTIONS
+            return ResolvedPrompt(
+                ref=PromptReference(ref_type="form_default", form_id=form_id),
+                text=text,
+                text_hash=prompt_text_hash(text),
+                form_id=form_id,
+                source_kind="form_default",
+                activation_scope=form_version,
+            )
+        version = await self.session.get(PromptVersionORM, activation.version_id)
+        if version is None:
+            raise KeyError("Active prompt version could not be resolved.")
+        return ResolvedPrompt(
+            ref=PromptReference(
+                ref_type="version",
+                family_id=family.id,
+                version_id=version.id,
+                form_id=form_id,
+            ),
+            text=version.text,
+            text_hash=version.text_hash,
+            family_id=family.id,
+            version_id=version.id,
+            version_number=version.version_number,
+            form_id=form_id,
+            source_kind=version.source_kind,
+            activation_scope=activation.scope_key,
+            external_prompt_uri=version.external_prompt_uri,
+        )
+
+    async def _activation_for_family(
+        self,
+        family_id: str,
+        form_version: str,
+    ) -> PromptActivationORM | None:
+        exact = await self.session.scalar(
+            select(PromptActivationORM).where(
+                PromptActivationORM.family_id == family_id,
+                PromptActivationORM.scope_key == form_version,
+            )
+        )
+        if exact is not None:
+            return exact
+        return await self.session.scalar(
+            select(PromptActivationORM).where(
+                PromptActivationORM.family_id == family_id,
+                PromptActivationORM.scope_key == "*",
+            )
+        )
+
     async def _family_to_schema(self, family: PromptFamilyORM) -> PromptFamilyRecord:
         versions = (
             await self.session.scalars(
@@ -409,6 +578,13 @@ class PromptRegistryRepository:
                 .order_by(PromptAliasORM.alias.asc())
             )
         ).all()
+        activations = (
+            await self.session.scalars(
+                select(PromptActivationORM)
+                .where(PromptActivationORM.family_id == family.id)
+                .order_by(PromptActivationORM.scope_key.asc())
+            )
+        ).all()
         version_numbers = {version.id: version.version_number for version in versions}
         return PromptFamilyRecord(
             id=family.id,
@@ -420,6 +596,10 @@ class PromptRegistryRepository:
             external_registry_uri=family.external_registry_uri,
             metadata=family.metadata_json or {},
             aliases=[self._alias_to_schema(alias, version_numbers) for alias in aliases],
+            activations=[
+                self._activation_to_schema(activation, version_numbers)
+                for activation in activations
+            ],
             versions=[self._version_to_schema(version) for version in versions],
             created_at=family.created_at,
             updated_at=family.updated_at,
@@ -457,5 +637,24 @@ class PromptRegistryRepository:
             alias=record.alias,
             version_id=record.version_id,
             version_number=version_number,
+            updated_at=record.updated_at,
+        )
+
+    def _activation_to_schema(
+        self,
+        record: PromptActivationORM,
+        version_numbers: dict[str, int] | None = None,
+    ) -> PromptActivationRecord:
+        version_number = (version_numbers or {}).get(record.version_id)
+        return PromptActivationRecord(
+            id=record.id,
+            family_id=record.family_id,
+            version_id=record.version_id,
+            version_number=version_number,
+            scope=record.scope,  # type: ignore[arg-type]
+            form_version=record.form_version,
+            activated_by=record.activated_by,
+            notes=record.notes,
+            created_at=record.created_at,
             updated_at=record.updated_at,
         )
