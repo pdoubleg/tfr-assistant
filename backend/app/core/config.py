@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     environment: str = "local"
     chat_model: str = "gpt-5.4-mini"
-    chat_model_api: LLMModelAPI = LLMModelAPI.RESPONSES
+    chat_model_api: LLMModelAPI = LLMModelAPI.CHAT
     chat_model_reasoning_effort: ReasoningEffort | None = "low"
     chat_model_reasoning_summary: ReasoningSummary | None = "auto"
     chat_model_timeout_seconds: float = 90.0

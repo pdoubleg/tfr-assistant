@@ -5,11 +5,13 @@ import {
   AlertTriangle,
   Braces,
   BookOpen,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
   ClipboardCheck,
   Code2,
   Copy,
+  Eye,
   FileJson,
   FilePlus2,
   Files,
@@ -50,12 +52,14 @@ import type {
   FormSubQuestion,
   OverallOutcome,
   PromptFamilyRecord,
+  PromptVersionRecord,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type DialogMode = "create" | "edit";
 type UsageFilter = "all" | "used" | "unused";
 type PreviewMode = "form" | "json" | "string";
+type PromptViewerMode = "prompt" | "diff";
 
 const FORM_TOOL_OPTIONS = ["Claim Summary", "Notes", "Documents", "Images"] as const;
 const CANONICAL_PLACEHOLDER = "Canonical template placeholder.";
@@ -204,6 +208,19 @@ function normalizeList(values: string[]): string[] | null {
   return unique.length ? unique : null;
 }
 
+function getActivePromptVersion(
+  family: PromptFamilyRecord | null | undefined,
+  formVersion: string,
+): PromptVersionRecord | null {
+  if (!family) return null;
+  const activeForVersion = family.activations.find(
+    (activation) => activation.scope === "form_version" && activation.form_version === formVersion,
+  );
+  const activeDefault = family.activations.find((activation) => activation.scope === "form_default");
+  const activeVersionId = activeForVersion?.version_id ?? activeDefault?.version_id;
+  return family.versions.find((version) => version.id === activeVersionId) ?? null;
+}
+
 function buildCanonical(state: FormEditorState): AuditFormResult {
   const formId = state.id.trim();
   const version = state.version.trim();
@@ -308,6 +325,7 @@ function definitionToState(
   definition: AuditFormDefinition | null,
   mode: DialogMode,
   forms: FormCatalogEntry[],
+  registryInstructions = "",
 ): FormEditorState {
   const canonical = definition?.canonical;
   const baseId = definition?.id ?? canonical?.form_id ?? "new_audit_form";
@@ -340,7 +358,7 @@ function definitionToState(
     title,
     formKind,
     description,
-    instructions: definition?.instructions ?? "",
+    instructions: mode === "edit" ? registryInstructions || definition?.instructions || "" : definition?.instructions ?? "",
     tools: definition?.tools ?? [],
     knowledgeDocs: definition?.knowledge_docs ?? [],
     knowledgeDocDraft: "",
@@ -412,7 +430,10 @@ function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) 
       variant="outline"
       size="sm"
       className="gap-1.5"
-      onClick={() => void copyText()}
+      onClick={(event) => {
+        event.stopPropagation();
+        void copyText();
+      }}
       disabled={!text}
     >
       {copied ? <ClipboardCheck className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
@@ -585,6 +606,10 @@ function PromptRegistryPanel({
   const [registerOpen, setRegisterOpen] = useState(false);
   const [newPromptText, setNewPromptText] = useState("");
   const [newPromptMessage, setNewPromptMessage] = useState("");
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerVersionId, setViewerVersionId] = useState("");
+  const [viewerCompareVersionId, setViewerCompareVersionId] = useState("");
+  const [viewerMode, setViewerMode] = useState<PromptViewerMode>("prompt");
 
   useEffect(() => {
     if (!versions.length) {
@@ -594,6 +619,8 @@ function PromptRegistryPanel({
     }
     setLeftVersionId((current) => current || versions[Math.min(1, versions.length - 1)]?.id || versions[0].id);
     setRightVersionId((current) => current || versions[0].id);
+    setViewerVersionId((current) => current || versions[0].id);
+    setViewerCompareVersionId((current) => current || versions[Math.min(1, versions.length - 1)]?.id || versions[0].id);
   }, [versions]);
 
   const leftVersion = versions.find((version) => version.id === leftVersionId) ?? versions[Math.min(1, versions.length - 1)];
@@ -607,7 +634,21 @@ function PromptRegistryPanel({
     [family?.activations],
   );
   const activeVersionId = activeForVersion?.version_id ?? activeDefault?.version_id ?? "";
-  const diffLines = leftVersion && rightVersion ? buildLineDiff(leftVersion.text, rightVersion.text) : [];
+  const activeVersion = versions.find((version) => version.id === activeVersionId) ?? null;
+  const openPromptViewer = (
+    versionId: string,
+    mode: PromptViewerMode = "prompt",
+    compareVersionId?: string,
+  ) => {
+    setViewerVersionId(versionId);
+    setViewerCompareVersionId(
+      compareVersionId ||
+        versions.find((version) => version.id !== versionId)?.id ||
+        versionId,
+    );
+    setViewerMode(mode);
+    setViewerOpen(true);
+  };
   const submitManualPrompt = async () => {
     if (!newPromptText.trim()) return;
     await onRegisterPrompt(family?.id ?? null, newPromptText, newPromptMessage);
@@ -617,6 +658,7 @@ function PromptRegistryPanel({
   };
 
   return (
+    <>
     <div className="rounded-lg border bg-background">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
         <div className="min-w-0">
@@ -625,7 +667,7 @@ function PromptRegistryPanel({
             <h3 className="text-sm font-semibold">Prompt Registry</h3>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Register instruction prompt versions here, then mark the active prompt for this form version.
+            Click a version to inspect the full prompt, compare it, or make it active for this form version.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -769,9 +811,40 @@ function PromptRegistryPanel({
           <div className="flex flex-wrap gap-2 text-xs">
             <Badge variant="outline">{versions.length} versions</Badge>
             <Badge variant={activeVersionId ? "success" : "secondary"}>
-              active {activeForVersion ? `${formVersion} -> v${activeForVersion.version_number ?? "?"}` : activeDefault ? `default -> v${activeDefault.version_number ?? "?"}` : "not set"}
+              {activeForVersion
+                ? `active for ${formVersion}: v${activeForVersion.version_number ?? "?"}`
+                : activeDefault
+                  ? `using form default: v${activeDefault.version_number ?? "?"}`
+                  : "no active prompt"}
             </Badge>
             {family.external_registry_uri ? <Badge variant="outline">{family.external_registry_uri}</Badge> : null}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-secondary/20 px-3 py-2">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">
+                {activeVersion ? `Active prompt v${activeVersion.version_number}` : "No active prompt selected"}
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {activeForVersion
+                  ? `Pinned to ${formId}@${formVersion}.`
+                  : activeDefault
+                    ? "Inherited from the form default activation."
+                    : "Choose a version below and make it active before running reviews."}
+              </p>
+            </div>
+            {activeVersion ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => openPromptViewer(activeVersion.id)}
+              >
+                <Eye className="h-3.5 w-3.5" />
+                View Active
+              </Button>
+            ) : null}
           </div>
 
           <div className="grid gap-3">
@@ -780,19 +853,34 @@ function PromptRegistryPanel({
                 version.applicable_form_versions.length === 0 ||
                 version.applicable_form_versions.includes(formVersion);
               const active = activeVersionId === version.id;
+              const activeForThisFormVersion = activeForVersion?.version_id === version.id;
+              const activeViaDefault = active && !activeForThisFormVersion;
               return (
-                <div key={version.id} className={cn("rounded-md border bg-card p-3", active && "border-emerald-400 bg-emerald-500/5")}>
+                <div
+                  key={version.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openPromptViewer(version.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      openPromptViewer(version.id);
+                    }
+                  }}
+                  className={cn(
+                    "cursor-pointer rounded-md border bg-card p-3 transition-colors hover:bg-secondary/35",
+                    active && "border-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10",
+                  )}
+                >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-sm font-semibold">v{version.version_number}</p>
-                        {active ? <Badge variant="success">active</Badge> : null}
+                        {active ? <Badge variant="success">{activeForThisFormVersion ? `active for ${formVersion}` : "form default"}</Badge> : null}
                         <Badge variant={version.source_kind === "gepa_candidate" ? "warning" : "outline"}>
                           {version.source_kind.replaceAll("_", " ")}
                         </Badge>
-                        <Badge variant={applies ? "success" : "secondary"}>
-                          {applies ? "applies here" : "other version"}
-                        </Badge>
+                        {!applies ? <Badge variant="secondary">other version</Badge> : null}
                       </div>
                       <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                         {version.commit_message || "No commit message"}
@@ -806,13 +894,34 @@ function PromptRegistryPanel({
                     <div className="flex flex-wrap justify-end gap-1.5">
                       <Button
                         type="button"
-                        variant={active ? "default" : "outline"}
+                        variant="outline"
                         size="sm"
-                        className="h-8 px-2 text-xs"
-                        disabled={saving || active}
-                        onClick={() => void onSetActive(family.id, version.id)}
+                        className="h-8 gap-1.5 px-2 text-xs"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openPromptViewer(version.id);
+                        }}
                       >
-                        {active ? "Active" : "Set Active"}
+                        <Eye className="h-3.5 w-3.5" />
+                        View
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={activeForThisFormVersion ? "default" : "outline"}
+                        size="sm"
+                        className="h-8 gap-1.5 px-2 text-xs"
+                        disabled={saving || activeForThisFormVersion}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void onSetActive(family.id, version.id);
+                        }}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        {activeForThisFormVersion
+                          ? `Active for ${formVersion}`
+                          : activeViaDefault
+                            ? `Pin to ${formVersion}`
+                            : `Make Active for ${formVersion}`}
                       </Button>
                       <CopyButton text={version.text} label="Copy" />
                     </div>
@@ -845,20 +954,63 @@ function PromptRegistryPanel({
                       <option key={version.id} value={version.id}>Compare v{version.version_number}</option>
                     ))}
                   </select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => openPromptViewer(rightVersion?.id ?? versions[0].id, "diff", leftVersion?.id)}
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                    Open Diff
+                  </Button>
                 </div>
               </div>
-              <DiffBlock lines={diffLines} />
+              <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-3">
+                <p className="text-xs text-muted-foreground">
+                  Compare full prompts in the pop-out viewer without squeezing long lines into the form panel.
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => openPromptViewer(rightVersion?.id ?? versions[0].id, "diff", leftVersion?.id)}
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  View Comparison
+                </Button>
+              </div>
             </div>
           ) : null}
         </div>
       )}
     </div>
+    {family ? (
+      <PromptViewerDialog
+        open={viewerOpen}
+        versions={versions}
+        selectedVersionId={viewerVersionId}
+        compareVersionId={viewerCompareVersionId}
+        mode={viewerMode}
+        activeVersionId={activeVersionId}
+        activeForVersionId={activeForVersion?.version_id ?? ""}
+        activeLabel={activeForVersion ? `active for ${formVersion}` : activeDefault ? "form default" : ""}
+        formVersion={formVersion}
+        saving={saving}
+        onClose={() => setViewerOpen(false)}
+        onSelectedVersionChange={setViewerVersionId}
+        onCompareVersionChange={setViewerCompareVersionId}
+        onModeChange={setViewerMode}
+        onSetActive={(versionId) => void onSetActive(family.id, versionId)}
+      />
+    ) : null}
+    </>
   );
 }
 
 function DiffBlock({ lines }: { lines: Array<{ kind: "same" | "add" | "remove"; text: string }> }) {
   return (
-    <pre className="chat-scrollbar max-h-[520px] overflow-auto bg-slate-950 p-3 text-xs leading-relaxed text-slate-200">
+    <pre className="chat-scrollbar max-h-[520px] overflow-auto whitespace-pre-wrap bg-slate-950 p-3 text-xs leading-relaxed text-slate-200">
       {lines.map((line, index) => {
         const prefix = line.kind === "add" ? "+" : line.kind === "remove" ? "-" : " ";
         const className =
@@ -874,6 +1026,187 @@ function DiffBlock({ lines }: { lines: Array<{ kind: "same" | "add" | "remove"; 
         );
       })}
     </pre>
+  );
+}
+
+function PromptTextBlock({ text }: { text: string }) {
+  return (
+    <pre className="chat-scrollbar min-h-[360px] max-h-[62vh] overflow-auto whitespace-pre-wrap rounded-md border bg-slate-950 p-4 font-mono text-xs leading-relaxed text-slate-100">
+      {text || "No prompt text."}
+    </pre>
+  );
+}
+
+function PromptViewerDialog({
+  open,
+  versions,
+  selectedVersionId,
+  compareVersionId,
+  mode,
+  activeVersionId,
+  activeForVersionId,
+  activeLabel,
+  formVersion,
+  saving,
+  onClose,
+  onSelectedVersionChange,
+  onCompareVersionChange,
+  onModeChange,
+  onSetActive,
+}: {
+  open: boolean;
+  versions: PromptVersionRecord[];
+  selectedVersionId: string;
+  compareVersionId: string;
+  mode: PromptViewerMode;
+  activeVersionId: string;
+  activeForVersionId: string;
+  activeLabel: string;
+  formVersion: string;
+  saving: boolean;
+  onClose: () => void;
+  onSelectedVersionChange: (versionId: string) => void;
+  onCompareVersionChange: (versionId: string) => void;
+  onModeChange: (mode: PromptViewerMode) => void;
+  onSetActive: (versionId: string) => void;
+}) {
+  useBodyScrollLock(open);
+
+  const selectedVersion =
+    versions.find((version) => version.id === selectedVersionId) ?? versions[0] ?? null;
+  const compareVersion =
+    versions.find((version) => version.id === compareVersionId) ??
+    versions.find((version) => version.id !== selectedVersion?.id) ??
+    selectedVersion;
+  const active = Boolean(selectedVersion && selectedVersion.id === activeVersionId);
+  const activeForThisFormVersion = Boolean(
+    selectedVersion && selectedVersion.id === activeForVersionId,
+  );
+  const diffLines =
+    selectedVersion && compareVersion
+      ? buildLineDiff(compareVersion.text, selectedVersion.text)
+      : [];
+
+  if (!open || !selectedVersion) return null;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/30 p-4 backdrop-blur-sm">
+      <div
+        aria-modal="true"
+        role="dialog"
+        className="flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg border bg-card shadow-2xl"
+      >
+        <div className="flex shrink-0 flex-wrap items-start justify-between gap-4 border-b bg-secondary/35 px-5 py-4">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-lg font-semibold">Prompt v{selectedVersion.version_number}</h2>
+              {active ? <Badge variant="success">{activeLabel || `active for ${formVersion}`}</Badge> : null}
+              <Badge variant={selectedVersion.source_kind === "gepa_candidate" ? "warning" : "outline"}>
+                {selectedVersion.source_kind.replaceAll("_", " ")}
+              </Badge>
+              <Badge variant="outline" className="font-mono text-[10px]">
+                {selectedVersion.text_hash.slice(0, 12)}
+              </Badge>
+            </div>
+            <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+              {selectedVersion.commit_message || "No commit message"}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9"
+            onClick={onClose}
+            aria-label="Close prompt viewer"
+            title="Close"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="grid shrink-0 gap-3 border-b px-5 py-3 lg:grid-cols-[minmax(220px,1fr)_auto]">
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={selectedVersion.id}
+              onChange={(event) => onSelectedVersionChange(event.target.value)}
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+            >
+              {versions.map((version) => (
+                <option key={version.id} value={version.id}>
+                  View v{version.version_number}
+                </option>
+              ))}
+            </select>
+            <Button
+              type="button"
+              variant={mode === "prompt" ? "default" : "outline"}
+              size="sm"
+              onClick={() => onModeChange("prompt")}
+            >
+              Prompt
+            </Button>
+            <Button
+              type="button"
+              variant={mode === "diff" ? "default" : "outline"}
+              size="sm"
+              onClick={() => onModeChange("diff")}
+              disabled={versions.length < 2}
+            >
+              Diff
+            </Button>
+            {mode === "diff" && versions.length > 1 ? (
+              <select
+                value={compareVersion?.id ?? ""}
+                onChange={(event) => onCompareVersionChange(event.target.value)}
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+              >
+                {versions.map((version) => (
+                  <option key={version.id} value={version.id}>
+                    Compare against v{version.version_number}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <CopyButton text={selectedVersion.text} label="Copy Prompt" />
+            <Button
+              type="button"
+              size="sm"
+              className="gap-1.5"
+              disabled={saving || activeForThisFormVersion}
+              onClick={() => onSetActive(selectedVersion.id)}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              {activeForThisFormVersion
+                ? `Active for ${formVersion}`
+                : active
+                  ? `Pin to ${formVersion}`
+                  : `Make Active for ${formVersion}`}
+            </Button>
+          </div>
+        </div>
+
+        <div className="chat-scrollbar min-h-0 flex-1 overflow-auto p-5">
+          {mode === "diff" && compareVersion ? (
+            <div className="overflow-hidden rounded-md border">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-secondary/35 px-3 py-2">
+                <p className="text-sm font-semibold">
+                  v{compareVersion.version_number} to v{selectedVersion.version_number}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Added lines are green; removed lines are red.
+                </p>
+              </div>
+              <DiffBlock lines={diffLines} />
+            </div>
+          ) : (
+            <PromptTextBlock text={selectedVersion.text} />
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1180,6 +1513,10 @@ export function FormCatalog() {
     () => forms.find((form) => formKey(form) === selectedKey) ?? null,
     [forms, selectedKey],
   );
+  const selectedActivePrompt = useMemo(
+    () => getActivePromptVersion(promptFamilies[0], selectedDefinition?.version ?? ""),
+    [promptFamilies, selectedDefinition?.version],
+  );
 
   const aggregateStats = useMemo(
     () => ({
@@ -1209,6 +1546,9 @@ export function FormCatalog() {
     setError("");
     try {
       const saved = await registerForm(definition);
+      if (definition.instructions?.trim()) {
+        await bootstrapPromptFamily(saved.id, saved.version);
+      }
       setDialogOpen(false);
       await refresh();
       setSelectedKey(`${saved.id}@${saved.version}`);
@@ -1445,16 +1785,8 @@ export function FormCatalog() {
                   <MetadataPill label="Last Review" value={formatDate(selectedForm.lastReviewedAt)} />
                 </div>
 
-                {selectedDefinition.instructions ||
-                selectedDefinition.tools?.length ||
-                selectedDefinition.knowledge_docs?.length ? (
-                  <div className="grid gap-3 lg:grid-cols-3">
-                    {selectedDefinition.instructions ? (
-                      <div className="rounded-lg border bg-background p-4">
-                        <p className="text-[11px] font-semibold uppercase text-muted-foreground">Instructions</p>
-                        <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{selectedDefinition.instructions}</p>
-                      </div>
-                    ) : null}
+                {selectedDefinition.tools?.length || selectedDefinition.knowledge_docs?.length ? (
+                  <div className="grid gap-3 lg:grid-cols-2">
                     {selectedDefinition.tools?.length ? (
                       <div className="rounded-lg border bg-background p-4">
                         <p className="text-[11px] font-semibold uppercase text-muted-foreground">Tools</p>
@@ -1481,10 +1813,10 @@ export function FormCatalog() {
                     <Badge
                       variant="outline"
                       className="gap-1 text-[10px] text-muted-foreground"
-                      title="No instructions, tools, or knowledge documents are stored for this form."
+                      title="No tools or knowledge documents are stored for this form."
                     >
                       <Info className="h-3 w-3" />
-                      No prompt metadata
+                      No runtime metadata
                     </Badge>
                   </div>
                 )}
@@ -1524,6 +1856,7 @@ export function FormCatalog() {
         mode={dialogMode}
         forms={forms}
         sourceDefinition={dialogMode === "edit" ? selectedDefinition : null}
+        registryInstructions={dialogMode === "edit" ? selectedActivePrompt?.text ?? "" : ""}
         saving={saving}
         onClose={() => {
           if (saving) return;
@@ -1540,6 +1873,7 @@ function FormRegistrationDialog({
   mode,
   forms,
   sourceDefinition,
+  registryInstructions,
   saving,
   onClose,
   onSave,
@@ -1548,12 +1882,13 @@ function FormRegistrationDialog({
   mode: DialogMode;
   forms: FormCatalogEntry[];
   sourceDefinition: AuditFormDefinition | null;
+  registryInstructions?: string;
   saving: boolean;
   onClose: () => void;
   onSave: (definition: AuditFormDefinition) => Promise<void>;
 }) {
   const [state, setState] = useState<FormEditorState>(() =>
-    definitionToState(sourceDefinition, mode, forms),
+    definitionToState(sourceDefinition, mode, forms, registryInstructions),
   );
   const [expandedQuestions, setExpandedQuestions] = useState<Set<number>>(new Set([0]));
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -1567,13 +1902,13 @@ function FormRegistrationDialog({
     (form) => form.id === state.id.trim() && form.version === state.version.trim(),
   );
   const runtimeMetadataMissing =
-    !state.instructions.trim() && state.tools.length === 0 && state.knowledgeDocs.length === 0;
+    state.tools.length === 0 && state.knowledgeDocs.length === 0;
 
   useBodyScrollLock(open);
 
   useEffect(() => {
     if (!open) return;
-    const nextState = definitionToState(sourceDefinition, mode, forms);
+    const nextState = definitionToState(sourceDefinition, mode, forms, registryInstructions);
     setState(nextState);
     setExpandedQuestions(new Set(nextState.questions.map((_, index) => index)));
     setPreviewOpen(false);
@@ -1581,7 +1916,7 @@ function FormRegistrationDialog({
     setFormError("");
     setImportMessage("");
     setUploadedKnowledgeDocName("");
-  }, [forms, mode, open, sourceDefinition]);
+  }, [forms, mode, open, registryInstructions, sourceDefinition]);
 
   if (!open) return null;
 
@@ -1902,24 +2237,44 @@ function FormRegistrationDialog({
                       placeholder="Review focus, use case, and catalog notes"
                     />
                   </div>
-                  <div className="grid gap-2">
-                    <FieldLabel
-                      htmlFor="form-instructions"
-                      label="Instructions"
-                      optional
-                      tooltip="Stored on the catalog definition and injected into the file-review agent prompt."
-                    />
-                    <Textarea
-                      id="form-instructions"
-                      value={state.instructions}
-                      onChange={(event) =>
-                        setState((current) => ({ ...current, instructions: event.target.value }))
-                      }
-                      disabled={saving}
-                      className="min-h-[220px]"
-                      placeholder="Form-specific review focus, evidence boundaries, citation expectations..."
-                    />
-                  </div>
+                  {isEditing ? (
+                    <div className="rounded-md border bg-secondary/25 p-3">
+                      <div className="flex items-start gap-2">
+                        <GitBranch className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold">Prompt managed in the registry</p>
+                          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                            This form version editor only changes catalog details, tools, knowledge docs, and questions.
+                            Prompt changes happen in the Prompt Registry after the version is saved.
+                          </p>
+                          {state.instructions.trim() ? (
+                            <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
+                              The new version will seed its registry prompt from the currently active prompt.
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid gap-2">
+                      <FieldLabel
+                        htmlFor="form-instructions"
+                        label="Initial Prompt Instructions"
+                        optional
+                        tooltip="Used once to seed the prompt registry for this new form version."
+                      />
+                      <Textarea
+                        id="form-instructions"
+                        value={state.instructions}
+                        onChange={(event) =>
+                          setState((current) => ({ ...current, instructions: event.target.value }))
+                        }
+                        disabled={saving}
+                        className="min-h-[220px]"
+                        placeholder="Form-specific review focus, evidence boundaries, citation expectations..."
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid gap-4">
