@@ -449,12 +449,8 @@ def compact_audit_result_text(result: AuditFormResult | AuditFormWithFinancialsR
     ]
     if isinstance(result, AuditFormWithFinancialsResult):
         lines.append(f"Total reviewed: ${result.total_amount_reviewed_dollars:,.2f}")
-        lines.append(
-            f"OW ${result.total_overwrite_dollars:,.2f} ({result.overwrite_percent}%)"
-        )
-        lines.append(
-            f"UW ${result.total_underwrite_dollars:,.2f} ({result.underwrite_percent}%)"
-        )
+        lines.append(f"OW ${result.total_overwrite_dollars:,.2f} ({result.overwrite_percent}%)")
+        lines.append(f"UW ${result.total_underwrite_dollars:,.2f} ({result.underwrite_percent}%)")
     for question in result.questions:
         if isinstance(question, FinancialQuestionResult):
             lines.append(

@@ -458,7 +458,9 @@ def _compare_financial_audit_results(
         "overwrite_percent_agreement": overwrite_percent_agreement,
         "underwrite_percent_agreement": underwrite_percent_agreement,
         "financial_score": financial_score,
-        "form_exact_match": outcome_match and question_matches == question_total and financial_matches == question_total,
+        "form_exact_match": outcome_match
+        and question_matches == question_total
+        and financial_matches == question_total,
         "question_agreements": question_agreements,
         "question_financial_agreements": question_financial_agreements,
         "questions": question_details,
@@ -543,8 +545,12 @@ def comparison_result_to_agreement_items(
                     "reference_answer": _answer_text(reference_answer),
                     "matched": matched,
                     "agreement": float(matched),
-                    "generated_comment": generated_question.comments if generated_question else None,
-                    "reference_comment": reference_question.comments if reference_question else None,
+                    "generated_comment": generated_question.comments
+                    if generated_question
+                    else None,
+                    "reference_comment": reference_question.comments
+                    if reference_question
+                    else None,
                     "generated_citations": generated_question.citations
                     if generated_question
                     else None,

@@ -79,6 +79,8 @@ class RegisteredFunction:
         suffix = f" -> {self.return_annotation}" if self.return_annotation else ""
         if not multiline:
             return f"{self.name}({', '.join(fragments)}){suffix}"
+        if not fragments:
+            return f"{self.name}(){suffix}"
         rendered = ",\n".join(f"{indent}{fragment}" for fragment in fragments)
         return f"{self.name}(\n{rendered},\n){suffix}"
 

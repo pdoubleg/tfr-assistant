@@ -58,10 +58,14 @@ def _payload_hash(payload: dict[str, Any]) -> str:
 
 def _registered_form_kind(form_id: str, form_version: str) -> str:
     try:
-        return FormCatalog(get_settings().form_catalog_dir).get_form(
-            form_id,
-            form_version,
-        ).form_kind
+        return (
+            FormCatalog(get_settings().form_catalog_dir)
+            .get_form(
+                form_id,
+                form_version,
+            )
+            .form_kind
+        )
     except KeyError as exc:
         raise ValueError(
             f"Registered form {form_id}@{form_version} was not found in the form catalog."
@@ -854,8 +858,7 @@ class ReviewRepository:
             )
             for sub_position, sub_question in enumerate(question.sub_questions or [], start=1):
                 rendered = (
-                    f"{sub_question.id}: applicable={sub_question.answer}; "
-                    f"{sub_question.reasoning}"
+                    f"{sub_question.id}: applicable={sub_question.answer}; {sub_question.reasoning}"
                 )
                 self.session.add(
                     AuditResultItemORM(

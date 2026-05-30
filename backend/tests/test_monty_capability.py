@@ -130,6 +130,27 @@ def test_monty_help_accepts_multiple_targets(tmp_path) -> None:
     assert "\n\n---\n\n" in help_text
 
 
+def test_monty_collection_help_includes_tool_level_details_and_next_steps(tmp_path) -> None:
+    settings = Settings(
+        data_dir=tmp_path / "data",
+        chat_artifacts_dir=tmp_path / "data" / "chat_artifacts",
+    )
+    runtime = MontyPythonRuntime(TFRChatState(), settings)
+
+    help_text = runtime.help("dataframe_operations")
+
+    assert "## Collection: dataframe_operations" in help_text
+    assert "#### `group_by`" in help_text
+    assert "**Arguments**" in help_text
+    assert "- by (list[str] | str): Grouping column name or names." in help_text
+    assert "**Returns**" in help_text
+    assert "**Example**" in help_text
+    assert 'by_status = group_by("ds_1", "status"' in help_text
+    assert "Use the exact parameter names" in help_text
+    assert "unlisted aliases are invalid" in help_text
+    assert "### Next Step" in help_text
+
+
 def test_monty_help_explains_sql_handle_flow_and_preview_escape_hatch(tmp_path) -> None:
     settings = Settings(
         data_dir=tmp_path / "data",

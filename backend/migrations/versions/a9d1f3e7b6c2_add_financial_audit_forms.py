@@ -30,7 +30,9 @@ def upgrade() -> None:
         batch_op.add_column(
             sa.Column("form_kind", sa.String(length=24), nullable=False, server_default="standard")
         )
-        batch_op.add_column(sa.Column("rendered_text", sa.Text(), nullable=False, server_default=""))
+        batch_op.add_column(
+            sa.Column("rendered_text", sa.Text(), nullable=False, server_default="")
+        )
         batch_op.add_column(sa.Column("compact_text", sa.Text(), nullable=False, server_default=""))
         batch_op.add_column(sa.Column("total_amount_reviewed_dollars", sa.Numeric(18, 2)))
         batch_op.add_column(sa.Column("total_overwrite_dollars", sa.Numeric(18, 2)))
@@ -89,7 +91,9 @@ def upgrade() -> None:
         batch_op.create_index(batch_op.f("ix_audit_result_items_kind"), ["kind"])
         batch_op.create_index(batch_op.f("ix_audit_result_items_level"), ["level"])
         batch_op.create_index(batch_op.f("ix_audit_result_items_question_id"), ["question_id"])
-        batch_op.create_index(batch_op.f("ix_audit_result_items_result_version_id"), ["result_version_id"])
+        batch_op.create_index(
+            batch_op.f("ix_audit_result_items_result_version_id"), ["result_version_id"]
+        )
         batch_op.create_index(batch_op.f("ix_audit_result_items_review_id"), ["review_id"])
 
     op.create_table(
@@ -130,8 +134,12 @@ def upgrade() -> None:
         batch_op.create_index(batch_op.f("ix_audit_result_texts_form_kind"), ["form_kind"])
         batch_op.create_index(batch_op.f("ix_audit_result_texts_form_version"), ["form_version"])
         batch_op.create_index(batch_op.f("ix_audit_result_texts_kind"), ["kind"])
-        batch_op.create_index(batch_op.f("ix_audit_result_texts_overall_outcome"), ["overall_outcome"])
-        batch_op.create_index(batch_op.f("ix_audit_result_texts_result_version_id"), ["result_version_id"])
+        batch_op.create_index(
+            batch_op.f("ix_audit_result_texts_overall_outcome"), ["overall_outcome"]
+        )
+        batch_op.create_index(
+            batch_op.f("ix_audit_result_texts_result_version_id"), ["result_version_id"]
+        )
         batch_op.create_index(batch_op.f("ix_audit_result_texts_review_id"), ["review_id"])
 
     for table_name in ("eval_datasets", "eval_runs", "eval_comparisons"):

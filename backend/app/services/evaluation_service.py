@@ -753,10 +753,14 @@ class EvaluationRepository:
 
     def _ensure_registered_form(self, form_id: str, form_version: str) -> str:
         try:
-            return FormCatalog(get_settings().form_catalog_dir).get_form(
-                form_id,
-                form_version,
-            ).form_kind
+            return (
+                FormCatalog(get_settings().form_catalog_dir)
+                .get_form(
+                    form_id,
+                    form_version,
+                )
+                .form_kind
+            )
         except KeyError as exc:
             raise ValueError(
                 f"Registered form {form_id}@{form_version} was not found in the form catalog."
