@@ -4,7 +4,13 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from app.models.audit import AuditFormResult, FormQuestion
+from app.models.audit import (
+    AuditFormResult,
+    AuditFormWithFinancialsResult,
+    AuditResult,
+    FinancialQuestionResult,
+    FormQuestion,
+)
 from app.services.evaluation_metrics import compare_audit_results
 
 
@@ -15,11 +21,13 @@ class JudgeFeedback(BaseModel):
     judge_score: float | None = Field(default=None, ge=0, le=1)
 
 
-def issue_count(result: AuditFormResult) -> int:
+def issue_count(result: AuditResult) -> int:
     return sum(1 for question in result.questions if question.answer != "Yes")
 
 
-def driver_count(result: AuditFormResult) -> int:
+def driver_count(result: AuditResult) -> int:
+    if isinstance(result, AuditFormWithFinancialsResult):
+        return 0
     return sum(
         1 for question in result.questions for sub in question.sub_questions or [] if sub.answer
     )
@@ -36,9 +44,9 @@ def score_from_comparison(comparison: dict[str, Any], score_key: str) -> float:
 
 
 def select_references(
-    references: list[tuple[str, AuditFormResult]],
+    references: list[tuple[str, AuditResult]],
     policy: str,
-) -> list[tuple[str, AuditFormResult]]:
+) -> list[tuple[str, AuditResult]]:
     if policy == "all":
         return references
     if policy == "r1":
@@ -53,8 +61,8 @@ def select_references(
 
 
 def compare_and_score(
-    generated: AuditFormResult,
-    reference: AuditFormResult,
+    generated: AuditResult,
+    reference: AuditResult,
     *,
     score_key: str,
 ) -> tuple[float, str, dict[str, Any]]:
@@ -74,10 +82,16 @@ def _question_by_id(result: AuditFormResult) -> dict[str, FormQuestion]:
     return {question.id: question for question in result.questions}
 
 
+def _financial_question_by_id(
+    result: AuditFormWithFinancialsResult,
+) -> dict[str, FinancialQuestionResult]:
+    return {question.id: question for question in result.questions}
+
+
 def format_metric_feedback(
     comparison: dict[str, Any],
-    generated: AuditFormResult,
-    reference: AuditFormResult,
+    generated: AuditResult,
+    reference: AuditResult,
     *,
     score: float,
     score_key: str,
@@ -96,6 +110,19 @@ def format_metric_feedback(
         value = comparison.get(key)
         if isinstance(value, int | float):
             lines.append(f"- {key}: {float(value):.4f}")
+    for key in (
+        "financial_score",
+        "total_overwrite_agreement",
+        "total_underwrite_agreement",
+        "overwrite_percent_agreement",
+        "underwrite_percent_agreement",
+        "question_financial_agreement",
+        "absolute_dollar_error_score",
+        "percent_error_score",
+    ):
+        value = comparison.get(key)
+        if isinstance(value, int | float):
+            lines.append(f"- {key}: {float(value):.4f}")
     if not comparison.get("outcome_match", False):
         lines.append(
             "- outcome mismatch: "
@@ -103,6 +130,29 @@ def format_metric_feedback(
         )
         lines.append(f"  Generated rationale: {generated.outcome_justification}")
         lines.append(f"  Reference rationale: {reference.outcome_justification}")
+
+    if isinstance(generated, AuditFormWithFinancialsResult) and isinstance(
+        reference,
+        AuditFormWithFinancialsResult,
+    ):
+        generated_financial_questions = _financial_question_by_id(generated)
+        reference_financial_questions = _financial_question_by_id(reference)
+        for question in comparison.get("questions", []):
+            question_id = question.get("id")
+            lines.append(
+                f"- financial mismatch {question_id}: generated answer "
+                f"`{question.get('generated_answer')}` vs reference "
+                f"`{question.get('reference_answer')}`; OW error "
+                f"${float(question.get('overwrite_dollar_error') or 0):,.2f}; UW error "
+                f"${float(question.get('underwrite_dollar_error') or 0):,.2f}"
+            )
+            generated_question = generated_financial_questions.get(question_id)
+            reference_question = reference_financial_questions.get(question_id)
+            if generated_question and generated_question.comments:
+                lines.append(f"  Generated rationale: {generated_question.comments}")
+            if reference_question and reference_question.comments:
+                lines.append(f"  Reference rationale: {reference_question.comments}")
+        return "\n".join(lines)
 
     generated_questions = _question_by_id(generated)
     reference_questions = _question_by_id(reference)

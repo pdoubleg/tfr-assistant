@@ -2,7 +2,13 @@ import json
 
 import pandas as pd
 
-from app.models.audit import AuditFormResult, FormQuestion, FormSubQuestion
+from app.models.audit import (
+    AuditFormResult,
+    AuditFormWithFinancialsResult,
+    FinancialQuestionResult,
+    FormQuestion,
+    FormSubQuestion,
+)
 from app.services.evaluation_metrics import (
     aggregate_comparison_metrics,
     compare_audit_results,
@@ -102,7 +108,7 @@ def test_compare_audit_results_exact_match_uses_compact_details() -> None:
 
     comparison = compare_audit_results(generated, reference)
 
-    assert comparison["metric_schema_version"] == 2
+    assert comparison["metric_schema_version"] == 3
     assert comparison["outcome_match"] is True
     assert comparison["question_agreement"] == 1.0
     assert comparison["subquestion_agreement"] == 1.0
@@ -220,3 +226,66 @@ def test_comparison_row_and_aggregate_metrics_use_raw_counts() -> None:
     assert metrics["R1_subquestion_agreement"] == 2 / 4
     assert metrics["R2_question_agreement"] == 1 / 2
     assert metrics["R2_subquestion_agreement"] == 0.0
+
+
+def _financial_question(
+    question_id: str,
+    *,
+    answer: str = "Yes",
+    overwrite: float = 0,
+    underwrite: float = 0,
+) -> FinancialQuestionResult:
+    return FinancialQuestionResult(
+        id=question_id,
+        text=f"{question_id} financial text",
+        answer=answer,  # type: ignore[arg-type]
+        comments=f"{question_id} comments",
+        citations=f"{question_id} citations",
+        overwrite_dollars=overwrite,
+        underwrite_dollars=underwrite,
+    )
+
+
+def _financial_result(
+    *,
+    result_id: str = "financial-1",
+    total_reviewed: float = 1000,
+    q1_overwrite: float = 25,
+    q2_underwrite: float = 10,
+    outcome: str = "Does Not Meet",
+) -> AuditFormWithFinancialsResult:
+    return AuditFormWithFinancialsResult(
+        id=result_id,
+        form_id="financial_claim_review",
+        form_version="v0.1",
+        title="Financial review",
+        description="Financial review form",
+        total_amount_reviewed_dollars=total_reviewed,
+        questions=[
+            _financial_question("FQ1", answer="No", overwrite=q1_overwrite),
+            _financial_question("FQ2", answer="No", underwrite=q2_underwrite),
+        ],
+        overall_outcome=outcome,  # type: ignore[arg-type]
+        outcome_justification="Financial outcome rationale.",
+    )
+
+
+def test_financial_compare_calculates_totals_percentages_and_items() -> None:
+    generated = _financial_result(q1_overwrite=20, q2_underwrite=10)
+    reference = _financial_result(result_id="financial-ref", q1_overwrite=25, q2_underwrite=15)
+
+    comparison = compare_audit_results(generated, reference)
+    items = comparison_result_to_agreement_items(comparison, generated, reference)
+
+    assert comparison["form_kind"] == "financial"
+    assert comparison["generated_total_overwrite_dollars"] == 20
+    assert comparison["reference_total_overwrite_dollars"] == 25
+    assert comparison["generated_overwrite_percent"] == 2
+    assert comparison["reference_overwrite_percent"] == 2.5
+    assert "financial_score" in comparison["applicable_metric_keys"]
+    assert 0 <= comparison["financial_score"] <= 1
+
+    question_item = next(item for item in items if item["level"] == "financial_question")
+    assert question_item["generated_overwrite_dollars"] == 20
+    assert question_item["reference_overwrite_dollars"] == 25
+    assert question_item["overwrite_dollar_error"] == 5

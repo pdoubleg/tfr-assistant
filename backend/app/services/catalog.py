@@ -15,13 +15,15 @@ class FormCatalog:
                 id=form.id,
                 version=form.version,
                 title=form.title,
+                form_kind=form.form_kind,
                 description=form.description,
                 instructions=form.instructions,
                 tools=form.tools,
                 knowledge_docs=form.knowledge_docs,
                 question_count=len(form.canonical.questions),
                 sub_question_count=sum(
-                    len(question.sub_questions or []) for question in form.canonical.questions
+                    len(getattr(question, "sub_questions", None) or [])
+                    for question in form.canonical.questions
                 ),
                 created_at=form.created_at,
             )

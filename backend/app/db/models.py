@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
@@ -11,6 +12,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     MetaData,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -106,6 +108,7 @@ class AuditReviewORM(Base):
     )
     form_id: Mapped[str] = mapped_column(String(128), index=True)
     form_version: Mapped[str] = mapped_column(String(64), index=True)
+    form_kind: Mapped[str] = mapped_column(String(24), default="standard", index=True)
     status: Mapped[str] = mapped_column(String(24), default="queued", index=True)
     source: Mapped[str] = mapped_column(String(32), default="api", index=True)
     input_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
@@ -135,17 +138,29 @@ class AuditResultVersionORM(Base):
         index=True,
     )
     kind: Mapped[str] = mapped_column(String(16), index=True)
+    form_kind: Mapped[str] = mapped_column(String(24), default="standard", index=True)
     revision: Mapped[int] = mapped_column(Integer, default=1)
     payload_json: Mapped[dict[str, Any]] = mapped_column(PortableJSON, nullable=False)
     payload_hash: Mapped[str] = mapped_column(String(64), index=True)
+    rendered_text: Mapped[str] = mapped_column(Text, default="")
+    compact_text: Mapped[str] = mapped_column(Text, default="")
+    total_amount_reviewed_dollars: Mapped[Decimal | None] = mapped_column(
+        Numeric(18, 2),
+        nullable=True,
+    )
+    total_overwrite_dollars: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    total_underwrite_dollars: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    overwrite_percent: Mapped[Decimal | None] = mapped_column(Numeric(9, 2), nullable=True)
+    underwrite_percent: Mapped[Decimal | None] = mapped_column(Numeric(9, 2), nullable=True)
+    renderer_version: Mapped[int] = mapped_column(Integer, default=1)
     created_by: Mapped[str] = mapped_column(String(64), default="agent")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     review: Mapped[AuditReviewORM] = relationship(back_populates="versions")
 
 
-class AuditQuestionAnswerORM(Base):
-    __tablename__ = "audit_question_answers"
+class AuditResultItemORM(Base):
+    __tablename__ = "audit_result_items"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     result_version_id: Mapped[str] = mapped_column(
@@ -157,32 +172,49 @@ class AuditQuestionAnswerORM(Base):
         index=True,
     )
     kind: Mapped[str] = mapped_column(String(16), index=True)
+    form_kind: Mapped[str] = mapped_column(String(24), default="standard", index=True)
+    level: Mapped[str] = mapped_column(String(24), index=True)
     question_id: Mapped[str] = mapped_column(String(64), index=True)
+    driver_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     question_text: Mapped[str] = mapped_column(Text)
-    answer: Mapped[str] = mapped_column(String(8), index=True)
-    position: Mapped[int] = mapped_column(Integer)
-
-
-class AuditSubQuestionAnswerORM(Base):
-    __tablename__ = "audit_subquestion_answers"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    result_version_id: Mapped[str] = mapped_column(
-        ForeignKey("audit_result_versions.id", ondelete="CASCADE"),
-        index=True,
-    )
-    review_id: Mapped[str] = mapped_column(
-        ForeignKey("audit_reviews.id", ondelete="CASCADE"),
-        index=True,
-    )
-    kind: Mapped[str] = mapped_column(String(16), index=True)
-    question_id: Mapped[str] = mapped_column(String(64), index=True)
-    subquestion_id: Mapped[str] = mapped_column(String(64), index=True)
-    subquestion_text: Mapped[str] = mapped_column(Text)
-    answer: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    driver_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    answer_text: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
+    answer_bool: Mapped[bool | None] = mapped_column(Boolean, nullable=True, index=True)
+    comments: Mapped[str | None] = mapped_column(Text, nullable=True)
     reasoning: Mapped[str] = mapped_column(Text, default="")
     citations: Mapped[str] = mapped_column(Text, default="")
+    direct_overwrite_dollars: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    direct_underwrite_dollars: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    rollup_overwrite_dollars: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    rollup_underwrite_dollars: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     position: Mapped[int] = mapped_column(Integer)
+    parent_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    rendered_item_text: Mapped[str] = mapped_column(Text, default="")
+    search_text: Mapped[str] = mapped_column(Text, default="")
+
+
+class AuditResultTextORM(Base):
+    __tablename__ = "audit_result_texts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    result_version_id: Mapped[str] = mapped_column(
+        ForeignKey("audit_result_versions.id", ondelete="CASCADE"),
+        unique=True,
+        index=True,
+    )
+    review_id: Mapped[str] = mapped_column(
+        ForeignKey("audit_reviews.id", ondelete="CASCADE"),
+        index=True,
+    )
+    kind: Mapped[str] = mapped_column(String(16), index=True)
+    form_kind: Mapped[str] = mapped_column(String(24), default="standard", index=True)
+    form_id: Mapped[str] = mapped_column(String(128), index=True)
+    form_version: Mapped[str] = mapped_column(String(64), index=True)
+    claim_number: Mapped[str] = mapped_column(String(128), default="", index=True)
+    overall_outcome: Mapped[str] = mapped_column(String(32), default="", index=True)
+    rendered_text: Mapped[str] = mapped_column(Text, default="")
+    compact_text: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
 class FeedbackORM(Base):
@@ -221,6 +253,7 @@ class EvalDatasetORM(Base):
     description: Mapped[str] = mapped_column(Text, default="")
     form_id: Mapped[str] = mapped_column(String(128), index=True)
     form_version: Mapped[str] = mapped_column(String(64), index=True)
+    form_kind: Mapped[str] = mapped_column(String(24), default="standard", index=True)
     source_kind: Mapped[str] = mapped_column(String(32), default="manual")
     source_metadata_json: Mapped[dict[str, Any] | None] = mapped_column(
         PortableJSON,
@@ -288,6 +321,7 @@ class EvalRunORM(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     dataset_id: Mapped[str] = mapped_column(ForeignKey("eval_datasets.id"), index=True)
+    form_kind: Mapped[str] = mapped_column(String(24), default="standard", index=True)
     lineage_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     source_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     config_version: Mapped[int] = mapped_column(Integer, default=1)
@@ -361,6 +395,7 @@ class EvalComparisonORM(Base):
     case_id: Mapped[str] = mapped_column(ForeignKey("eval_cases.id"), index=True)
     ground_truth_id: Mapped[str] = mapped_column(ForeignKey("eval_ground_truths.id"), index=True)
     reference_kind: Mapped[str] = mapped_column(String(16), index=True)
+    form_kind: Mapped[str] = mapped_column(String(24), default="standard", index=True)
     score: Mapped[float | None] = mapped_column(Float, nullable=True)
     metrics_json: Mapped[dict[str, Any]] = mapped_column(PortableJSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
@@ -386,6 +421,7 @@ class EvalAgreementItemORM(Base):
         index=True,
     )
     reference_kind: Mapped[str] = mapped_column(String(16), index=True)
+    form_kind: Mapped[str] = mapped_column(String(24), default="standard", index=True)
     level: Mapped[str] = mapped_column(String(24), index=True)
     question_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     subquestion_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
@@ -399,6 +435,24 @@ class EvalAgreementItemORM(Base):
     reference_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     generated_citations: Mapped[str | None] = mapped_column(Text, nullable=True)
     reference_citations: Mapped[str | None] = mapped_column(Text, nullable=True)
+    generated_overwrite_dollars: Mapped[Decimal | None] = mapped_column(
+        Numeric(18, 2),
+        nullable=True,
+    )
+    reference_overwrite_dollars: Mapped[Decimal | None] = mapped_column(
+        Numeric(18, 2),
+        nullable=True,
+    )
+    generated_underwrite_dollars: Mapped[Decimal | None] = mapped_column(
+        Numeric(18, 2),
+        nullable=True,
+    )
+    reference_underwrite_dollars: Mapped[Decimal | None] = mapped_column(
+        Numeric(18, 2),
+        nullable=True,
+    )
+    overwrite_dollar_error: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    underwrite_dollar_error: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     comparison: Mapped[EvalComparisonORM] = relationship(back_populates="agreement_items")
@@ -412,6 +466,7 @@ class OptimizationRunORM(Base):
     status: Mapped[str] = mapped_column(String(24), default="queued", index=True)
     form_id: Mapped[str] = mapped_column(String(128), index=True)
     form_version: Mapped[str] = mapped_column(String(64), index=True)
+    form_kind: Mapped[str] = mapped_column(String(24), default="standard", index=True)
     config_json: Mapped[dict[str, Any]] = mapped_column(PortableJSON, nullable=False)
     split_json: Mapped[list[dict[str, Any]]] = mapped_column(
         PortableJSON,

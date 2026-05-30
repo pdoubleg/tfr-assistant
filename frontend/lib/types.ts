@@ -1,5 +1,6 @@
 export type QuestionAnswer = "Yes" | "No";
 export type OverallOutcome = "Meets" | "Does Not Meet";
+export type FormKind = "standard" | "financial";
 
 export interface FormSubQuestion {
   id: string;
@@ -17,15 +18,19 @@ export interface FormQuestion {
   comments?: string | null;
   citations?: string | null;
   sub_questions?: FormSubQuestion[] | null;
+  overwrite_dollars?: number | null;
+  underwrite_dollars?: number | null;
   help_text?: string | null;
 }
 
 export interface AuditFormResult {
   id?: string | null;
+  form_kind?: FormKind;
   form_id: string;
   form_version: string;
   title: string;
   description: string;
+  total_amount_reviewed_dollars?: number | null;
   questions: FormQuestion[];
   overall_outcome: OverallOutcome;
   outcome_justification: string;
@@ -37,6 +42,7 @@ export interface AuditFormDefinition {
   id: string;
   version: string;
   title: string;
+  form_kind?: FormKind;
   description?: string | null;
   instructions?: string | null;
   tools?: string[] | null;
@@ -133,6 +139,7 @@ export interface ReviewRecord {
   id: string;
   form_id?: string;
   form_version?: string;
+  form_kind?: FormKind;
   status?: "queued" | "running" | "completed" | "failed";
   source?:
     | "api"
@@ -239,6 +246,7 @@ export type BatchTemplatePayload = Omit<
 export interface BatchFormVolume {
   form_id: string;
   form_version: string;
+  form_kind?: FormKind;
   total_count: number;
   completed_count: number;
   failed_count: number;
@@ -302,6 +310,7 @@ export interface EvalDatasetRecord {
   description: string;
   form_id: string;
   form_version: string;
+  form_kind?: FormKind;
   source_kind: string;
   source_metadata?: Record<string, unknown> | null;
   dataset_hash: string;
@@ -329,6 +338,7 @@ export interface EvalRunRecord {
   id: string;
   dataset_id: string;
   dataset_name: string;
+  form_kind?: FormKind;
   lineage_id?: string | null;
   source_run_id?: string | null;
   config_version: number;
@@ -365,6 +375,7 @@ export interface EvalComparisonRecord {
   case_id: string;
   ground_truth_id: string;
   reference_kind: EvalReferenceKind;
+  form_kind?: FormKind;
   score?: number | null;
   metrics: Record<string, unknown>;
   agreement_items: EvalAgreementItemRecord[];
@@ -379,7 +390,8 @@ export interface EvalAgreementItemRecord {
   ground_truth_id: string;
   comparison_id: string;
   reference_kind: EvalReferenceKind;
-  level: "overall" | "question" | "subquestion";
+  form_kind?: FormKind;
+  level: "overall" | "question" | "subquestion" | "financial_question";
   question_id?: string | null;
   subquestion_id?: string | null;
   question_text?: string | null;
@@ -392,6 +404,12 @@ export interface EvalAgreementItemRecord {
   reference_comment?: string | null;
   generated_citations?: string | null;
   reference_citations?: string | null;
+  generated_overwrite_dollars?: number | null;
+  reference_overwrite_dollars?: number | null;
+  generated_underwrite_dollars?: number | null;
+  reference_underwrite_dollars?: number | null;
+  overwrite_dollar_error?: number | null;
+  underwrite_dollar_error?: number | null;
   created_at?: string;
 }
 
@@ -399,6 +417,7 @@ export interface EvalRunItemRecord {
   id: string;
   run_id: string;
   case_id: string;
+  form_kind?: FormKind;
   claim_number: string;
   effective_date?: string | null;
   status: EvalRunItemStatus;
@@ -422,7 +441,15 @@ export type OptimizationScoreKey =
   | "question_agreement"
   | "path_exact_rate"
   | "subquestion_f1"
-  | "outcome_score";
+  | "outcome_score"
+  | "financial_score"
+  | "total_overwrite_agreement"
+  | "total_underwrite_agreement"
+  | "overwrite_percent_agreement"
+  | "underwrite_percent_agreement"
+  | "question_financial_agreement"
+  | "absolute_dollar_error_score"
+  | "percent_error_score";
 export type OptimizationReferencePolicy = "prefer_r2" | "r1" | "r2" | "all";
 export type OptimizationAutoBudget = "light" | "medium" | "heavy";
 export type OptimizationCandidateSelectionStrategy = "pareto" | "current_best" | "epsilon_greedy" | "top_k_pareto";
@@ -435,6 +462,7 @@ export interface OptimizationCaseRecord {
   dataset_id: string;
   dataset_name: string;
   source_kind: string;
+  form_kind?: FormKind;
   claim_number: string;
   effective_date?: string | null;
   instructions: string;
@@ -526,6 +554,7 @@ export interface OptimizationRunRecord {
   status: OptimizationRunStatus;
   form_id: string;
   form_version: string;
+  form_kind?: FormKind;
   config: Record<string, unknown>;
   case_splits: OptimizationCaseSplit[];
   seed_candidate?: Record<string, string> | null;
@@ -587,6 +616,7 @@ export interface FormCatalogEntry {
   id: string;
   version: string;
   title: string;
+  formKind: FormKind;
   description: string;
   instructions: string;
   tools: string[];
@@ -668,6 +698,7 @@ export interface SelectedHomeRowContext {
   result_version: "current" | "original" | string;
   form_id: string;
   form_version: string;
+  form_kind?: FormKind;
   form_key: string;
   claim_number: string;
   batch_id: string;

@@ -35,7 +35,6 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   bootstrapPromptFamily,
   createPromptVersion,
-  extractFormFromExcel,
   getFormDefinition,
   listFormCatalog,
   listPromptFamilies,
@@ -46,6 +45,7 @@ import type {
   AuditFormDefinition,
   AuditFormResult,
   FormCatalogEntry,
+  FormKind,
   FormQuestion,
   FormSubQuestion,
   OverallOutcome,
@@ -64,6 +64,7 @@ interface FormEditorState {
   id: string;
   version: string;
   title: string;
+  formKind: FormKind;
   description: string;
   instructions: string;
   tools: string[];
@@ -91,10 +92,13 @@ const questionSchema = z.object({
   comments: z.string().nullable().optional(),
   citations: z.string().nullable().optional(),
   sub_questions: z.array(subQuestionSchema).nullable().optional().default([]),
+  overwrite_dollars: z.number().nonnegative().nullable().optional(),
+  underwrite_dollars: z.number().nonnegative().nullable().optional(),
   help_text: z.string().nullable().optional(),
 });
 
 const auditFormSchema = z.object({
+  form_kind: z.enum(["standard", "financial"]).default("standard"),
   form_id: z
     .string()
     .trim()
@@ -107,6 +111,7 @@ const auditFormSchema = z.object({
     .regex(/^v?\d+(?:\.\d+)*$/, "Use a numeric version such as v0.1 or v1.0.0."),
   title: z.string().trim().min(1, "Title is required."),
   description: z.string().trim().min(1, "Description is required."),
+  total_amount_reviewed_dollars: z.number().positive().nullable().optional(),
   questions: z.array(questionSchema).min(1, "Add at least one question."),
   overall_outcome: z.enum(["Meets", "Does Not Meet"]),
   outcome_justification: z.string().trim().min(1, "Outcome justification is required."),
@@ -121,8 +126,8 @@ const emptySubQuestion = (questionId: string, index: number): FormSubQuestion =>
   help_text: "",
 });
 
-const emptyQuestion = (index: number): FormQuestion => {
-  const id = `Q${index}`;
+const emptyQuestion = (index: number, formKind: FormKind = "standard"): FormQuestion => {
+  const id = formKind === "financial" ? `FQ${index}` : `Q${index}`;
   return {
     id,
     text: "",
@@ -130,7 +135,9 @@ const emptyQuestion = (index: number): FormQuestion => {
     comments: CANONICAL_PLACEHOLDER,
     citations: CANONICAL_PLACEHOLDER,
     help_text: "",
-    sub_questions: [emptySubQuestion(id, 1)],
+    sub_questions: formKind === "financial" ? null : [emptySubQuestion(id, 1)],
+    overwrite_dollars: formKind === "financial" ? 0 : undefined,
+    underwrite_dollars: formKind === "financial" ? 0 : undefined,
   };
 };
 
@@ -203,7 +210,7 @@ function buildCanonical(state: FormEditorState): AuditFormResult {
   const title = state.title.trim() || titleFromId(formId);
   const description = state.description.trim() || "Canonical audit form template.";
   const questions = state.questions.map((question) => {
-    const subQuestions = (question.sub_questions ?? []).map((subQuestion) => ({
+    const subQuestions = state.formKind === "financial" ? [] : (question.sub_questions ?? []).map((subQuestion) => ({
       ...subQuestion,
       id: subQuestion.id.trim(),
       text: subQuestion.text.trim(),
@@ -225,14 +232,18 @@ function buildCanonical(state: FormEditorState): AuditFormResult {
         : normalizeOptionalText(question.citations) || CANONICAL_PLACEHOLDER,
       help_text: normalizeOptionalText(question.help_text),
       answer: question.answer,
-      sub_questions: subQuestions.length ? subQuestions : undefined,
+      sub_questions: state.formKind === "financial" ? null : subQuestions.length ? subQuestions : undefined,
+      overwrite_dollars: state.formKind === "financial" ? Number(question.overwrite_dollars ?? 0) : undefined,
+      underwrite_dollars: state.formKind === "financial" ? Number(question.underwrite_dollars ?? 0) : undefined,
     };
   });
   return {
+    form_kind: state.formKind,
     form_id: formId,
     form_version: version,
     title,
     description,
+    total_amount_reviewed_dollars: state.formKind === "financial" ? 1 : undefined,
     questions,
     overall_outcome: state.overallOutcome || "Does Not Meet",
     outcome_justification:
@@ -246,6 +257,7 @@ function buildDefinition(state: FormEditorState): AuditFormDefinition {
     id: canonical.form_id,
     version: canonical.form_version,
     title: canonical.title,
+    form_kind: canonical.form_kind ?? state.formKind,
     description: canonical.description,
     instructions: normalizeOptionalText(state.instructions),
     tools: normalizeList(state.tools),
@@ -255,6 +267,19 @@ function buildDefinition(state: FormEditorState): AuditFormDefinition {
 }
 
 function asQuestionnaireString(form: AuditFormResult): string {
+  if (form.form_kind === "financial") {
+    const lines = [
+      `TFR Questionnaire: ${form.title}`,
+      "Form Kind: financial",
+      "Complete each question from the file evidence. Answers must be exactly 'Yes' or 'No'. Include total_amount_reviewed_dollars for the full reviewed amount. For each question, include overwrite_dollars and underwrite_dollars when a financial exception applies; use 0 when none apply.",
+    ];
+    for (const question of form.questions) {
+      const helpText = question.help_text ? ` (help_text: ${question.help_text})` : "";
+      lines.push("", `${question.id}: ${question.text}${helpText}`);
+    }
+    lines.push("", "Overall Outcome: Options: Meets, Does Not Meet");
+    return lines.join("\n");
+  }
   const lines = [
     `TFR Questionnaire: ${form.title}`,
     "Complete each question from the file evidence. Answers must be exactly 'Yes' or 'No'. When a question lists Sub-Questions, generate only the listed sub_question driver(s) that apply to the audit finding; do not generate non-applicable drivers. Do not include an answer field on sub_questions; including a sub_question means it applies. For a No answer with listed Sub-Questions, include at least one applicable sub_question with reasoning and citations. For a Yes answer with listed Sub-Questions, omit sub_questions or set it to null/[]. Keep question-level comments/citations null unless extra general context is needed. When a question does not list Sub-Questions, omit sub_questions or set it to null/[], and put the question-level reasoning in comments and the supporting evidence references in citations.",
@@ -290,13 +315,16 @@ function definitionToState(
   const version = mode === "edit" ? nextVersion(baseVersion, baseId, forms) : baseVersion;
   const title = definition?.title ?? canonical?.title ?? titleFromId(baseId);
   const description = definition?.description ?? canonical?.description ?? "";
+  const formKind = definition?.form_kind ?? canonical?.form_kind ?? "standard";
   const questions = canonical?.questions?.length
       ? canonical.questions.map((question) => ({
         ...question,
         comments: question.comments ?? CANONICAL_PLACEHOLDER,
         citations: question.citations ?? CANONICAL_PLACEHOLDER,
         help_text: question.help_text ?? "",
-        sub_questions: (question.sub_questions ?? []).map((subQuestion) => ({
+        overwrite_dollars: question.overwrite_dollars ?? 0,
+        underwrite_dollars: question.underwrite_dollars ?? 0,
+        sub_questions: formKind === "financial" ? null : (question.sub_questions ?? []).map((subQuestion) => ({
           ...subQuestion,
           reasoning: subQuestion.reasoning || CANONICAL_PLACEHOLDER,
           citations: subQuestion.citations || CANONICAL_PLACEHOLDER,
@@ -304,12 +332,13 @@ function definitionToState(
           help_text: subQuestion.help_text ?? "",
         })),
       }))
-    : [emptyQuestion(1)];
+    : [emptyQuestion(1, formKind)];
 
   const state: FormEditorState = {
     id: baseId,
     version,
     title,
+    formKind,
     description,
     instructions: definition?.instructions ?? "",
     tools: definition?.tools ?? [],
@@ -466,8 +495,11 @@ function FormCatalogRow({
         <Badge variant={form.reviewCount ? "success" : "secondary"}>
           {form.reviewCount ? "used" : "unused"}
         </Badge>
+        <Badge variant="outline">{form.formKind}</Badge>
         <Badge variant="outline">{form.questionCount} questions</Badge>
-        <Badge variant="outline">{form.subQuestionCount} sub-questions</Badge>
+        {form.formKind === "standard" ? (
+          <Badge variant="outline">{form.subQuestionCount} sub-questions</Badge>
+        ) : null}
         <Badge variant="outline">{form.completedCount} completed</Badge>
         {!compact ? <Badge variant="outline">Created {formatDate(form.createdAt)}</Badge> : null}
       </div>
@@ -1394,6 +1426,7 @@ export function FormCatalog() {
                     <Badge variant="outline" className="font-mono text-[10px]">
                       {selectedDefinition.id}@{selectedDefinition.version}
                     </Badge>
+                    <Badge variant="outline">{selectedDefinition.form_kind ?? "standard"}</Badge>
                   </div>
                   <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
                     {selectedDefinition.description || "No description"}
@@ -1402,7 +1435,9 @@ export function FormCatalog() {
 
                 <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-4">
                   <MetadataPill label="Questions" value={selectedForm.questionCount} />
-                  <MetadataPill label="Sub-Questions" value={selectedForm.subQuestionCount} />
+                  {selectedForm.formKind === "standard" ? (
+                    <MetadataPill label="Sub-Questions" value={selectedForm.subQuestionCount} />
+                  ) : null}
                   <MetadataPill label="Reviews" value={selectedForm.reviewCount} />
                   <MetadataPill label="Completed" value={selectedForm.completedCount} />
                   <MetadataPill label="Failed" value={selectedForm.failedCount} />
@@ -1525,8 +1560,6 @@ function FormRegistrationDialog({
   const [previewMode, setPreviewMode] = useState<PreviewMode>("form");
   const [formError, setFormError] = useState("");
   const [importMessage, setImportMessage] = useState("");
-  const [importing, setImporting] = useState(false);
-  const [uploadedWorkbookName, setUploadedWorkbookName] = useState("");
   const [uploadedKnowledgeDocName, setUploadedKnowledgeDocName] = useState("");
 
   const isEditing = mode === "edit";
@@ -1547,8 +1580,6 @@ function FormRegistrationDialog({
     setPreviewMode("form");
     setFormError("");
     setImportMessage("");
-    setImporting(false);
-    setUploadedWorkbookName("");
     setUploadedKnowledgeDocName("");
   }, [forms, mode, open, sourceDefinition]);
 
@@ -1566,7 +1597,7 @@ function FormRegistrationDialog({
   const addQuestion = () => {
     setState((current) => ({
       ...current,
-      questions: [...current.questions, emptyQuestion(current.questions.length + 1)],
+      questions: [...current.questions, emptyQuestion(current.questions.length + 1, current.formKind)],
     }));
     setExpandedQuestions((current) => new Set([...current, state.questions.length]));
   };
@@ -1576,7 +1607,7 @@ function FormRegistrationDialog({
       ...current,
       questions:
         current.questions.length === 1
-          ? [emptyQuestion(1)]
+          ? [emptyQuestion(1, current.formKind)]
           : current.questions.filter((_, questionIndex) => questionIndex !== index),
     }));
   };
@@ -1604,6 +1635,7 @@ function FormRegistrationDialog({
   };
 
   const addSubQuestion = (questionIndex: number) => {
+    if (state.formKind === "financial") return;
     setState((current) => ({
       ...current,
       questions: current.questions.map((question, index) =>
@@ -1646,45 +1678,11 @@ function FormRegistrationDialog({
     });
   };
 
-  const applyImportedState = (nextState: FormEditorState) => {
-    setState((current) => {
-      const merged = isEditing
-        ? {
-            ...nextState,
-            id: current.id,
-            version: current.version,
-          }
-        : nextState;
-      return {
-        ...merged,
-        jsonText: JSON.stringify(buildCanonical(merged), null, 2),
-      };
-    });
-  };
-
   const refreshJson = () => {
     setState((current) => ({
       ...current,
       jsonText: JSON.stringify(buildCanonical(current), null, 2),
     }));
-  };
-
-  const importWorkbook = async (file: File) => {
-    setImporting(true);
-    setFormError("");
-    setImportMessage("");
-    setUploadedWorkbookName(file.name);
-    try {
-      const extracted = await extractFormFromExcel(file);
-      const nextState = definitionToState(extracted, "create", forms);
-      applyImportedState(nextState);
-      setExpandedQuestions(new Set(nextState.questions.map((_, index) => index)));
-      setImportMessage("Workbook draft loaded. Review the placeholder fields before saving.");
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Failed to extract the workbook.");
-    } finally {
-      setImporting(false);
-    }
   };
 
   const toggleTool = (tool: string) => {
@@ -1793,37 +1791,43 @@ function FormRegistrationDialog({
               <div className="grid gap-4 lg:grid-cols-[minmax(220px,1fr)_150px_minmax(260px,1.2fr)_minmax(260px,1.3fr)]">
                 <div className="grid gap-2">
                   <FieldLabel
-                    htmlFor="workbook-upload"
-                    label="Excel Workbook"
-                    optional
-                    tooltip="Accepts xlsb, xlsx, and xls uploads. The current extractor is a placeholder draft generator."
+                    htmlFor="form-kind-standard"
+                    label="Form Kind"
+                    tooltip="Financial forms are flat Yes/No questions with overwrite and underwrite dollars."
                   />
-                  <input
-                    id="workbook-upload"
-                    type="file"
-                    accept=".xlsb,.xlsx,.xls"
-                    disabled={saving || importing}
-                    className="sr-only"
-                    onChange={(event) => {
-                      const file = event.currentTarget.files?.[0];
-                      if (file) void importWorkbook(file);
-                      event.currentTarget.value = "";
-                    }}
-                  />
-                  <div className="flex min-w-0 items-center gap-2">
-                    <label
-                      htmlFor="workbook-upload"
-                      className={cn(
-                        "inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium transition-colors hover:bg-secondary",
-                        (saving || importing) && "pointer-events-none opacity-50",
-                      )}
-                    >
-                      {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                      Upload
-                    </label>
-                    <span className="truncate text-xs text-muted-foreground">
-                      {uploadedWorkbookName || "No workbook selected"}
-                    </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(["standard", "financial"] as const).map((kind) => (
+                      <Button
+                        key={kind}
+                        id={`form-kind-${kind}`}
+                        type="button"
+                        variant={state.formKind === kind ? "default" : "outline"}
+                        disabled={saving || isEditing}
+                        onClick={() => {
+                          setState((current) => ({
+                            ...current,
+                            formKind: kind,
+                            questions: current.questions.map((question, index) => ({
+                              ...question,
+                              id:
+                                kind === "financial"
+                                  ? question.id.replace(/^Q/, "FQ")
+                                  : question.id.replace(/^FQ/, "Q"),
+                              sub_questions:
+                                kind === "financial"
+                                  ? null
+                                  : question.sub_questions?.length
+                                    ? question.sub_questions
+                                    : [emptySubQuestion(question.id || `Q${index + 1}`, 1)],
+                              overwrite_dollars: kind === "financial" ? question.overwrite_dollars ?? 0 : undefined,
+                              underwrite_dollars: kind === "financial" ? question.underwrite_dollars ?? 0 : undefined,
+                            })),
+                          }));
+                        }}
+                      >
+                        {kind === "standard" ? "Standard" : "Financial"}
+                      </Button>
+                    ))}
                   </div>
                   {importMessage ? (
                     <p className="flex items-start gap-1.5 text-xs text-emerald-700 dark:text-emerald-300">
@@ -2156,23 +2160,32 @@ function FormRegistrationDialog({
                           <div className="rounded-lg border bg-card">
                             <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
                               <div>
-                                <p className="text-sm font-medium">Drivers</p>
-                                <p className="text-xs text-muted-foreground">Optional driver text and help text.</p>
+                                <p className="text-sm font-medium">
+                                  {state.formKind === "financial" ? "Financial Exceptions" : "Drivers"}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {state.formKind === "financial"
+                                    ? "The completed audit captures OW and UW dollars for this question."
+                                    : "Optional driver text and help text."}
+                                </p>
                               </div>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="gap-1.5"
-                                onClick={() => addSubQuestion(questionIndex)}
-                                disabled={saving}
-                              >
-                                <Plus className="h-3.5 w-3.5" />
-                                Driver
-                              </Button>
+                              {state.formKind === "standard" ? (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="gap-1.5"
+                                  onClick={() => addSubQuestion(questionIndex)}
+                                  disabled={saving}
+                                >
+                                  <Plus className="h-3.5 w-3.5" />
+                                  Driver
+                                </Button>
+                              ) : null}
                             </div>
-                            <div className="divide-y">
-                              {subQuestions.map((subQuestion, subQuestionIndex) => (
+                            {state.formKind === "standard" ? (
+                              <div className="divide-y">
+                                {subQuestions.map((subQuestion, subQuestionIndex) => (
                                 <div
                                   key={`${subQuestion.id}-${subQuestionIndex}`}
                                   className="grid gap-3 p-3 xl:grid-cols-[110px_minmax(0,1fr)_40px]"
@@ -2223,8 +2236,9 @@ function FormRegistrationDialog({
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
                                 </div>
-                              ))}
-                            </div>
+                                ))}
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       ) : null}
@@ -2266,7 +2280,7 @@ function FormRegistrationDialog({
               type="button"
               className="min-w-36 gap-2"
               onClick={() => void handleSave()}
-              disabled={saving || importing}
+              disabled={saving}
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {isEditing ? "Save Version" : "Register Form"}

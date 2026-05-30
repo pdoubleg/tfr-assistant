@@ -15,7 +15,7 @@ from app.db.models import (
     OptimizationEventORM,
     OptimizationRunORM,
 )
-from app.models.audit import AuditFormResult
+from app.models.audit import parse_audit_result
 from app.schemas.optimizations import (
     OptimizationCandidateRecord,
     OptimizationCaseRecord,
@@ -74,7 +74,7 @@ class OptimizationRepository:
             if not truths:
                 continue
             preferred = next((truth for truth in truths if truth.reference_kind == "R2"), truths[0])
-            result = AuditFormResult.model_validate(preferred.payload_json)
+            result = parse_audit_result(preferred.payload_json)
             searchable = " ".join(
                 [
                     dataset.name,
@@ -93,6 +93,7 @@ class OptimizationRepository:
                     dataset_id=dataset.id,
                     dataset_name=dataset.name,
                     source_kind=dataset.source_kind,
+                    form_kind=dataset.form_kind,  # type: ignore[arg-type]
                     claim_number=case.claim_number,
                     effective_date=case.effective_date,
                     instructions=case.instructions,
@@ -108,7 +109,7 @@ class OptimizationRepository:
     async def create_run(self, request: OptimizationRunCreate) -> OptimizationRunRecord:
         catalog = FormCatalog(get_settings().form_catalog_dir)
         try:
-            catalog.get_form(request.form_id, request.form_version)
+            form_definition = catalog.get_form(request.form_id, request.form_version)
         except KeyError as exc:
             raise ValueError(f"Unknown form {request.form_id}@{request.form_version}") from exc
         if request.seed_instruction_source == "prompt_registry":
@@ -144,6 +145,7 @@ class OptimizationRepository:
             status="queued",
             form_id=request.form_id,
             form_version=request.form_version,
+            form_kind=form_definition.form_kind,
             config_json=request.model_dump(mode="json"),
             split_json=[item.model_dump(mode="json") for item in request.case_splits],
             total_count=len(request.case_splits),
@@ -250,6 +252,7 @@ class OptimizationRepository:
             status=run.status,  # type: ignore[arg-type]
             form_id=run.form_id,
             form_version=run.form_version,
+            form_kind=run.form_kind,  # type: ignore[arg-type]
             config=run.config_json or {},
             case_splits=[
                 OptimizationCaseSplit.model_validate(item) for item in run.split_json or []

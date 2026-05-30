@@ -5,6 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.models.audit import FormKind
 from app.schemas.prompts import PromptReference, ResolvedPrompt
 
 OptimizationRunStatus = Literal["queued", "running", "completed", "failed", "canceled"]
@@ -17,6 +18,14 @@ OptimizationScoreKey = Literal[
     "path_exact_rate",
     "subquestion_f1",
     "outcome_score",
+    "financial_score",
+    "total_overwrite_agreement",
+    "total_underwrite_agreement",
+    "overwrite_percent_agreement",
+    "underwrite_percent_agreement",
+    "question_financial_agreement",
+    "absolute_dollar_error_score",
+    "percent_error_score",
 ]
 OptimizationReferencePolicy = Literal["prefer_r2", "r1", "r2", "all"]
 OptimizationAutoBudget = Literal["light", "medium", "heavy"]
@@ -122,6 +131,7 @@ class OptimizationCaseRecord(BaseModel):
     dataset_id: str
     dataset_name: str
     source_kind: str
+    form_kind: FormKind = "standard"
     claim_number: str
     effective_date: str | None = None
     instructions: str = ""
@@ -162,6 +172,7 @@ class OptimizationRunRecord(BaseModel):
     status: OptimizationRunStatus
     form_id: str
     form_version: str
+    form_kind: FormKind = "standard"
     config: dict[str, Any] = Field(default_factory=dict)
     case_splits: list[OptimizationCaseSplit] = Field(default_factory=list)
     seed_candidate: dict[str, str] | None = None

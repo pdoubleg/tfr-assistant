@@ -33,6 +33,7 @@ class SelectedHomeRowContext(BaseModel):
     result_version: str = "current"
     form_id: str = ""
     form_version: str = ""
+    form_kind: str = "standard"
     form_key: str = ""
     claim_number: str = ""
     batch_id: str = ""

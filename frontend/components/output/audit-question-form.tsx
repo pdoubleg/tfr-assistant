@@ -79,11 +79,17 @@ function buildMetadataItems(reviewId: string, metadata?: AuditFormMetadata) {
 function normalizeFormForSubmit(form: AuditFormResult): AuditFormResult {
   return {
     ...form,
+    total_amount_reviewed_dollars:
+      form.form_kind === "financial" ? Number(form.total_amount_reviewed_dollars ?? 0) : undefined,
     questions: form.questions.map((question) => ({
       ...question,
       comments: question.comments?.trim() ? question.comments : null,
       citations: question.citations?.trim() ? question.citations : null,
-      sub_questions: question.sub_questions?.length ? question.sub_questions : null,
+      sub_questions: form.form_kind === "financial" ? null : question.sub_questions?.length ? question.sub_questions : null,
+      overwrite_dollars:
+        form.form_kind === "financial" ? Number(question.overwrite_dollars ?? 0) : undefined,
+      underwrite_dollars:
+        form.form_kind === "financial" ? Number(question.underwrite_dollars ?? 0) : undefined,
     })),
   };
 }
@@ -94,6 +100,14 @@ function getQuestionAnswer(question: FormQuestion): DraftQuestionAnswer {
 
 function getOverallOutcome(form: AuditFormResult): DraftOverallOutcome {
   return (form.overall_outcome ?? "") as DraftOverallOutcome;
+}
+
+function money(value: number | null | undefined): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 2,
+  }).format(Number(value ?? 0));
 }
 
 function AutoResizeTextarea({
@@ -332,12 +346,14 @@ function SubQuestionRow({
 
 function QuestionRow({
   question,
+  formKind,
   onChange,
   expandAllSignal,
   collapseAllSignal,
   blankEntryMode = false,
 }: {
   question: FormQuestion;
+  formKind?: AuditFormResult["form_kind"];
   onChange: (question: FormQuestion) => void;
   expandAllSignal: number;
   collapseAllSignal: number;
@@ -347,7 +363,8 @@ function QuestionRow({
   const [expanded, setExpanded] = useState(questionAnswer === "No");
   const [expandedSubs, setExpandedSubs] = useState<Set<string>>(new Set());
   const [driverClearNotice, setDriverClearNotice] = useState(false);
-  const subQuestions = question.sub_questions ?? [];
+  const financial = formKind === "financial";
+  const subQuestions = financial ? [] : question.sub_questions ?? [];
   const driverCount = subQuestions.filter((subQuestion) => subQuestion.answer).length;
   const subQuestionsDisabled = subQuestions.length > 0 && questionAnswer !== "No";
 
@@ -478,6 +495,40 @@ function QuestionRow({
               <CopyButton text={question.citations ?? ""} />
             </div>
           </div>
+          {financial ? (
+            <>
+              <div>
+                <label className="text-[11px] font-semibold uppercase text-muted-foreground">
+                  Overwrite Dollars
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={question.overwrite_dollars ?? 0}
+                  onChange={(event) =>
+                    onChange({ ...question, overwrite_dollars: Number(event.target.value || 0) })
+                  }
+                  className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold uppercase text-muted-foreground">
+                  Underwrite Dollars
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={question.underwrite_dollars ?? 0}
+                  onChange={(event) =>
+                    onChange({ ...question, underwrite_dollars: Number(event.target.value || 0) })
+                  }
+                  className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+              </div>
+            </>
+          ) : null}
         </div>
       ) : null}
 
@@ -564,6 +615,17 @@ export function AuditQuestionForm({
         : 0),
     0,
   );
+  const totalReviewed = Number(draft.total_amount_reviewed_dollars ?? 0);
+  const totalOverwrite = draft.questions.reduce(
+    (sum, question) => sum + (Number(question.overwrite_dollars) || 0),
+    0,
+  );
+  const totalUnderwrite = draft.questions.reduce(
+    (sum, question) => sum + (Number(question.underwrite_dollars) || 0),
+    0,
+  );
+  const overwritePercent = totalReviewed ? (totalOverwrite / totalReviewed) * 100 : 0;
+  const underwritePercent = totalReviewed ? (totalUnderwrite / totalReviewed) * 100 : 0;
   const overallOutcome = getOverallOutcome(draft);
   const metadataItems = useMemo(
     () => buildMetadataItems(reviewId, metadata),
@@ -636,6 +698,7 @@ export function AuditQuestionForm({
               <Badge variant="outline" className="font-mono text-[10px]">
                 {draft.form_id}@{draft.form_version}
               </Badge>
+              <Badge variant="outline">{draft.form_kind ?? "standard"}</Badge>
             </div>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{draft.description}</p>
             {metadataItems.length ? (
@@ -702,7 +765,15 @@ export function AuditQuestionForm({
           <Badge variant="success">{yesCount} Yes</Badge>
           <Badge variant="danger">{noCount} No</Badge>
           {unansweredCount ? <Badge variant="outline">{unansweredCount} unanswered</Badge> : null}
-          {driverCount ? <Badge variant="warning">{driverCount} drivers</Badge> : null}
+          {draft.form_kind === "financial" ? (
+            <>
+              <Badge variant="outline">Reviewed {money(totalReviewed)}</Badge>
+              <Badge variant="warning">OW {money(totalOverwrite)} ({overwritePercent.toFixed(2)}%)</Badge>
+              <Badge variant="warning">UW {money(totalUnderwrite)} ({underwritePercent.toFixed(2)}%)</Badge>
+            </>
+          ) : driverCount ? (
+            <Badge variant="warning">{driverCount} drivers</Badge>
+          ) : null}
           <span className="ml-auto inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             {saving ? (
               <>
@@ -731,11 +802,33 @@ export function AuditQuestionForm({
 
       {!collapsedLocal ? (
         <div className="space-y-4 p-4">
+          {draft.form_kind === "financial" ? (
+            <div className="rounded-lg border bg-background p-4">
+              <label className="text-[11px] font-semibold uppercase text-muted-foreground">
+                Total Amount Reviewed
+              </label>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={draft.total_amount_reviewed_dollars ?? 0}
+                onChange={(event) => {
+                  setSaveNotice(null);
+                  setDraft((current) => ({
+                    ...current,
+                    total_amount_reviewed_dollars: Number(event.target.value || 0),
+                  }));
+                }}
+                className="mt-2 h-10 w-full max-w-xs rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
+          ) : null}
           <div className="space-y-3">
             {draft.questions.map((question) => (
               <QuestionRow
                 key={question.id}
                 question={question}
+                formKind={draft.form_kind}
                 onChange={updateQuestion}
                 expandAllSignal={expandAllSignal}
                 collapseAllSignal={collapseAllSignal}
@@ -836,6 +929,20 @@ function validateFormForSubmit(
   }
   if (requireOutcomeJustification && !form.outcome_justification.trim()) {
     return "Add an outcome justification before submitting.";
+  }
+  if (form.form_kind === "financial") {
+    if (!Number(form.total_amount_reviewed_dollars || 0)) {
+      return "Financial forms need a positive total amount reviewed before submitting.";
+    }
+    for (const question of form.questions) {
+      if (!getQuestionAnswer(question)) {
+        return `${question.id} needs a Yes or No answer before submitting.`;
+      }
+      if (Number(question.overwrite_dollars ?? 0) < 0 || Number(question.underwrite_dollars ?? 0) < 0) {
+        return `${question.id} has a negative financial exception amount.`;
+      }
+    }
+    return "";
   }
   for (const question of form.questions) {
     const answer = getQuestionAnswer(question);

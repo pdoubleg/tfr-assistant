@@ -1,12 +1,20 @@
 import json
 import math
+from decimal import Decimal
 from typing import Any
 
 import pandas as pd
 
-from app.models.audit import AuditFormResult, FormQuestion, FormSubQuestion
+from app.models.audit import (
+    AuditFormResult,
+    AuditFormWithFinancialsResult,
+    AuditResult,
+    FinancialQuestionResult,
+    FormQuestion,
+    FormSubQuestion,
+)
 
-METRIC_SCHEMA_VERSION = 2
+METRIC_SCHEMA_VERSION = 3
 
 
 def _pct(value: float) -> float:
@@ -22,6 +30,12 @@ def _f1(precision: float, recall: float) -> float:
 
 
 def _question_map(form: AuditFormResult) -> dict[str, FormQuestion]:
+    return {question.id: question for question in form.questions}
+
+
+def _financial_question_map(
+    form: AuditFormWithFinancialsResult,
+) -> dict[str, FinancialQuestionResult]:
     return {question.id: question for question in form.questions}
 
 
@@ -52,6 +66,27 @@ def _answer_text(value: Any) -> str | None:
 
 
 def compare_audit_results(
+    generated: AuditResult,
+    reference: AuditResult,
+) -> dict[str, Any]:
+    """Compare a generated audit result to one human reference result."""
+
+    if generated.form_kind != reference.form_kind:
+        raise ValueError(
+            "Generated and reference audit results must use the same form_kind "
+            f"({generated.form_kind} != {reference.form_kind})."
+        )
+    if isinstance(generated, AuditFormWithFinancialsResult) and isinstance(
+        reference,
+        AuditFormWithFinancialsResult,
+    ):
+        return _compare_financial_audit_results(generated, reference)
+    if isinstance(generated, AuditFormResult) and isinstance(reference, AuditFormResult):
+        return _compare_standard_audit_results(generated, reference)
+    raise ValueError("Generated and reference audit results use incompatible result models.")
+
+
+def _compare_standard_audit_results(
     generated: AuditFormResult,
     reference: AuditFormResult,
 ) -> dict[str, Any]:
@@ -195,6 +230,14 @@ def compare_audit_results(
 
     return {
         "metric_schema_version": METRIC_SCHEMA_VERSION,
+        "form_kind": "standard",
+        "applicable_metric_keys": [
+            "score",
+            "outcome_score",
+            "question_agreement",
+            "path_exact_rate",
+            "subquestion_f1",
+        ],
         "score": score,
         "score_percent": _pct(score),
         "outcome_match": outcome_match,
@@ -229,15 +272,218 @@ def compare_audit_results(
     }
 
 
+def _decimal_float(value: Decimal | float | int | None) -> float:
+    if value is None:
+        return 0.0
+    return float(value)
+
+
+def _bounded_agreement(error: float, denominator: float) -> float:
+    if denominator <= 0:
+        return 1.0 if error == 0 else 0.0
+    return max(0.0, 1.0 - min(1.0, error / denominator))
+
+
+def _compare_financial_audit_results(
+    generated: AuditFormWithFinancialsResult,
+    reference: AuditFormWithFinancialsResult,
+) -> dict[str, Any]:
+    generated_questions = _financial_question_map(generated)
+    reference_questions = _financial_question_map(reference)
+    question_ids = [question.id for question in reference.questions]
+    for question_id in generated_questions:
+        if question_id not in reference_questions:
+            question_ids.append(question_id)
+
+    question_matches = 0
+    financial_matches = 0
+    question_agreements: dict[str, float] = {}
+    question_financial_agreements: dict[str, float] = {}
+    question_details: list[dict[str, Any]] = []
+    overwrite_error_total = 0.0
+    underwrite_error_total = 0.0
+
+    for question_id in question_ids:
+        generated_question = generated_questions.get(question_id)
+        reference_question = reference_questions.get(question_id)
+        generated_answer = generated_question.answer if generated_question else None
+        reference_answer = reference_question.answer if reference_question else None
+        answer_match = generated_answer == reference_answer
+        question_agreements[question_id] = float(answer_match)
+        if answer_match:
+            question_matches += 1
+
+        generated_ow = _decimal_float(
+            generated_question.overwrite_dollars if generated_question else None
+        )
+        reference_ow = _decimal_float(
+            reference_question.overwrite_dollars if reference_question else None
+        )
+        generated_uw = _decimal_float(
+            generated_question.underwrite_dollars if generated_question else None
+        )
+        reference_uw = _decimal_float(
+            reference_question.underwrite_dollars if reference_question else None
+        )
+        ow_error = abs(generated_ow - reference_ow)
+        uw_error = abs(generated_uw - reference_uw)
+        overwrite_error_total += ow_error
+        underwrite_error_total += uw_error
+        financial_match = ow_error == 0 and uw_error == 0
+        if financial_match:
+            financial_matches += 1
+        financial_agreement = (
+            _bounded_agreement(ow_error, max(reference_ow, 1.0))
+            + _bounded_agreement(uw_error, max(reference_uw, 1.0))
+        ) / 2
+        question_financial_agreements[question_id] = financial_agreement
+
+        if not answer_match or not financial_match:
+            question = reference_question or generated_question
+            question_details.append(
+                {
+                    "id": question_id,
+                    "text": question.text if question else "",
+                    "generated_answer": generated_answer,
+                    "reference_answer": reference_answer,
+                    "generated_overwrite_dollars": generated_ow,
+                    "reference_overwrite_dollars": reference_ow,
+                    "generated_underwrite_dollars": generated_uw,
+                    "reference_underwrite_dollars": reference_uw,
+                    "overwrite_dollar_error": ow_error,
+                    "underwrite_dollar_error": uw_error,
+                }
+            )
+
+    question_total = len(question_ids)
+    outcome_match = generated.overall_outcome == reference.overall_outcome
+    question_agreement = _ratio(question_matches, question_total)
+    question_financial_agreement = _ratio(financial_matches, question_total)
+
+    generated_ow_total = _decimal_float(generated.total_overwrite_dollars)
+    reference_ow_total = _decimal_float(reference.total_overwrite_dollars)
+    generated_uw_total = _decimal_float(generated.total_underwrite_dollars)
+    reference_uw_total = _decimal_float(reference.total_underwrite_dollars)
+    generated_ow_pct = _decimal_float(generated.overwrite_percent)
+    reference_ow_pct = _decimal_float(reference.overwrite_percent)
+    generated_uw_pct = _decimal_float(generated.underwrite_percent)
+    reference_uw_pct = _decimal_float(reference.underwrite_percent)
+
+    total_overwrite_error = abs(generated_ow_total - reference_ow_total)
+    total_underwrite_error = abs(generated_uw_total - reference_uw_total)
+    overwrite_percent_error = abs(generated_ow_pct - reference_ow_pct)
+    underwrite_percent_error = abs(generated_uw_pct - reference_uw_pct)
+
+    total_overwrite_agreement = _bounded_agreement(
+        total_overwrite_error,
+        max(reference_ow_total, 1.0),
+    )
+    total_underwrite_agreement = _bounded_agreement(
+        total_underwrite_error,
+        max(reference_uw_total, 1.0),
+    )
+    overwrite_percent_agreement = _bounded_agreement(overwrite_percent_error, 100.0)
+    underwrite_percent_agreement = _bounded_agreement(underwrite_percent_error, 100.0)
+    absolute_dollar_error = total_overwrite_error + total_underwrite_error
+    absolute_dollar_error_score = _bounded_agreement(
+        absolute_dollar_error,
+        max(reference_ow_total + reference_uw_total, 1.0),
+    )
+    percent_error = overwrite_percent_error + underwrite_percent_error
+    percent_error_score = _bounded_agreement(percent_error, 100.0)
+    financial_score = (
+        total_overwrite_agreement
+        + total_underwrite_agreement
+        + overwrite_percent_agreement
+        + underwrite_percent_agreement
+        + question_financial_agreement
+    ) / 5
+    score = (float(outcome_match) + question_agreement + financial_score) / 3
+
+    return {
+        "metric_schema_version": METRIC_SCHEMA_VERSION,
+        "form_kind": "financial",
+        "applicable_metric_keys": [
+            "score",
+            "outcome_score",
+            "question_agreement",
+            "financial_score",
+            "total_overwrite_agreement",
+            "total_underwrite_agreement",
+            "overwrite_percent_agreement",
+            "underwrite_percent_agreement",
+            "question_financial_agreement",
+            "absolute_dollar_error_score",
+            "percent_error_score",
+        ],
+        "score": score,
+        "score_percent": _pct(score),
+        "outcome_match": outcome_match,
+        "outcome_score": float(outcome_match),
+        "generated_outcome": generated.overall_outcome,
+        "reference_outcome": reference.overall_outcome,
+        "generated_outcome_justification": generated.outcome_justification,
+        "reference_outcome_justification": reference.outcome_justification,
+        "question_total": question_total,
+        "question_matches": question_matches,
+        "question_agreement": question_agreement,
+        "question_agreement_percent": _pct(question_agreement),
+        "question_financial_matches": financial_matches,
+        "question_financial_agreement": question_financial_agreement,
+        "question_financial_agreement_percent": _pct(question_financial_agreement),
+        "generated_total_amount_reviewed_dollars": _decimal_float(
+            generated.total_amount_reviewed_dollars
+        ),
+        "reference_total_amount_reviewed_dollars": _decimal_float(
+            reference.total_amount_reviewed_dollars
+        ),
+        "generated_total_overwrite_dollars": generated_ow_total,
+        "reference_total_overwrite_dollars": reference_ow_total,
+        "generated_total_underwrite_dollars": generated_uw_total,
+        "reference_total_underwrite_dollars": reference_uw_total,
+        "generated_overwrite_percent": generated_ow_pct,
+        "reference_overwrite_percent": reference_ow_pct,
+        "generated_underwrite_percent": generated_uw_pct,
+        "reference_underwrite_percent": reference_uw_pct,
+        "total_overwrite_error": total_overwrite_error,
+        "total_underwrite_error": total_underwrite_error,
+        "overwrite_percent_error": overwrite_percent_error,
+        "underwrite_percent_error": underwrite_percent_error,
+        "absolute_dollar_error": absolute_dollar_error,
+        "absolute_dollar_error_score": absolute_dollar_error_score,
+        "percent_error": percent_error,
+        "percent_error_score": percent_error_score,
+        "total_overwrite_agreement": total_overwrite_agreement,
+        "total_underwrite_agreement": total_underwrite_agreement,
+        "overwrite_percent_agreement": overwrite_percent_agreement,
+        "underwrite_percent_agreement": underwrite_percent_agreement,
+        "financial_score": financial_score,
+        "form_exact_match": outcome_match and question_matches == question_total and financial_matches == question_total,
+        "question_agreements": question_agreements,
+        "question_financial_agreements": question_financial_agreements,
+        "questions": question_details,
+        "subquestion_eligible_question_count": 0,
+        "subquestion_total": 0,
+        "subquestion_matches": 0,
+        "subquestion_agreement": 0.0,
+        "subquestion_agreement_percent": 0.0,
+        "subquestion_f1": 0.0,
+        "path_exact_matches": question_matches,
+        "path_exact_rate": question_agreement,
+        "path_exact_percent": _pct(question_agreement),
+    }
+
+
 def comparison_result_to_agreement_items(
     comparison: dict[str, Any],
-    generated: AuditFormResult,
-    reference: AuditFormResult,
+    generated: AuditResult,
+    reference: AuditResult,
 ) -> list[dict[str, Any]]:
     """Create normalized agreement rows with adjacent rationale fields."""
 
     items: list[dict[str, Any]] = [
         {
+            "form_kind": comparison.get("form_kind", generated.form_kind),
             "level": "overall",
             "question_id": None,
             "subquestion_id": None,
@@ -254,6 +500,67 @@ def comparison_result_to_agreement_items(
         }
     ]
 
+    if isinstance(generated, AuditFormWithFinancialsResult) and isinstance(
+        reference,
+        AuditFormWithFinancialsResult,
+    ):
+        generated_questions = _financial_question_map(generated)
+        reference_questions = _financial_question_map(reference)
+        question_ids = [question.id for question in reference.questions]
+        for question_id in generated_questions:
+            if question_id not in reference_questions:
+                question_ids.append(question_id)
+        for question_id in question_ids:
+            generated_question = generated_questions.get(question_id)
+            reference_question = reference_questions.get(question_id)
+            question = reference_question or generated_question
+            generated_answer = generated_question.answer if generated_question else None
+            reference_answer = reference_question.answer if reference_question else None
+            generated_ow = _decimal_float(
+                generated_question.overwrite_dollars if generated_question else None
+            )
+            reference_ow = _decimal_float(
+                reference_question.overwrite_dollars if reference_question else None
+            )
+            generated_uw = _decimal_float(
+                generated_question.underwrite_dollars if generated_question else None
+            )
+            reference_uw = _decimal_float(
+                reference_question.underwrite_dollars if reference_question else None
+            )
+            ow_error = abs(generated_ow - reference_ow)
+            uw_error = abs(generated_uw - reference_uw)
+            matched = generated_answer == reference_answer and ow_error == 0 and uw_error == 0
+            items.append(
+                {
+                    "form_kind": "financial",
+                    "level": "financial_question",
+                    "question_id": question_id,
+                    "subquestion_id": None,
+                    "question_text": question.text if question else "",
+                    "subquestion_text": None,
+                    "generated_answer": _answer_text(generated_answer),
+                    "reference_answer": _answer_text(reference_answer),
+                    "matched": matched,
+                    "agreement": float(matched),
+                    "generated_comment": generated_question.comments if generated_question else None,
+                    "reference_comment": reference_question.comments if reference_question else None,
+                    "generated_citations": generated_question.citations
+                    if generated_question
+                    else None,
+                    "reference_citations": reference_question.citations
+                    if reference_question
+                    else None,
+                    "generated_overwrite_dollars": generated_ow,
+                    "reference_overwrite_dollars": reference_ow,
+                    "generated_underwrite_dollars": generated_uw,
+                    "reference_underwrite_dollars": reference_uw,
+                    "overwrite_dollar_error": ow_error,
+                    "underwrite_dollar_error": uw_error,
+                }
+            )
+        return items
+
     generated_questions = _question_map(generated)
     reference_questions = _question_map(reference)
     question_ids = _ordered_question_ids(generated_questions, reference_questions, reference)
@@ -267,6 +574,7 @@ def comparison_result_to_agreement_items(
         question_match = generated_answer == reference_answer
         items.append(
             {
+                "form_kind": "standard",
                 "level": "question",
                 "question_id": question_id,
                 "subquestion_id": None,
@@ -302,6 +610,7 @@ def comparison_result_to_agreement_items(
             sub_question = reference_sub_question or generated_sub_question
             items.append(
                 {
+                    "form_kind": "standard",
                     "level": "subquestion",
                     "question_id": question_id,
                     "subquestion_id": sub_question_id,
@@ -331,7 +640,7 @@ def comparison_result_to_agreement_items(
 
 def comparison_result_to_row(
     comparison: dict[str, Any],
-    generated: AuditFormResult,
+    generated: AuditResult,
     reference_stage: str,
     *,
     effective_date: str | None = None,
@@ -345,19 +654,23 @@ def comparison_result_to_row(
         "reference_stage": reference_stage,
         "reference_reviewer": reference_reviewer,
         "effective_date": effective_date,
+        "form_kind": comparison.get("form_kind", generated.form_kind),
         "generated_outcome": comparison["generated_outcome"],
         "reference_outcome": comparison["reference_outcome"],
         "overall_outcome_agreement": float(comparison["outcome_match"]),
         "question_agreement": comparison["question_agreement"],
-        "subquestion_agreement": comparison["subquestion_agreement"],
-        "path_exact_match_rate": comparison["path_exact_rate"],
+        "subquestion_agreement": comparison.get("subquestion_agreement", 0.0),
+        "path_exact_match_rate": comparison.get("path_exact_rate", 0.0),
         "score": comparison["score"],
         "question_total": comparison["question_total"],
         "question_matches": comparison["question_matches"],
-        "subquestion_eligible_question_count": comparison["subquestion_eligible_question_count"],
-        "subquestion_total": comparison["subquestion_total"],
-        "subquestion_matches": comparison["subquestion_matches"],
-        "path_exact_matches": comparison["path_exact_matches"],
+        "subquestion_eligible_question_count": comparison.get(
+            "subquestion_eligible_question_count",
+            0,
+        ),
+        "subquestion_total": comparison.get("subquestion_total", 0),
+        "subquestion_matches": comparison.get("subquestion_matches", 0),
+        "path_exact_matches": comparison.get("path_exact_matches", 0),
         "form_exact_match": float(comparison["form_exact_match"]),
         "generated_outcome_justification": comparison["generated_outcome_justification"],
         "reference_outcome_justification": comparison["reference_outcome_justification"],
@@ -373,6 +686,36 @@ def comparison_result_to_row(
             for question_id, agreement in sorted(comparison["question_agreements"].items())
         }
     )
+    if comparison.get("form_kind") == "financial":
+        row.update(
+            {
+                "generated_total_amount_reviewed_dollars": comparison.get(
+                    "generated_total_amount_reviewed_dollars"
+                ),
+                "reference_total_amount_reviewed_dollars": comparison.get(
+                    "reference_total_amount_reviewed_dollars"
+                ),
+                "generated_total_overwrite_dollars": comparison.get(
+                    "generated_total_overwrite_dollars"
+                ),
+                "reference_total_overwrite_dollars": comparison.get(
+                    "reference_total_overwrite_dollars"
+                ),
+                "generated_total_underwrite_dollars": comparison.get(
+                    "generated_total_underwrite_dollars"
+                ),
+                "reference_total_underwrite_dollars": comparison.get(
+                    "reference_total_underwrite_dollars"
+                ),
+                "generated_overwrite_percent": comparison.get("generated_overwrite_percent"),
+                "reference_overwrite_percent": comparison.get("reference_overwrite_percent"),
+                "generated_underwrite_percent": comparison.get("generated_underwrite_percent"),
+                "reference_underwrite_percent": comparison.get("reference_underwrite_percent"),
+                "financial_score": comparison.get("financial_score"),
+                "absolute_dollar_error": comparison.get("absolute_dollar_error"),
+                "percent_error": comparison.get("percent_error"),
+            }
+        )
 
     return row
 
@@ -385,6 +728,7 @@ def comparison_metrics_to_row(
 
     row = {
         "reference_stage": reference_stage,
+        "form_kind": comparison.get("form_kind", "standard"),
         "overall_outcome_agreement": float(bool(comparison.get("outcome_match"))),
         "question_agreement": float(comparison.get("question_agreement") or 0.0),
         "subquestion_agreement": float(comparison.get("subquestion_agreement") or 0.0),
@@ -399,6 +743,18 @@ def comparison_metrics_to_row(
         "subquestion_matches": int(comparison.get("subquestion_matches") or 0),
         "path_exact_matches": int(comparison.get("path_exact_matches") or 0),
         "form_exact_match": float(bool(comparison.get("form_exact_match"))),
+        "financial_score": float(comparison.get("financial_score") or 0.0),
+        "total_overwrite_agreement": float(comparison.get("total_overwrite_agreement") or 0.0),
+        "total_underwrite_agreement": float(comparison.get("total_underwrite_agreement") or 0.0),
+        "overwrite_percent_agreement": float(comparison.get("overwrite_percent_agreement") or 0.0),
+        "underwrite_percent_agreement": float(
+            comparison.get("underwrite_percent_agreement") or 0.0
+        ),
+        "question_financial_agreement": float(
+            comparison.get("question_financial_agreement") or 0.0
+        ),
+        "absolute_dollar_error": float(comparison.get("absolute_dollar_error") or 0.0),
+        "percent_error": float(comparison.get("percent_error") or 0.0),
     }
     row.update(
         {
@@ -475,6 +831,19 @@ def _add_stage_metrics(
             stage_df, question_agreement_column
         )
 
+    for financial_column in (
+        "financial_score",
+        "total_overwrite_agreement",
+        "total_underwrite_agreement",
+        "overwrite_percent_agreement",
+        "underwrite_percent_agreement",
+        "question_financial_agreement",
+        "absolute_dollar_error",
+        "percent_error",
+    ):
+        if financial_column in stage_df:
+            metrics[f"{prefix}_{financial_column}"] = _mean_column(stage_df, financial_column)
+
 
 def aggregate_comparison_metrics(result_df: pd.DataFrame) -> dict[str, float]:
     """Aggregate evaluation metrics overall and by review stage.
@@ -492,6 +861,11 @@ def aggregate_comparison_metrics(result_df: pd.DataFrame) -> dict[str, float]:
         "overall_outcome_agreement",
         "question_agreement",
         "subquestion_agreement",
+        "total_overwrite_agreement",
+        "total_underwrite_agreement",
+        "overwrite_percent_agreement",
+        "underwrite_percent_agreement",
+        "question_financial_agreement",
     }
     question_agreement_columns = sorted(
         column

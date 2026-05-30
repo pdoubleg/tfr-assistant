@@ -39,6 +39,7 @@ type FormSortKey =
   | "title"
   | "formId"
   | "formVersion"
+  | "formKind"
   | "source"
   | "evalRole"
   | "outcome"
@@ -46,6 +47,8 @@ type FormSortKey =
   | "yesCount"
   | "noCount"
   | "driverCount"
+  | "totalOverwriteDollars"
+  | "totalUnderwriteDollars"
   | "edited"
   | "updatedAt";
 
@@ -62,6 +65,7 @@ const columns: ColumnDef[] = [
   { key: "title", label: "Review", className: "min-w-[250px]" },
   { key: "formId", label: "Form" },
   { key: "formVersion", label: "Version" },
+  { key: "formKind", label: "Kind" },
   { key: "source", label: "Source" },
   { key: "evalRole", label: "Eval Role" },
   { key: "outcome", label: "Outcome" },
@@ -69,6 +73,8 @@ const columns: ColumnDef[] = [
   { key: "yesCount", label: "Yes", align: "center" },
   { key: "noCount", label: "No", align: "center" },
   { key: "driverCount", label: "Drivers", align: "center" },
+  { key: "totalOverwriteDollars", label: "OW", align: "right" },
+  { key: "totalUnderwriteDollars", label: "UW", align: "right" },
   { key: "edited", label: "Edited", align: "center" },
   { key: "updatedAt", label: "Updated" },
 ];
@@ -97,6 +103,7 @@ const viewColumns: ExportColumn<DashboardReviewRow>[] = [
   { header: "Review Title", value: (row) => row.title },
   { header: "Form ID", value: (row) => row.formId },
   { header: "Form Version", value: (row) => row.formVersion },
+  { header: "Form Kind", value: (row) => row.formKind },
   { header: "Source", value: (row) => row.source },
   { header: "Eval Role", value: (row) => evalRoleLabel(row.evalResultRole, row.evalReferenceKind) },
   { header: "Outcome", value: (row) => row.outcome },
@@ -104,6 +111,12 @@ const viewColumns: ExportColumn<DashboardReviewRow>[] = [
   { header: "Yes Count", value: (row) => row.yesCount },
   { header: "No Count", value: (row) => row.noCount },
   { header: "Driver Count", value: (row) => row.driverCount },
+  { header: "Total Amount Reviewed", value: (row) => row.totalAmountReviewedDollars ?? "" },
+  { header: "Total Overwrite Dollars", value: (row) => row.totalOverwriteDollars },
+  { header: "Total Underwrite Dollars", value: (row) => row.totalUnderwriteDollars },
+  { header: "Overwrite Percent", value: (row) => row.overwritePercent ?? "" },
+  { header: "Underwrite Percent", value: (row) => row.underwritePercent ?? "" },
+  { header: "Net Exception Dollars", value: (row) => row.netExceptionDollars },
   { header: "Edited", value: (row) => (row.edited ? "Yes" : "No") },
   { header: "Updated", value: (row) => formatDateTime(row.updatedAt) },
 ];

@@ -47,16 +47,16 @@ async def find_orphaned_result_versions(session: AsyncSession) -> list[dict[str,
     return [dict(row) for row in result.mappings().all()]
 
 
-async def find_orphaned_question_answers(session: AsyncSession) -> list[dict[str, object]]:
+async def find_orphaned_result_items(session: AsyncSession) -> list[dict[str, object]]:
     result = await session.execute(
         text(
             """
-            SELECT qa.id, qa.result_version_id, qa.review_id
-            FROM audit_question_answers AS qa
+            SELECT item.id, item.result_version_id, item.review_id
+            FROM audit_result_items AS item
             LEFT JOIN audit_result_versions AS v
-                ON qa.result_version_id = v.id
+                ON item.result_version_id = v.id
             LEFT JOIN audit_reviews AS r
-                ON qa.review_id = r.id
+                ON item.review_id = r.id
             WHERE v.id IS NULL
                OR r.id IS NULL
             """
@@ -65,16 +65,16 @@ async def find_orphaned_question_answers(session: AsyncSession) -> list[dict[str
     return [dict(row) for row in result.mappings().all()]
 
 
-async def find_orphaned_subquestion_answers(session: AsyncSession) -> list[dict[str, object]]:
+async def find_orphaned_result_texts(session: AsyncSession) -> list[dict[str, object]]:
     result = await session.execute(
         text(
             """
-            SELECT sqa.id, sqa.result_version_id, sqa.review_id
-            FROM audit_subquestion_answers AS sqa
+            SELECT txt.id, txt.result_version_id, txt.review_id
+            FROM audit_result_texts AS txt
             LEFT JOIN audit_result_versions AS v
-                ON sqa.result_version_id = v.id
+                ON txt.result_version_id = v.id
             LEFT JOIN audit_reviews AS r
-                ON sqa.review_id = r.id
+                ON txt.review_id = r.id
             WHERE v.id IS NULL
                OR r.id IS NULL
             """

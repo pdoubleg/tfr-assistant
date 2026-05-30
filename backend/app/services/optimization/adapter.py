@@ -10,7 +10,7 @@ from pydantic_ai.messages import ModelMessage
 
 from app.agents.review_agent import FileReviewAgentDeps
 from app.core.llm import LLMModelConfig, build_llm_model
-from app.models.audit import AuditFormResult
+from app.models.audit import AuditFormResult, AuditFormWithFinancialsResult, AuditResult
 from app.schemas.optimizations import OptimizationRunCreate, OptimizationTraceConfig
 from app.services.optimization.artifacts import OptimizationArtifactWriter
 from app.services.optimization.components import AuditPromptProgram
@@ -78,7 +78,7 @@ class TFRGepaAdapter:
         started = time.perf_counter()
         messages: list[ModelMessage] = []
         usage: dict[str, int] = {}
-        result_model: AuditFormResult | None = None
+        result_model: AuditResult | None = None
         error_message: str | None = None
         try:
             deps = FileReviewAgentDeps(
@@ -89,7 +89,16 @@ class TFRGepaAdapter:
                 tools=list(instance.tools),
                 knowledge_docs=list(instance.knowledge_docs),
             )
-            result = self.agent.run_sync(user_prompt=instance.user_prompt, deps=deps)
+            output_type = (
+                AuditFormWithFinancialsResult
+                if deps.canonical.form_kind == "financial"
+                else AuditFormResult
+            )
+            result = self.agent.run_sync(
+                user_prompt=instance.user_prompt,
+                deps=deps,
+                output_type=output_type,
+            )
             messages = result.new_messages()
             tool_calls = count_tool_calls(messages)
             merge_usage(self.token_usage, result.usage(), tool_calls=tool_calls)
@@ -153,7 +162,7 @@ class TFRGepaAdapter:
     def _score(
         self,
         instance: OptimizationDataInstance,
-        generated: AuditFormResult | None,
+        generated: AuditResult | None,
         error_message: str | None,
     ) -> tuple[float, str, dict[str, Any]]:
         if generated is None:
@@ -187,8 +196,8 @@ class TFRGepaAdapter:
 
     def _judge_feedback(
         self,
-        generated: AuditFormResult,
-        reference: AuditFormResult,
+        generated: AuditResult,
+        reference: AuditResult,
         comparison_feedback: str,
     ) -> str:
         if self.judge_model_config is None:

@@ -109,6 +109,7 @@ export async function listFormCatalog(): Promise<FormCatalogEntry[]> {
       id: string;
       version: string;
       title: string;
+      form_kind?: "standard" | "financial";
       description?: string | null;
       instructions?: string | null;
       tools?: string[] | null;
@@ -126,6 +127,7 @@ export async function listFormCatalog(): Promise<FormCatalogEntry[]> {
     id: form.id,
     version: form.version,
     title: form.title,
+    formKind: form.form_kind ?? "standard",
     description: form.description ?? "",
     instructions: form.instructions ?? "",
     tools: form.tools ?? [],
@@ -165,22 +167,16 @@ export async function registerForm(
       id: definition.id,
       version: definition.version,
       title: definition.title,
+      form_kind: definition.form_kind ?? definition.canonical.form_kind ?? "standard",
       description: definition.description ?? "",
       instructions: definition.instructions ?? null,
       tools: definition.tools ?? null,
       knowledge_docs: definition.knowledge_docs ?? null,
-      canonical: definition.canonical,
+      canonical: {
+        ...definition.canonical,
+        form_kind: definition.canonical.form_kind ?? definition.form_kind ?? "standard",
+      },
     }),
-  });
-  return parseJsonResponse<AuditFormDefinition>(response);
-}
-
-export async function extractFormFromExcel(file: File): Promise<AuditFormDefinition> {
-  const formData = new FormData();
-  formData.append("workbook", file);
-  const response = await fetch(`${apiBaseUrl}/api/forms/extract-excel`, {
-    method: "POST",
-    body: formData,
   });
   return parseJsonResponse<AuditFormDefinition>(response);
 }

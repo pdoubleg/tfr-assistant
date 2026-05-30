@@ -61,6 +61,7 @@ import {
   registerOptimizationCandidate,
 } from "@/lib/api";
 import type {
+  FormKind,
   FormCatalogEntry,
   OptimizationCaseRecord,
   OptimizationCaseSplit,
@@ -68,6 +69,7 @@ import type {
   OptimizationEventRecord,
   OptimizationRunPayload,
   OptimizationRunRecord,
+  OptimizationScoreKey,
   OptimizationSplit,
 } from "@/lib/types";
 
@@ -86,6 +88,32 @@ type StagedOptimizationConfig = {
   createdAt: string;
   payload: OptimizationRunPayload;
 };
+
+type ScoreKeyOption = {
+  value: OptimizationScoreKey;
+  label: string;
+  formKinds: readonly ("all" | FormKind)[];
+};
+
+const scoreKeyOptions: ScoreKeyOption[] = [
+  { value: "score", label: "Composite", formKinds: ["all"] },
+  { value: "question_agreement", label: "Question Agreement", formKinds: ["all"] },
+  { value: "outcome_score", label: "Outcome", formKinds: ["all"] },
+  { value: "path_exact_rate", label: "Path Exact", formKinds: ["standard"] },
+  { value: "subquestion_f1", label: "Driver F1", formKinds: ["standard"] },
+  { value: "financial_score", label: "Financial Score", formKinds: ["financial"] },
+  { value: "total_overwrite_agreement", label: "OW Total Agreement", formKinds: ["financial"] },
+  { value: "total_underwrite_agreement", label: "UW Total Agreement", formKinds: ["financial"] },
+  { value: "overwrite_percent_agreement", label: "OW % Agreement", formKinds: ["financial"] },
+  { value: "underwrite_percent_agreement", label: "UW % Agreement", formKinds: ["financial"] },
+  { value: "question_financial_agreement", label: "Question Financial Agreement", formKinds: ["financial"] },
+  { value: "absolute_dollar_error_score", label: "Dollar Error Score", formKinds: ["financial"] },
+  { value: "percent_error_score", label: "Percent Error Score", formKinds: ["financial"] },
+];
+
+function scoreOptionsForFormKind(formKind: FormKind) {
+  return scoreKeyOptions.filter((option) => option.formKinds.includes("all") || option.formKinds.includes(formKind));
+}
 
 const defaultGepaParams: GepaParamsState = {
   auto: null,
@@ -434,6 +462,11 @@ export default function OptimizationPage() {
   const [error, setError] = useState("");
 
   const [formId, formVersion] = formKey.split("@");
+  const selectedFormKind = useMemo<FormKind>(
+    () => forms.find((form) => `${form.id}@${form.version}` === formKey)?.formKind ?? "standard",
+    [formKey, forms],
+  );
+  const applicableScoreOptions = useMemo(() => scoreOptionsForFormKind(selectedFormKind), [selectedFormKind]);
   const counts = splitCounts(caseSplits);
   const activeRun = selectedRun && ["queued", "running"].includes(selectedRun.status) ? selectedRun : null;
   const filteredConfigRuns = useMemo(() => {
@@ -482,6 +515,12 @@ export default function OptimizationPage() {
       setRefreshingCases(false);
     }
   }, [formId, formVersion, search]);
+
+  useEffect(() => {
+    if (!applicableScoreOptions.some((option) => option.value === scoreKey)) {
+      setScoreKey("score");
+    }
+  }, [applicableScoreOptions, scoreKey]);
 
   useEffect(() => {
     let canceled = false;
@@ -860,6 +899,7 @@ export default function OptimizationPage() {
           setMetricMode={setMetricMode}
           scoreKey={scoreKey}
           setScoreKey={setScoreKey}
+          scoreOptions={applicableScoreOptions}
           referencePolicy={referencePolicy}
           setReferencePolicy={setReferencePolicy}
           judgeModel={judgeModel}
@@ -1218,6 +1258,7 @@ function OptimizationConfigDialog(props: {
   setMetricMode: (value: "comparison" | "comparison_with_judge") => void;
   scoreKey: OptimizationRunPayload["score_key"];
   setScoreKey: (value: OptimizationRunPayload["score_key"]) => void;
+  scoreOptions: ScoreKeyOption[];
   referencePolicy: OptimizationRunPayload["reference_policy"];
   setReferencePolicy: (value: OptimizationRunPayload["reference_policy"]) => void;
   judgeModel: string;
@@ -1277,6 +1318,7 @@ function OptimizationConfigDialog(props: {
               setMetricMode={props.setMetricMode}
               scoreKey={props.scoreKey}
               setScoreKey={props.setScoreKey}
+              scoreOptions={props.scoreOptions}
               referencePolicy={props.referencePolicy}
               setReferencePolicy={props.setReferencePolicy}
               judgeModel={props.judgeModel}
@@ -1333,6 +1375,7 @@ function RunConfig(props: {
   setMetricMode: (value: "comparison" | "comparison_with_judge") => void;
   scoreKey: OptimizationRunPayload["score_key"];
   setScoreKey: (value: OptimizationRunPayload["score_key"]) => void;
+  scoreOptions: ScoreKeyOption[];
   referencePolicy: OptimizationRunPayload["reference_policy"];
   setReferencePolicy: (value: OptimizationRunPayload["reference_policy"]) => void;
   judgeModel: string;
@@ -1344,6 +1387,7 @@ function RunConfig(props: {
   counts: { train: number; val: number; test: number };
 }) {
   const budgetMode = getBudgetMode(props.gepaParams);
+  const selectedForm = props.forms.find((form) => `${form.id}@${form.version}` === props.formKey);
 
   return (
     <Card>
@@ -1367,10 +1411,13 @@ function RunConfig(props: {
           >
             {props.forms.map((form) => (
               <option key={`${form.id}@${form.version}`} value={`${form.id}@${form.version}`}>
-                {form.id}@{form.version}
+                {form.id}@{form.version} - {form.formKind}
               </option>
             ))}
           </select>
+          {selectedForm ? (
+            <span className="mt-1 block text-xs font-normal capitalize text-muted-foreground">{selectedForm.formKind} audit form</span>
+          ) : null}
         </label>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           <Button
@@ -1419,11 +1466,11 @@ function RunConfig(props: {
               onChange={(event) => props.setScoreKey(event.target.value as OptimizationRunPayload["score_key"])}
               className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm"
             >
-              <option value="score">Composite</option>
-              <option value="question_agreement">Question Agreement</option>
-              <option value="path_exact_rate">Path Exact</option>
-              <option value="subquestion_f1">Driver F1</option>
-              <option value="outcome_score">Outcome</option>
+              {props.scoreOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </label>
         </div>

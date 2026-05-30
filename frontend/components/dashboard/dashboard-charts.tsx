@@ -56,6 +56,10 @@ interface TrendPoint {
   totalQuestions: number;
   noQuestions: number;
   driverReviews: number;
+  totalReviewed: number;
+  overwriteTotal: number;
+  underwriteTotal: number;
+  netException: number;
 }
 
 interface TrendSeries {
@@ -124,6 +128,10 @@ function emptyPoint(bucket: string, label: string): TrendPoint {
     totalQuestions: 0,
     noQuestions: 0,
     driverReviews: 0,
+    totalReviewed: 0,
+    overwriteTotal: 0,
+    underwriteTotal: 0,
+    netException: 0,
   };
 }
 
@@ -132,6 +140,11 @@ function metricValue(point: TrendPoint, metric: TrendMetric): number {
   if (metric === "meets_rate") return percent(point.meetsCount, point.totalReviews);
   if (metric === "does_not_meet_rate") return percent(point.doesNotMeetCount, point.totalReviews);
   if (metric === "question_no_rate") return percent(point.noQuestions, point.totalQuestions);
+  if (metric === "overwrite_percent") return percent(point.overwriteTotal, point.totalReviewed, 2);
+  if (metric === "underwrite_percent") return percent(point.underwriteTotal, point.totalReviewed, 2);
+  if (metric === "overwrite_total") return point.overwriteTotal;
+  if (metric === "underwrite_total") return point.underwriteTotal;
+  if (metric === "net_exception") return point.netException;
   return percent(point.driverReviews, point.totalReviews);
 }
 
@@ -143,6 +156,9 @@ function trendTooltip(seriesLabel: string, point: TrendPoint): string {
     `Does Not Meet: ${point.doesNotMeetCount} (${percent(point.doesNotMeetCount, point.totalReviews)}%)`,
     `Question No: ${point.noQuestions} of ${point.totalQuestions} (${percent(point.noQuestions, point.totalQuestions)}%)`,
     `Reviews with drivers: ${point.driverReviews} (${percent(point.driverReviews, point.totalReviews)}%)`,
+    `Total reviewed: $${point.totalReviewed.toFixed(2)}`,
+    `OW: $${point.overwriteTotal.toFixed(2)} (${percent(point.overwriteTotal, point.totalReviewed, 2)}%)`,
+    `UW: $${point.underwriteTotal.toFixed(2)} (${percent(point.underwriteTotal, point.totalReviewed, 2)}%)`,
   ].join("\n");
 }
 
@@ -180,6 +196,10 @@ function buildTrendSeries(
     point.totalQuestions += row.questionCount;
     point.noQuestions += row.noCount;
     point.driverReviews += row.driverCount > 0 ? 1 : 0;
+    point.totalReviewed += row.totalAmountReviewedDollars ?? 0;
+    point.overwriteTotal += row.totalOverwriteDollars;
+    point.underwriteTotal += row.totalUnderwriteDollars;
+    point.netException += row.netExceptionDollars;
   }
 
   const sortedBuckets = Array.from(allBuckets.entries()).sort(([first], [second]) => first.localeCompare(second));
@@ -218,7 +238,7 @@ function TrendChart({
   const plotHeight = height - padding.top - padding.bottom;
   const bucketCount = series[0]?.points.length ?? 0;
   const maxValue =
-    metric === "review_volume"
+    metric === "review_volume" || metric === "overwrite_total" || metric === "underwrite_total" || metric === "net_exception"
       ? Math.max(1, ...series.flatMap((item) => item.points.map((point) => point.value)))
       : 100;
   const y = (value: number) => padding.top + plotHeight - (value / maxValue) * plotHeight;
@@ -257,7 +277,7 @@ function TrendChart({
               />
               <text x={padding.left - 8} y={y(value) + 4} textAnchor="end" className="fill-muted-foreground text-[11px]">
                 {Math.round(value)}
-                {metric === "review_volume" ? "" : "%"}
+                {metric === "review_volume" || metric === "overwrite_total" || metric === "underwrite_total" || metric === "net_exception" ? "" : "%"}
               </text>
             </g>
           );

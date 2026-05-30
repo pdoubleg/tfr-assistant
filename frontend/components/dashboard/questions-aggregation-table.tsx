@@ -44,6 +44,9 @@ type QuestionSortKey =
   | "yesPercent"
   | "noPercent"
   | "driverCount"
+  | "totalOverwriteDollars"
+  | "totalUnderwriteDollars"
+  | "netExceptionDollars"
   | "editCount";
 
 interface ColumnDef {
@@ -63,7 +66,16 @@ const columns: ColumnDef[] = [
   { key: "noCount", label: "No", align: "center" },
   { key: "noPercent", label: "% No", align: "center" },
   { key: "driverCount", label: "Drivers", align: "center" },
+  { key: "totalOverwriteDollars", label: "OW Total", align: "center" },
+  { key: "totalUnderwriteDollars", label: "UW Total", align: "center" },
+  { key: "netExceptionDollars", label: "Net", align: "center" },
 ];
+
+const financialQuestionColumnKeys = new Set<QuestionSortKey>([
+  "totalOverwriteDollars",
+  "totalUnderwriteDollars",
+  "netExceptionDollars",
+]);
 
 function FilterCheckbox({
   checked,
@@ -114,6 +126,9 @@ interface QuestionExportRow {
   noCount: number;
   noPercent: number;
   driverCount: number;
+  totalOverwriteDollars: number;
+  totalUnderwriteDollars: number;
+  netExceptionDollars: number;
   subQuestionKey: string;
   subQuestionId: string;
   subQuestionText: string;
@@ -150,6 +165,9 @@ interface QuestionDetailExportRow {
   questionId: string;
   questionText: string;
   questionAnswer: string;
+  overwriteDollars: number;
+  underwriteDollars: number;
+  netExceptionDollars: number;
   subQuestionId: string;
   subQuestionText: string;
   questionSubQuestion: string;
@@ -171,6 +189,10 @@ function detailExportRowId(formKey: string, questionId: string, subQuestionId: s
   return subQuestionId ? `${formKey}:${questionId}:${subQuestionId}:${subQuestionText}` : `${formKey}:${questionId}:question`;
 }
 
+function formatDollars(value: number): string {
+  return new Intl.NumberFormat("en-US", { currency: "USD", maximumFractionDigits: 2, style: "currency" }).format(value);
+}
+
 function buildQuestionExportRows(rows: AggregatedQuestionRow[]): QuestionExportRow[] {
   return rows.flatMap((row) => {
     const base = {
@@ -186,6 +208,9 @@ function buildQuestionExportRows(rows: AggregatedQuestionRow[]): QuestionExportR
       noCount: row.noCount,
       noPercent: row.noPercent,
       driverCount: row.driverCount,
+      totalOverwriteDollars: row.totalOverwriteDollars,
+      totalUnderwriteDollars: row.totalUnderwriteDollars,
+      netExceptionDollars: row.netExceptionDollars,
     };
 
     if (row.subQuestions.length === 0) {
@@ -247,6 +272,9 @@ function buildQuestionDetailRows(rows: DashboardReviewRow[]): QuestionDetailExpo
         questionId: question.id,
         questionText: question.text,
         questionAnswer: question.answer,
+        overwriteDollars: Number(question.overwrite_dollars) || 0,
+        underwriteDollars: Number(question.underwrite_dollars) || 0,
+        netExceptionDollars: (Number(question.overwrite_dollars) || 0) - (Number(question.underwrite_dollars) || 0),
         inputJson: stringifyJson(row.inputJson),
       };
 
@@ -296,6 +324,9 @@ const viewColumns: ExportColumn<QuestionExportRow>[] = [
   { header: "No", value: (row) => row.noCount },
   { header: "% No", value: (row) => `${row.noPercent}%` },
   { header: "Flagged", value: (row) => (row.subQuestionId ? row.subQuestionDriverCount : row.driverCount) },
+  { header: "Overwrite Total", value: (row) => row.totalOverwriteDollars },
+  { header: "Underwrite Total", value: (row) => row.totalUnderwriteDollars },
+  { header: "Net Exception", value: (row) => row.netExceptionDollars },
 ];
 
 const dataColumns: ExportColumn<QuestionDetailExportRow>[] = [
@@ -326,6 +357,9 @@ const dataColumns: ExportColumn<QuestionDetailExportRow>[] = [
   { header: "Question ID", value: (row) => row.questionId },
   { header: "Question", value: (row) => row.questionText },
   { header: "Question Answer", value: (row) => row.questionAnswer },
+  { header: "Overwrite Dollars", value: (row) => row.overwriteDollars },
+  { header: "Underwrite Dollars", value: (row) => row.underwriteDollars },
+  { header: "Net Exception Dollars", value: (row) => row.netExceptionDollars },
   { header: "Sub-question ID", value: (row) => row.subQuestionId },
   { header: "Sub-question", value: (row) => row.subQuestionText },
   { header: "Question and Sub-question", value: (row) => row.questionSubQuestion },
@@ -356,6 +390,11 @@ export function QuestionsAggregationTable({
   onClearCommentQuestionFilter: () => void;
 }) {
   const aggregated = useMemo(() => aggregateQuestions(rows), [rows]);
+  const hasFinancialQuestions = aggregated.some((row) => row.formKind === "financial");
+  const visibleColumns = useMemo(
+    () => columns.filter((column) => hasFinancialQuestions || !financialQuestionColumnKeys.has(column.key)),
+    [hasFinancialQuestions],
+  );
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [answerFilter, setAnswerFilter] = useState("all");
@@ -365,6 +404,12 @@ export function QuestionsAggregationTable({
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const activeCommentFilterCount = commentQuestionFilter.questionKeys.size + commentQuestionFilter.subQuestionKeys.size;
+
+  useEffect(() => {
+    if (!hasFinancialQuestions && financialQuestionColumnKeys.has(sortKey)) {
+      setSortKey("formKey");
+    }
+  }, [hasFinancialQuestions, sortKey]);
 
   const visibleRows = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -589,7 +634,7 @@ export function QuestionsAggregationTable({
             <TableRow className="bg-secondary/60">
               <TableHead className="w-9 text-center">Filter</TableHead>
               <TableHead className="w-9" />
-              {columns.map((column) => (
+              {visibleColumns.map((column) => (
                 <TableHead
                   key={column.key}
                   className={cn(
@@ -610,7 +655,7 @@ export function QuestionsAggregationTable({
           <TableBody>
             {visibleRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={columns.length + 2} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={visibleColumns.length + 2} className="h-24 text-center text-muted-foreground">
                   No question results match the current filters.
                 </TableCell>
               </TableRow>
@@ -671,6 +716,13 @@ export function QuestionsAggregationTable({
                       <TableCell className="text-center">
                         <Badge variant={row.driverCount ? "warning" : "outline"}>{row.driverCount}</Badge>
                       </TableCell>
+                      {hasFinancialQuestions ? (
+                        <>
+                          <TableCell className="text-center tabular-nums">{formatDollars(row.totalOverwriteDollars)}</TableCell>
+                          <TableCell className="text-center tabular-nums">{formatDollars(row.totalUnderwriteDollars)}</TableCell>
+                          <TableCell className="text-center tabular-nums">{formatDollars(row.netExceptionDollars)}</TableCell>
+                        </>
+                      ) : null}
                     </TableRow>
                     {isExpanded
                       ? row.subQuestions.map((subQuestion) => (
@@ -699,6 +751,7 @@ export function QuestionsAggregationTable({
                             <TableCell className="text-center tabular-nums text-amber-700 dark:text-amber-300">
                               {subQuestion.driverPercent}% flagged
                             </TableCell>
+                            {hasFinancialQuestions ? <TableCell colSpan={3} /> : null}
                           </TableRow>
                         ))
                       : null}

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.models.audit import AuditFormResult
+from app.models.audit import AuditResult
 
 
 @dataclass
@@ -16,14 +16,14 @@ class OptimizationDataInstance:
     form_path: str
     tools: list[str]
     knowledge_docs: list[str]
-    references: list[tuple[str, AuditFormResult]]
+    references: list[tuple[str, AuditResult]]
     split: str
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class OptimizationRolloutOutput:
-    result: AuditFormResult | None
+    result: AuditResult | None
     success: bool
     error_message: str | None = None
     comparison: dict[str, Any] | None = None

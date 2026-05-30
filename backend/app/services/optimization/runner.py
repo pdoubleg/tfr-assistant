@@ -24,7 +24,7 @@ from app.db.models import (
     OptimizationRunORM,
 )
 from app.db.session import AsyncSessionLocal
-from app.models.audit import AuditFormResult
+from app.models.audit import parse_audit_result
 from app.schemas.optimizations import OptimizationGepaParams, OptimizationRunCreate
 from app.services.catalog import FormCatalog
 from app.services.optimization.adapter import TFRGepaAdapter
@@ -344,7 +344,7 @@ class OptimizationRunService:
                 references = [
                     (
                         truth.reference_kind,
-                        AuditFormResult.model_validate(truth.payload_json),
+                        parse_audit_result(truth.payload_json),
                     )
                     for truth in truths
                 ]

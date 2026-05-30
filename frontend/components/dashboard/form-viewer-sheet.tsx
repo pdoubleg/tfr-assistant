@@ -131,6 +131,14 @@ function QuestionViewer({ question }: { question: FormQuestion }) {
         <div className="grid gap-3 border-t bg-secondary/20 p-4 lg:grid-cols-2">
           <TextBlock label="Comments" text={question.comments ?? ""} />
           <TextBlock label="Citations" text={question.citations ?? ""} />
+          {question.overwrite_dollars !== undefined || question.underwrite_dollars !== undefined ? (
+            <div className="rounded-lg border bg-background p-4 lg:col-span-2">
+              <p className="text-[11px] font-semibold uppercase text-muted-foreground">Financial Exceptions</p>
+              <p className="mt-2 text-sm">
+                OW ${Number(question.overwrite_dollars ?? 0).toFixed(2)} · UW ${Number(question.underwrite_dollars ?? 0).toFixed(2)}
+              </p>
+            </div>
+          ) : null}
         </div>
       ) : null}
       {expanded ? (
@@ -184,6 +192,7 @@ export function FormViewerSheet({
                 <Badge variant="outline" className="font-mono text-[10px]">
                   {row.formKey}
                 </Badge>
+                <Badge variant="outline">{row.formKind}</Badge>
                 <Badge
                   variant={row.outcome === "Meets" ? "success" : "danger"}
                   className="whitespace-nowrap text-[11px]"
@@ -227,6 +236,28 @@ export function FormViewerSheet({
               <p className="mt-1 text-2xl font-semibold tabular-nums text-amber-700 dark:text-amber-300">{row.driverCount}</p>
             </div>
           </div>
+          {row.formKind === "financial" ? (
+            <div className="mt-3 grid gap-3 sm:grid-cols-4">
+              <div className="rounded-lg border bg-card p-3">
+                <p className="text-xs text-muted-foreground">Reviewed</p>
+                <p className="mt-1 text-xl font-semibold tabular-nums">${(row.totalAmountReviewedDollars ?? 0).toFixed(2)}</p>
+              </div>
+              <div className="rounded-lg border bg-card p-3">
+                <p className="text-xs text-muted-foreground">OW</p>
+                <p className="mt-1 text-xl font-semibold tabular-nums">${row.totalOverwriteDollars.toFixed(2)}</p>
+              </div>
+              <div className="rounded-lg border bg-card p-3">
+                <p className="text-xs text-muted-foreground">UW</p>
+                <p className="mt-1 text-xl font-semibold tabular-nums">${row.totalUnderwriteDollars.toFixed(2)}</p>
+              </div>
+              <div className="rounded-lg border bg-card p-3">
+                <p className="text-xs text-muted-foreground">OW / UW %</p>
+                <p className="mt-1 text-xl font-semibold tabular-nums">
+                  {(row.overwritePercent ?? 0).toFixed(2)} / {(row.underwritePercent ?? 0).toFixed(2)}
+                </p>
+              </div>
+            </div>
+          ) : null}
 
           <div className="mt-5 space-y-3">
             <div className="flex items-center gap-2">

@@ -83,8 +83,34 @@ type MetricColumnKey =
   | "path_exact_matches"
   | "path_exact_rate"
   | "path_exact_percent"
-  | "form_exact_match";
-type MetricFormat = "count" | "number" | "percent" | "ratio";
+  | "form_exact_match"
+  | "financial_score"
+  | "total_overwrite_agreement"
+  | "total_underwrite_agreement"
+  | "overwrite_percent_agreement"
+  | "underwrite_percent_agreement"
+  | "question_financial_matches"
+  | "question_financial_agreement"
+  | "question_financial_agreement_percent"
+  | "generated_total_amount_reviewed_dollars"
+  | "reference_total_amount_reviewed_dollars"
+  | "generated_total_overwrite_dollars"
+  | "reference_total_overwrite_dollars"
+  | "generated_total_underwrite_dollars"
+  | "reference_total_underwrite_dollars"
+  | "generated_overwrite_percent"
+  | "reference_overwrite_percent"
+  | "generated_underwrite_percent"
+  | "reference_underwrite_percent"
+  | "total_overwrite_error"
+  | "total_underwrite_error"
+  | "overwrite_percent_error"
+  | "underwrite_percent_error"
+  | "absolute_dollar_error"
+  | "absolute_dollar_error_score"
+  | "percent_error"
+  | "percent_error_score";
+type MetricFormat = "count" | "number" | "percent" | "ratio" | "currency";
 type MetricAggregate = "mean" | "sum";
 type VisualizationMode = "results" | "agreement";
 type ReferenceView = EvalReferenceKind | "both";
@@ -293,6 +319,62 @@ const metricColumnDefinitions: MetricColumnDefinition[] = [
   { key: "path_exact_rate", label: "Path Exact Rate", format: "ratio", aggregate: "mean", levels: ["form"] },
   { key: "path_exact_percent", label: "Path Exact %", format: "percent", aggregate: "mean", levels: ["form"] },
   { key: "form_exact_match", label: "Form Exact Match", format: "ratio", aggregate: "mean", levels: ["form"] },
+  { key: "financial_score", label: "Financial Score", format: "ratio", aggregate: "mean", levels: ["form"] },
+  { key: "total_overwrite_agreement", label: "OW Total Agreement", format: "ratio", aggregate: "mean", levels: ["form"] },
+  { key: "total_underwrite_agreement", label: "UW Total Agreement", format: "ratio", aggregate: "mean", levels: ["form"] },
+  { key: "overwrite_percent_agreement", label: "OW % Agreement", format: "ratio", aggregate: "mean", levels: ["form"] },
+  { key: "underwrite_percent_agreement", label: "UW % Agreement", format: "ratio", aggregate: "mean", levels: ["form"] },
+  {
+    key: "question_financial_matches",
+    label: "Question Financial Matches",
+    format: "count",
+    aggregate: "sum",
+    levels: ["form", "question"],
+  },
+  {
+    key: "question_financial_agreement",
+    label: "Question Financial Agreement",
+    format: "ratio",
+    aggregate: "mean",
+    levels: ["form", "question"],
+  },
+  {
+    key: "question_financial_agreement_percent",
+    label: "Question Financial Agreement %",
+    format: "percent",
+    aggregate: "mean",
+    levels: ["form", "question"],
+  },
+  {
+    key: "generated_total_amount_reviewed_dollars",
+    label: "Model Amount Reviewed",
+    format: "currency",
+    aggregate: "mean",
+    levels: ["form"],
+  },
+  {
+    key: "reference_total_amount_reviewed_dollars",
+    label: "Reference Amount Reviewed",
+    format: "currency",
+    aggregate: "mean",
+    levels: ["form"],
+  },
+  { key: "generated_total_overwrite_dollars", label: "Model OW Total", format: "currency", aggregate: "mean", levels: ["form"] },
+  { key: "reference_total_overwrite_dollars", label: "Reference OW Total", format: "currency", aggregate: "mean", levels: ["form"] },
+  { key: "generated_total_underwrite_dollars", label: "Model UW Total", format: "currency", aggregate: "mean", levels: ["form"] },
+  { key: "reference_total_underwrite_dollars", label: "Reference UW Total", format: "currency", aggregate: "mean", levels: ["form"] },
+  { key: "generated_overwrite_percent", label: "Model OW %", format: "percent", aggregate: "mean", levels: ["form"] },
+  { key: "reference_overwrite_percent", label: "Reference OW %", format: "percent", aggregate: "mean", levels: ["form"] },
+  { key: "generated_underwrite_percent", label: "Model UW %", format: "percent", aggregate: "mean", levels: ["form"] },
+  { key: "reference_underwrite_percent", label: "Reference UW %", format: "percent", aggregate: "mean", levels: ["form"] },
+  { key: "total_overwrite_error", label: "OW Error", format: "currency", aggregate: "mean", levels: ["form", "question"] },
+  { key: "total_underwrite_error", label: "UW Error", format: "currency", aggregate: "mean", levels: ["form", "question"] },
+  { key: "overwrite_percent_error", label: "OW % Error", format: "percent", aggregate: "mean", levels: ["form"] },
+  { key: "underwrite_percent_error", label: "UW % Error", format: "percent", aggregate: "mean", levels: ["form"] },
+  { key: "absolute_dollar_error", label: "Dollar Error", format: "currency", aggregate: "mean", levels: ["form", "question"] },
+  { key: "absolute_dollar_error_score", label: "Dollar Error Score", format: "ratio", aggregate: "mean", levels: ["form"] },
+  { key: "percent_error", label: "Percent Error", format: "percent", aggregate: "mean", levels: ["form"] },
+  { key: "percent_error_score", label: "Percent Error Score", format: "ratio", aggregate: "mean", levels: ["form"] },
 ];
 
 const metricColumnDefinitionByKey = new Map(metricColumnDefinitions.map((definition) => [definition.key, definition]));
@@ -403,11 +485,16 @@ function formatNumber(value: number): string {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value);
 }
 
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat("en-US", { currency: "USD", maximumFractionDigits: 2, style: "currency" }).format(value);
+}
+
 function formatMetricValue(row: HierarchyMetricRow, definition: MetricColumnDefinition): string {
   if (!definition.levels.includes(row.level)) return "-";
   const value = row.metrics[definition.key];
   if (typeof value !== "number" || !Number.isFinite(value)) return "-";
   if (definition.format === "count") return formatNumber(value);
+  if (definition.format === "currency") return formatCurrency(value);
   if (definition.format === "percent") return `${Math.round(value)}%`;
   if (definition.format === "ratio") return agreementPercent(value);
   return formatNumber(value);
@@ -546,6 +633,27 @@ function buildHierarchyRows(items: EvalRunItemRecord[]): HierarchyMetricRow[] {
           if (noAnswer(agreementItem.generated_answer) && noAnswer(agreementItem.reference_answer)) {
             questionRow.subquestionEligibleQuestionCount += 1;
           }
+          continue;
+        }
+
+        if (agreementItem.level === "financial_question") {
+          const questionId = agreementItem.question_id ?? "Question";
+          const questionText = agreementItem.question_text ?? questionId;
+          const questionRow = ensure("question", comparison.reference_kind, questionId, "", questionText);
+          const answerMatch = normalizedAnswer(agreementItem.generated_answer) === normalizedAnswer(agreementItem.reference_answer);
+          const overwriteError = agreementItem.overwrite_dollar_error ?? 0;
+          const underwriteError = agreementItem.underwrite_dollar_error ?? 0;
+          const financialMatch = agreementItem.matched;
+
+          questionRow.total += 1;
+          if (financialMatch) questionRow.matches += 1;
+          addMatch(questionRow.questionStats, answerMatch);
+          addMetricSample(questionRow, "question_financial_matches", financialMatch ? 1 : 0);
+          addMetricSample(questionRow, "question_financial_agreement", financialMatch ? 1 : 0);
+          addMetricSample(questionRow, "question_financial_agreement_percent", financialMatch ? 100 : 0);
+          addMetricSample(questionRow, "total_overwrite_error", overwriteError);
+          addMetricSample(questionRow, "total_underwrite_error", underwriteError);
+          addMetricSample(questionRow, "absolute_dollar_error", overwriteError + underwriteError);
           continue;
         }
 
@@ -695,12 +803,16 @@ function aggregateRunMetrics(run: EvalRunRecord | null, items: EvalRunItemRecord
   const subquestionF1 = primaryComparisons
     .map((comparison) => metricNumberFallback(comparison.metrics, ["subquestion_f1", "driver_f1"]))
     .filter((value): value is number => value !== null);
+  const financialScore = primaryComparisons
+    .map((comparison) => metricNumber(comparison.metrics, "financial_score"))
+    .filter((value): value is number => value !== null);
   const average = (values: number[]) => (values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null);
   return {
     completedItems: completedItems.length,
     outcomeAgreement: primaryComparisons.length ? outcomeMatches / primaryComparisons.length : null,
     questionAgreement: average(questionAgreement),
     subquestionF1: average(subquestionF1),
+    financialScore: average(financialScore),
   };
 }
 
@@ -1659,9 +1771,13 @@ function CompletedRunAnalysisCard({
               helper="Yes/No answers"
             />
             <MiniMetric
-              label="Sub-question F1"
-              value={metrics.subquestionF1 === null ? "-" : agreementPercent(metrics.subquestionF1)}
-              helper="applicable sub-questions"
+              label={run.form_kind === "financial" ? "Financial Score" : "Sub-question F1"}
+              value={
+                run.form_kind === "financial"
+                  ? metrics.financialScore === null ? "-" : agreementPercent(metrics.financialScore)
+                  : metrics.subquestionF1 === null ? "-" : agreementPercent(metrics.subquestionF1)
+              }
+              helper={run.form_kind === "financial" ? "OW/UW totals and percents" : "applicable sub-questions"}
             />
           </div>
         )}
@@ -2346,7 +2462,11 @@ function PairComparisonDialog({ pair, onClose }: { pair: PairResultRow | null; o
   const activeComparison = comparisonFor(pair.item, activeTruth.reference_kind) ?? pair.comparison;
   const questionAgreement = metricNumber(activeComparison.metrics, "question_agreement");
   const subquestionF1 = metricNumberFallback(activeComparison.metrics, ["subquestion_f1", "driver_f1"]);
+  const financialScore = metricNumber(activeComparison.metrics, "financial_score");
+  const overwriteAgreement = metricNumber(activeComparison.metrics, "total_overwrite_agreement");
+  const underwriteAgreement = metricNumber(activeComparison.metrics, "total_underwrite_agreement");
   const outcomeMatch = metricBool(activeComparison.metrics, "outcome_match");
+  const isFinancial = activeComparison.form_kind === "financial" || pair.item.form_kind === "financial";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4 backdrop-blur-sm">
@@ -2386,11 +2506,21 @@ function PairComparisonDialog({ pair, onClose }: { pair: PairResultRow | null; o
           <div className="grid gap-3 md:grid-cols-4">
             <MiniMetric label="Score" value={scorePercent(activeComparison.score)} helper={`Ground truth ${activeTruth.reference_kind}`} />
             <MiniMetric label="Question Agree" value={questionAgreement === null ? "-" : agreementPercent(questionAgreement)} helper="Yes/No answers" />
-            <MiniMetric
-              label="Sub-question F1"
-              value={subquestionF1 === null ? "-" : agreementPercent(subquestionF1)}
-              helper="applicable sub-questions"
-            />
+            {isFinancial ? (
+              <MiniMetric
+                label="Financial Score"
+                value={financialScore === null ? "-" : agreementPercent(financialScore)}
+                helper={`OW ${overwriteAgreement === null ? "-" : agreementPercent(overwriteAgreement)} / UW ${
+                  underwriteAgreement === null ? "-" : agreementPercent(underwriteAgreement)
+                }`}
+              />
+            ) : (
+              <MiniMetric
+                label="Sub-question F1"
+                value={subquestionF1 === null ? "-" : agreementPercent(subquestionF1)}
+                helper="applicable sub-questions"
+              />
+            )}
             <MiniMetric label="Attempts" value={String(pair.item.attempt_count)} helper={formatDate(pair.item.completed_at) || pair.item.status} />
           </div>
 
@@ -2453,6 +2583,7 @@ function ReadOnlyFormPanel({ title, form }: { title: string; form: AuditFormResu
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-sm font-semibold">{title}</p>
           <Badge variant={form.overall_outcome === "Meets" ? "success" : "danger"}>{form.overall_outcome}</Badge>
+          {form.form_kind === "financial" ? <Badge variant="outline">{formatCurrency(form.total_amount_reviewed_dollars ?? 0)} reviewed</Badge> : null}
         </div>
         <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{form.outcome_justification}</p>
       </div>
@@ -2474,7 +2605,14 @@ function ReadOnlyQuestion({ question }: { question: FormQuestion }) {
           <p className="font-mono text-xs font-semibold text-primary">{question.id}</p>
           <p className="mt-1 text-sm">{question.text}</p>
         </div>
-        <Badge variant={question.answer === "Yes" ? "success" : "danger"}>{question.answer}</Badge>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <Badge variant={question.answer === "Yes" ? "success" : "danger"}>{question.answer}</Badge>
+          {question.overwrite_dollars || question.underwrite_dollars ? (
+            <span className="text-[11px] tabular-nums text-muted-foreground">
+              OW {formatCurrency(question.overwrite_dollars ?? 0)} / UW {formatCurrency(question.underwrite_dollars ?? 0)}
+            </span>
+          ) : null}
+        </div>
       </div>
       {subQuestions.length ? (
         <div className="mt-3 space-y-2">

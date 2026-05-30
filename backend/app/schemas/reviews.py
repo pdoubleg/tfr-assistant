@@ -3,7 +3,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from app.models.audit import AuditFormResult
+from app.models.audit import AuditResult, FormKind
 from app.schemas.prompts import PromptReference, ResolvedPrompt
 
 ReviewStatus = Literal["queued", "running", "completed", "failed"]
@@ -65,7 +65,7 @@ class ReviewGenerateRequest(BaseModel):
     input_mode: BatchInputMode = "manual"
     generation_prompt: str = ""
     form_metadata: dict[str, str] = Field(default_factory=dict)
-    manual_result: AuditFormResult | None = None
+    manual_result: AuditResult | None = None
     eval_run_id: str = ""
     eval_run_name: str = ""
     eval_dataset_id: str = ""
@@ -77,19 +77,20 @@ class ReviewRecord(BaseModel):
     id: str
     form_id: str
     form_version: str
+    form_kind: FormKind = "standard"
     status: ReviewStatus = "completed"
     source: ReviewSource = "api"
     batch_id: str | None = None
     input_json: dict[str, Any] | None = None
-    original: AuditFormResult | None = None
-    user_version: AuditFormResult | None = None
+    original: AuditResult | None = None
+    user_version: AuditResult | None = None
     error_message: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class ReviewUpdate(BaseModel):
-    user_version: AuditFormResult
+    user_version: AuditResult
     comment: str | None = None
 
 
@@ -103,7 +104,7 @@ class BatchReviewInput(BaseModel):
     form_id: str | None = None
     form_version: str | None = None
     synthetic: bool | None = None
-    manual_result: AuditFormResult | None = None
+    manual_result: AuditResult | None = None
 
 
 class BatchCreateRequest(BaseModel):
@@ -145,6 +146,7 @@ class BatchRecord(BaseModel):
 class BatchFormVolume(BaseModel):
     form_id: str
     form_version: str
+    form_kind: FormKind = "standard"
     total_count: int = 0
     completed_count: int = 0
     failed_count: int = 0

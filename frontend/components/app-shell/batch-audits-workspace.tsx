@@ -828,9 +828,21 @@ function createManualEntryDraft(form: AuditFormResult): AuditFormResult {
   const draft = cloneAuditForm(form);
   return {
     ...draft,
+    total_amount_reviewed_dollars: draft.form_kind === "financial" ? 0 : undefined,
     overall_outcome: "" as AuditFormResult["overall_outcome"],
     outcome_justification: "",
     questions: draft.questions.map((question) => {
+      if (draft.form_kind === "financial") {
+        return {
+          ...question,
+          answer: "" as AuditFormResult["questions"][number]["answer"],
+          comments: "",
+          citations: "",
+          sub_questions: null,
+          overwrite_dollars: 0,
+          underwrite_dollars: 0,
+        };
+      }
       const subQuestions = question.sub_questions ?? [];
       if (subQuestions.length === 0) {
         return {
@@ -873,6 +885,11 @@ function manualEntriesFromTemplate(template?: BatchTemplateRecord | null): Manua
 
 function manualEntryOutcomeSummary(form: AuditFormResult): string {
   const noCount = form.questions.filter((question) => question.answer === "No").length;
+  if (form.form_kind === "financial") {
+    const overwrite = form.questions.reduce((sum, question) => sum + (Number(question.overwrite_dollars) || 0), 0);
+    const underwrite = form.questions.reduce((sum, question) => sum + (Number(question.underwrite_dollars) || 0), 0);
+    return `${form.overall_outcome} · ${noCount} issue${noCount === 1 ? "" : "s"} · OW $${overwrite.toFixed(2)} · UW $${underwrite.toFixed(2)}`;
+  }
   const driverCount = form.questions.reduce(
     (count, question) => count + (question.sub_questions ?? []).filter((subQuestion) => subQuestion.answer).length,
     0,
@@ -2393,6 +2410,7 @@ function FormDefinitionPreviewPanel({ form }: { form: AuditFormResult }) {
           <Badge variant="outline" className="font-mono text-[10px]">
             {form.form_id}@{form.form_version}
           </Badge>
+          <Badge variant="outline">{form.form_kind ?? "standard"}</Badge>
         </div>
         <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
           {form.description || "No description"}
@@ -2461,13 +2479,24 @@ function FormQuestionPreview({ question }: { question: FormQuestion }) {
 }
 
 function ReadOnlyFormPanel({ form }: { form: AuditFormResult }) {
+  const totalOverwrite = form.questions.reduce((sum, question) => sum + (Number(question.overwrite_dollars) || 0), 0);
+  const totalUnderwrite = form.questions.reduce((sum, question) => sum + (Number(question.underwrite_dollars) || 0), 0);
+  const totalReviewed = Number(form.total_amount_reviewed_dollars || 0);
   return (
     <div className="space-y-4">
       <div className="rounded-lg border bg-background p-4">
         <div className="flex flex-wrap items-center gap-2">
           <p className="font-semibold">{form.title}</p>
           <Badge variant={form.overall_outcome === "Meets" ? "success" : "danger"}>{form.overall_outcome}</Badge>
+          {form.form_kind === "financial" ? <Badge variant="outline">financial</Badge> : null}
         </div>
+        {form.form_kind === "financial" ? (
+          <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+            <span>Reviewed ${totalReviewed.toFixed(2)}</span>
+            <span>OW ${totalOverwrite.toFixed(2)}</span>
+            <span>UW ${totalUnderwrite.toFixed(2)}</span>
+          </div>
+        ) : null}
         <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{form.outcome_justification || form.description}</p>
       </div>
       <div className="space-y-3">
@@ -2506,6 +2535,11 @@ function ReadOnlyQuestion({ question }: { question: FormQuestion }) {
         <div className="mt-3 rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground">
           {question.comments ? <p>{question.comments}</p> : null}
           {question.citations ? <p className="mt-1">{question.citations}</p> : null}
+          {question.overwrite_dollars !== undefined || question.underwrite_dollars !== undefined ? (
+            <p className="mt-1">
+              OW ${Number(question.overwrite_dollars || 0).toFixed(2)} · UW ${Number(question.underwrite_dollars || 0).toFixed(2)}
+            </p>
+          ) : null}
         </div>
       ) : null}
     </div>

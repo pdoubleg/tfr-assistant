@@ -3,7 +3,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from app.models.audit import AuditFormResult
+from app.models.audit import AuditResult, FormKind
 from app.schemas.prompts import PromptReference
 
 EvalReferenceKind = Literal["R1", "R2"]
@@ -40,7 +40,7 @@ class EvaluationRecord(EvaluationCreate):
 
 class EvalGroundTruthCreate(BaseModel):
     reference_kind: EvalReferenceKind
-    result: AuditFormResult
+    result: AuditResult
     reviewer: str | None = None
     source_metadata: dict[str, Any] | None = None
 
@@ -58,6 +58,7 @@ class EvalDatasetCreate(BaseModel):
     description: str = ""
     form_id: str = "tfr_default"
     form_version: str = "v0.1"
+    form_kind: FormKind = "standard"
     source_kind: str = "manual"
     source_metadata: dict[str, Any] | None = None
     cases: list[EvalCaseCreate] = Field(default_factory=list)
@@ -67,7 +68,7 @@ class EvalGroundTruthRecord(BaseModel):
     id: str
     case_id: str
     reference_kind: EvalReferenceKind
-    result: AuditFormResult
+    result: AuditResult
     reviewer: str | None = None
     source_metadata: dict[str, Any] | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -91,6 +92,7 @@ class EvalDatasetRecord(BaseModel):
     description: str = ""
     form_id: str
     form_version: str
+    form_kind: FormKind = "standard"
     source_kind: str = "manual"
     source_metadata: dict[str, Any] | None = None
     dataset_hash: str
@@ -125,7 +127,8 @@ class EvalAgreementItemRecord(BaseModel):
     ground_truth_id: str
     comparison_id: str
     reference_kind: EvalReferenceKind
-    level: Literal["overall", "question", "subquestion"]
+    form_kind: FormKind = "standard"
+    level: Literal["overall", "question", "subquestion", "financial_question"]
     question_id: str | None = None
     subquestion_id: str | None = None
     question_text: str | None = None
@@ -138,6 +141,12 @@ class EvalAgreementItemRecord(BaseModel):
     reference_comment: str | None = None
     generated_citations: str | None = None
     reference_citations: str | None = None
+    generated_overwrite_dollars: float | None = None
+    reference_overwrite_dollars: float | None = None
+    generated_underwrite_dollars: float | None = None
+    reference_underwrite_dollars: float | None = None
+    overwrite_dollar_error: float | None = None
+    underwrite_dollar_error: float | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
@@ -148,6 +157,7 @@ class EvalComparisonRecord(BaseModel):
     case_id: str
     ground_truth_id: str
     reference_kind: EvalReferenceKind
+    form_kind: FormKind = "standard"
     score: float | None = None
     metrics: dict[str, Any] = Field(default_factory=dict)
     agreement_items: list[EvalAgreementItemRecord] = Field(default_factory=list)
@@ -163,7 +173,7 @@ class EvalRunItemRecord(BaseModel):
     status: EvalRunItemStatus = "queued"
     attempt_count: int = 0
     generated_review_id: str | None = None
-    generated_result: AuditFormResult | None = None
+    generated_result: AuditResult | None = None
     ground_truths: list[EvalGroundTruthRecord] = Field(default_factory=list)
     error_message: str | None = None
     comparisons: list[EvalComparisonRecord] = Field(default_factory=list)
@@ -177,6 +187,7 @@ class EvalRunRecord(BaseModel):
     id: str
     dataset_id: str
     dataset_name: str = ""
+    form_kind: FormKind = "standard"
     lineage_id: str | None = None
     source_run_id: str | None = None
     config_version: int = 1

@@ -199,6 +199,7 @@ function selectedHomeRowFromDashboardRow(row: DashboardReviewRow): SelectedHomeR
     result_version: row.resultVersion,
     form_id: row.formId,
     form_version: row.formVersion,
+    form_kind: row.formKind,
     form_key: row.formKey,
     claim_number: row.claimNumber,
     batch_id: row.batchId,

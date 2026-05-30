@@ -1,17 +1,57 @@
-"""Audit form contracts for Targeted File Review.
+"""Audit form contracts for Targeted File Review."""
 
-The exact questionnaire variants will evolve, but agent outputs should keep this
-question/sub-question/outcome shape so storage, review, and evaluation workflows
-can remain stable.
-"""
+from __future__ import annotations
 
 import json
 import os
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
-from typing import Any, Literal, Self
+from typing import Annotated, Any, Literal, Self, TypeAlias
 
-from pydantic import BaseModel, Field, ValidationInfo, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    TypeAdapter,
+    ValidationInfo,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 from pydantic.json_schema import SkipJsonSchema
+
+FormKind = Literal["standard", "financial"]
+QuestionAnswer = Literal["Yes", "No"]
+OverallOutcome = Literal["Meets", "Does Not Meet"]
+
+MONEY_ZERO = Decimal("0.00")
+MONEY_QUANT = Decimal("0.01")
+
+
+def _money(value: Any, *, field_name: str = "amount") -> Decimal:
+    if value is None or value == "":
+        return MONEY_ZERO
+    try:
+        decimal_value = Decimal(str(value))
+    except (InvalidOperation, ValueError) as exc:
+        raise ValueError(f"{field_name} must be a valid dollar amount.") from exc
+    if decimal_value < MONEY_ZERO:
+        raise ValueError(f"{field_name} cannot be negative.")
+    return decimal_value.quantize(MONEY_QUANT, rounding=ROUND_HALF_UP)
+
+
+def _money_json(value: Decimal | None) -> float | None:
+    if value is None:
+        return None
+    return float(value)
+
+
+def _pct_decimal(numerator: Decimal, denominator: Decimal) -> Decimal:
+    if denominator <= MONEY_ZERO:
+        return MONEY_ZERO
+    return ((numerator / denominator) * Decimal("100")).quantize(
+        MONEY_QUANT,
+        rounding=ROUND_HALF_UP,
+    )
 
 
 class FormSubQuestion(BaseModel):
@@ -36,7 +76,7 @@ class FormSubQuestion(BaseModel):
 
     @model_validator(mode="after")
     def validate_selected_evidence(self, info: ValidationInfo) -> Self:
-        if _canonical_merge_context(info.context) is None:
+        if _standard_merge_context(info.context) is None:
             return self
         if self.answer and not self.reasoning.strip():
             raise ValueError("Selected sub-questions must include reasoning.")
@@ -48,7 +88,7 @@ class FormSubQuestion(BaseModel):
 class FormQuestion(BaseModel):
     id: str = Field(..., description="Stable identifier, e.g. Q1 or Q2.")
     text: str = Field(..., description="Canonical question text from the form template.")
-    answer: Literal["Yes", "No"] = Field(..., description="Question answer.")
+    answer: QuestionAnswer = Field(..., description="Question answer.")
     comments: str | None = Field(
         default=None,
         description=(
@@ -81,7 +121,7 @@ class FormQuestion(BaseModel):
 
     @model_validator(mode="after")
     def validate_sub_questions(self, info: ValidationInfo) -> Self:
-        if _canonical_merge_context(info.context) is None:
+        if _standard_merge_context(info.context) is None:
             return self
         sub_questions = self.sub_questions or []
         if (
@@ -104,13 +144,40 @@ class FormQuestion(BaseModel):
         return self
 
 
+class FinancialQuestionResult(BaseModel):
+    id: str = Field(..., description="Stable canonical question identifier.")
+    text: str = Field(..., description="Canonical financial audit question text.")
+    answer: QuestionAnswer = Field(..., description="Question answer.")
+    comments: str | None = Field(default=None, description="Optional question-level comments.")
+    citations: str | None = Field(default=None, description="Optional evidence citations.")
+    overwrite_dollars: Decimal = Field(
+        default=MONEY_ZERO,
+        description="Overwrite dollars for this question. Use 0 when none apply.",
+    )
+    underwrite_dollars: Decimal = Field(
+        default=MONEY_ZERO,
+        description="Underwrite dollars for this question. Use 0 when none apply.",
+    )
+    help_text: SkipJsonSchema[str | None] = None
+
+    @field_validator("overwrite_dollars", "underwrite_dollars", mode="before")
+    @classmethod
+    def validate_money(cls, value: Any, info: ValidationInfo) -> Decimal:
+        return _money(value, field_name=info.field_name or "amount")
+
+    @field_serializer("overwrite_dollars", "underwrite_dollars")
+    def serialize_money(self, value: Decimal) -> float:
+        return float(value)
+
+
 class AuditFormResult(BaseModel):
+    form_kind: Literal["standard"] = Field(default="standard", description="Audit form kind.")
     form_id: str = Field(..., description="Registered canonical form identifier.")
     form_version: str = Field(..., description="Canonical form version completed by the agent.")
     title: str = Field(..., description="Human-friendly form title.")
     description: str = Field(..., description="Brief description of the completed audit form.")
     questions: list[FormQuestion]
-    overall_outcome: Literal["Meets", "Does Not Meet"]
+    overall_outcome: OverallOutcome
     outcome_justification: str
     id: SkipJsonSchema[str | None] = None
     cost: SkipJsonSchema[float | None] = None
@@ -122,11 +189,11 @@ class AuditFormResult(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def validate_and_merge_with_canonical(cls, data: Any, info: ValidationInfo) -> Any:
-        canonical_context = _canonical_merge_context(info.context)
+        canonical_context = _standard_merge_context(info.context)
         if canonical_context is None:
             return data
         definition = getattr(canonical_context, "form_definition", None)
-        return merge_payload_with_canonical(
+        return merge_standard_payload_with_canonical(
             data,
             canonical_context.canonical,
             form_id=getattr(definition, "id", None),
@@ -136,47 +203,12 @@ class AuditFormResult(BaseModel):
         )
 
     def __str__(self) -> str:
-        lines = [
-            f"# {self.title}",
-            "",
-            "## Description",
-            self.description,
-        ]
-
-        lines.extend(["", "## Questions"])
-        for question in self.questions:
-            lines.extend([f"### {question.id} - {question.answer}", question.text])
-            if question.help_text:
-                lines.append(f"- Help text: {question.help_text}")
-            if question.comments:
-                lines.append(f"- Comments: {question.comments}")
-            if question.citations:
-                lines.append(f"- Citations: {question.citations}")
-            for sub_question in question.sub_questions or []:
-                lines.extend(
-                    [
-                        f"#### {sub_question.id}",
-                        sub_question.text,
-                        f"- Applicable: {sub_question.answer}",
-                        f"- Reasoning: {sub_question.reasoning}",
-                        f"- Citations: {sub_question.citations}",
-                    ]
-                )
-            lines.append("")
-
-        lines.extend(
-            [
-                "## Outcome",
-                f"- {self.overall_outcome}",
-                f"- Justification: {self.outcome_justification}",
-            ]
-        )
-        return "\n".join(lines).strip()
+        return render_audit_result(self)
 
     def to_json(self, path: str | Path) -> None:
         destination = Path(path)
         with destination.open("w", encoding="utf-8") as file_obj:
-            json.dump(self.model_dump(), file_obj, indent=2)
+            json.dump(self.model_dump(mode="json"), file_obj, indent=2)
             file_obj.flush()
             os.fsync(file_obj.fileno())
 
@@ -193,6 +225,7 @@ class AuditFormResult(BaseModel):
     def as_questionnaire_string(self) -> str:
         output = [
             f"TFR Questionnaire: {self.title}",
+            "Form Kind: standard",
             "Complete each question from the file evidence. Answers must be exactly 'Yes' or "
             "'No'. When a question lists Sub-Questions, generate only the listed "
             "sub_question driver(s) that apply to the audit finding; do not generate "
@@ -225,13 +258,234 @@ class AuditFormResult(BaseModel):
         return "\n".join(output)
 
 
+class AuditFormWithFinancialsResult(BaseModel):
+    form_kind: Literal["financial"] = Field(default="financial", description="Audit form kind.")
+    form_id: str = Field(..., description="Registered canonical form identifier.")
+    form_version: str = Field(..., description="Canonical form version completed by the agent.")
+    title: str = Field(..., description="Human-friendly form title.")
+    description: str = Field(..., description="Brief description of the completed audit form.")
+    total_amount_reviewed_dollars: Decimal = Field(
+        ...,
+        description="Total dollar amount reviewed for this audit. Must be greater than zero.",
+    )
+    questions: list[FinancialQuestionResult]
+    overall_outcome: OverallOutcome
+    outcome_justification: str
+    id: SkipJsonSchema[str | None] = None
+    cost: SkipJsonSchema[float | None] = None
+    image_cost: SkipJsonSchema[float | None] = None
+    latency: SkipJsonSchema[float | None] = None
+    ground_truth: SkipJsonSchema[str | None] = None
+    extras: SkipJsonSchema[dict[str, str] | None] = None
+
+    @field_validator("total_amount_reviewed_dollars", mode="before")
+    @classmethod
+    def validate_total_amount(cls, value: Any) -> Decimal:
+        amount = _money(value, field_name="total_amount_reviewed_dollars")
+        if amount <= MONEY_ZERO:
+            raise ValueError("total_amount_reviewed_dollars must be greater than zero.")
+        return amount
+
+    @field_serializer("total_amount_reviewed_dollars")
+    def serialize_total_amount(self, value: Decimal) -> float:
+        return float(value)
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_and_merge_with_canonical(cls, data: Any, info: ValidationInfo) -> Any:
+        canonical_context = _financial_merge_context(info.context)
+        if canonical_context is None:
+            return data
+        definition = getattr(canonical_context, "form_definition", None)
+        return merge_financial_payload_with_canonical(
+            data,
+            canonical_context.canonical,
+            form_id=getattr(definition, "id", None),
+            form_version=getattr(definition, "version", None),
+            title=getattr(definition, "title", None),
+            description=canonical_context.canonical.description,
+        )
+
+    @property
+    def total_overwrite_dollars(self) -> Decimal:
+        return sum((question.overwrite_dollars for question in self.questions), MONEY_ZERO)
+
+    @property
+    def total_underwrite_dollars(self) -> Decimal:
+        return sum((question.underwrite_dollars for question in self.questions), MONEY_ZERO)
+
+    @property
+    def overwrite_percent(self) -> Decimal:
+        return _pct_decimal(self.total_overwrite_dollars, self.total_amount_reviewed_dollars)
+
+    @property
+    def underwrite_percent(self) -> Decimal:
+        return _pct_decimal(self.total_underwrite_dollars, self.total_amount_reviewed_dollars)
+
+    def __str__(self) -> str:
+        return render_audit_result(self)
+
+    def as_questionnaire_string(self) -> str:
+        output = [
+            f"TFR Questionnaire: {self.title}",
+            "Form Kind: financial",
+            "Complete each question from the file evidence. Answers must be exactly 'Yes' or "
+            "'No'. Include total_amount_reviewed_dollars for the full reviewed amount. "
+            "For each question, include overwrite_dollars and underwrite_dollars when a "
+            "financial exception applies; use 0 when none apply. Keep the canonical question "
+            "text in your output.",
+        ]
+        for question in self.questions:
+            help_text = f" (help_text: {question.help_text})" if question.help_text else ""
+            output.append(f"\n{question.id}: {question.text}{help_text}")
+        output.append("\nOverall Outcome: Options: Meets, Does Not Meet")
+        return "\n".join(output)
+
+
+AuditResult: TypeAlias = Annotated[
+    AuditFormResult | AuditFormWithFinancialsResult,
+    Field(discriminator="form_kind"),
+]
+AuditResultAdapter = TypeAdapter(AuditResult)
+
+
+def parse_audit_result(payload: Any) -> AuditFormResult | AuditFormWithFinancialsResult:
+    if isinstance(payload, AuditFormResult | AuditFormWithFinancialsResult):
+        return payload
+    if isinstance(payload, dict) and not payload.get("form_kind"):
+        payload = {**payload, "form_kind": "standard"}
+    return AuditResultAdapter.validate_python(payload)
+
+
+def audit_result_payload(result: AuditFormResult | AuditFormWithFinancialsResult) -> dict[str, Any]:
+    return result.model_dump(mode="json")
+
+
+def audit_result_form_kind(result: AuditFormResult | AuditFormWithFinancialsResult) -> str:
+    return result.form_kind
+
+
+def financial_totals(result: AuditFormResult | AuditFormWithFinancialsResult) -> dict[str, Decimal]:
+    if isinstance(result, AuditFormWithFinancialsResult):
+        return {
+            "total_amount_reviewed_dollars": result.total_amount_reviewed_dollars,
+            "total_overwrite_dollars": result.total_overwrite_dollars,
+            "total_underwrite_dollars": result.total_underwrite_dollars,
+            "overwrite_percent": result.overwrite_percent,
+            "underwrite_percent": result.underwrite_percent,
+        }
+    return {
+        "total_amount_reviewed_dollars": MONEY_ZERO,
+        "total_overwrite_dollars": MONEY_ZERO,
+        "total_underwrite_dollars": MONEY_ZERO,
+        "overwrite_percent": MONEY_ZERO,
+        "underwrite_percent": MONEY_ZERO,
+    }
+
+
+def render_audit_result(result: AuditFormResult | AuditFormWithFinancialsResult) -> str:
+    lines = [
+        f"# {result.title}",
+        "",
+        f"- Form: {result.form_id}@{result.form_version}",
+        f"- Form Kind: {result.form_kind}",
+        "",
+        "## Description",
+        result.description,
+    ]
+
+    if isinstance(result, AuditFormWithFinancialsResult):
+        lines.extend(
+            [
+                "",
+                "## Financial Totals",
+                f"- Total Amount Reviewed: ${result.total_amount_reviewed_dollars:,.2f}",
+                f"- Overwrite Total: ${result.total_overwrite_dollars:,.2f}",
+                f"- Underwrite Total: ${result.total_underwrite_dollars:,.2f}",
+                f"- Overwrite %: {result.overwrite_percent}%",
+                f"- Underwrite %: {result.underwrite_percent}%",
+            ]
+        )
+
+    lines.extend(["", "## Questions"])
+    for question in result.questions:
+        lines.extend([f"### {question.id} - {question.answer}", question.text])
+        if getattr(question, "help_text", None):
+            lines.append(f"- Help text: {question.help_text}")
+        if question.comments:
+            lines.append(f"- Comments: {question.comments}")
+        if question.citations:
+            lines.append(f"- Citations: {question.citations}")
+        if isinstance(question, FinancialQuestionResult):
+            lines.append(f"- Overwrite: ${question.overwrite_dollars:,.2f}")
+            lines.append(f"- Underwrite: ${question.underwrite_dollars:,.2f}")
+        else:
+            for sub_question in question.sub_questions or []:
+                lines.extend(
+                    [
+                        f"#### {sub_question.id}",
+                        sub_question.text,
+                        f"- Applicable: {sub_question.answer}",
+                        f"- Reasoning: {sub_question.reasoning}",
+                        f"- Citations: {sub_question.citations}",
+                    ]
+                )
+        lines.append("")
+
+    lines.extend(
+        [
+            "## Outcome",
+            f"- {result.overall_outcome}",
+            f"- Justification: {result.outcome_justification}",
+        ]
+    )
+    return "\n".join(lines).strip()
+
+
+def compact_audit_result_text(result: AuditFormResult | AuditFormWithFinancialsResult) -> str:
+    lines = [
+        f"{result.form_id}@{result.form_version} ({result.form_kind})",
+        f"Outcome: {result.overall_outcome}",
+    ]
+    if isinstance(result, AuditFormWithFinancialsResult):
+        lines.append(f"Total reviewed: ${result.total_amount_reviewed_dollars:,.2f}")
+        lines.append(
+            f"OW ${result.total_overwrite_dollars:,.2f} ({result.overwrite_percent}%)"
+        )
+        lines.append(
+            f"UW ${result.total_underwrite_dollars:,.2f} ({result.underwrite_percent}%)"
+        )
+    for question in result.questions:
+        if isinstance(question, FinancialQuestionResult):
+            lines.append(
+                f"{question.id}: {question.answer}; OW ${question.overwrite_dollars:,.2f}; "
+                f"UW ${question.underwrite_dollars:,.2f}; {question.comments or ''}"
+            )
+            continue
+        drivers = [
+            f"{sub_question.id}={sub_question.answer}"
+            for sub_question in question.sub_questions or []
+            if sub_question.answer
+        ]
+        suffix = f"; drivers: {', '.join(drivers)}" if drivers else ""
+        lines.append(f"{question.id}: {question.answer}{suffix}; {question.comments or ''}")
+    return "\n".join(lines)
+
+
 def _has_text(value: str | None) -> bool:
     return bool((value or "").strip())
 
 
-def _canonical_merge_context(context: Any) -> Any | None:
+def _standard_merge_context(context: Any) -> Any | None:
     canonical = getattr(context, "canonical", None)
     if isinstance(canonical, AuditFormResult):
+        return context
+    return None
+
+
+def _financial_merge_context(context: Any) -> Any | None:
+    canonical = getattr(context, "canonical", None)
+    if isinstance(canonical, AuditFormWithFinancialsResult):
         return context
     return None
 
@@ -255,7 +509,7 @@ def _has_driver_evidence(sub_question: Any) -> bool:
 def _is_applicable_driver_payload(
     sub_question: Any,
     *,
-    answer: Literal["Yes", "No"],
+    answer: QuestionAnswer,
 ) -> bool:
     if answer == "Yes":
         return _has_driver_evidence(sub_question)
@@ -264,7 +518,7 @@ def _is_applicable_driver_payload(
     )
 
 
-def merge_payload_with_canonical(
+def merge_standard_payload_with_canonical(
     generated: Any,
     canonical: AuditFormResult,
     *,
@@ -275,13 +529,7 @@ def merge_payload_with_canonical(
     require_citations: bool = True,
     require_yes_question_evidence: bool = True,
 ) -> dict[str, Any]:
-    """Merge a sparse generated payload with a complete canonical form.
-
-    The LLM only needs to return applicable sub-question drivers. This helper
-    restores every canonical driver, marks omitted drivers as not applicable, and
-    raises ValueError with retry-friendly messages when the payload contradicts
-    the canonical form.
-    """
+    """Merge a sparse generated standard audit payload with a complete canonical form."""
 
     if not isinstance(generated, dict):
         return generated
@@ -380,10 +628,7 @@ def merge_payload_with_canonical(
                 for sub_question in generated_sub_question_items
                 if isinstance(sub_question, dict)
                 and sub_question.get("id") in canonical_sub_by_id
-                and _is_applicable_driver_payload(
-                    sub_question,
-                    answer=answer,
-                )
+                and _is_applicable_driver_payload(sub_question, answer=answer)
             ]
             if answer == "Yes" and selected_sub_questions:
                 selected_ids = ", ".join(
@@ -487,6 +732,7 @@ def merge_payload_with_canonical(
     payload = dict(generated)
     payload.update(
         {
+            "form_kind": "standard",
             "form_id": form_id or canonical.form_id,
             "form_version": form_version or canonical.form_version,
             "title": title or canonical.title,
@@ -497,9 +743,122 @@ def merge_payload_with_canonical(
     return payload
 
 
+def merge_financial_payload_with_canonical(
+    generated: Any,
+    canonical: AuditFormWithFinancialsResult,
+    *,
+    form_id: str | None = None,
+    form_version: str | None = None,
+    title: str | None = None,
+    description: str | None = None,
+) -> dict[str, Any]:
+    """Merge a generated financial audit payload with a complete canonical form."""
+
+    if not isinstance(generated, dict):
+        return generated
+    generated_question_items = generated.get("questions")
+    if not isinstance(generated_question_items, list):
+        return generated
+
+    generated_question_ids = [
+        question.get("id")
+        for question in generated_question_items
+        if isinstance(question, dict) and isinstance(question.get("id"), str)
+    ]
+    canonical_question_ids = [question.id for question in canonical.questions]
+    generated_questions = {
+        question["id"]: question
+        for question in generated_question_items
+        if isinstance(question, dict) and isinstance(question.get("id"), str)
+    }
+    problems: list[str] = []
+    if len(generated_question_items) != len(generated_question_ids):
+        problems.append("Every generated financial question must include a string id.")
+    duplicate_questions = _duplicate_ids(generated_question_ids)
+    if duplicate_questions:
+        problems.append(f"Duplicate question ids: {', '.join(duplicate_questions)}.")
+    missing_questions = [
+        question_id
+        for question_id in canonical_question_ids
+        if question_id not in generated_questions
+    ]
+    if missing_questions:
+        problems.append(f"Missing canonical questions: {', '.join(missing_questions)}.")
+    extra_questions = sorted(set(generated_question_ids) - set(canonical_question_ids))
+    if extra_questions:
+        problems.append(f"Unexpected question ids: {', '.join(extra_questions)}.")
+
+    merged_questions: list[dict[str, object]] = []
+    for canonical_question in canonical.questions:
+        generated_question = generated_questions.get(canonical_question.id)
+        if generated_question is None:
+            continue
+        answer = generated_question.get("answer")
+        if answer not in {"Yes", "No"}:
+            problems.append(f"{canonical_question.id} answer must be exactly Yes or No.")
+            continue
+        if generated_question.get("sub_questions"):
+            problems.append(
+                f"{canonical_question.id} is a financial question and cannot include drivers."
+            )
+        try:
+            overwrite = _money(
+                generated_question.get("overwrite_dollars"),
+                field_name=f"{canonical_question.id} overwrite_dollars",
+            )
+            underwrite = _money(
+                generated_question.get("underwrite_dollars"),
+                field_name=f"{canonical_question.id} underwrite_dollars",
+            )
+        except ValueError as exc:
+            problems.append(str(exc))
+            overwrite = MONEY_ZERO
+            underwrite = MONEY_ZERO
+        merged_questions.append(
+            {
+                "id": canonical_question.id,
+                "text": canonical_question.text,
+                "answer": answer,
+                "comments": generated_question.get("comments"),
+                "citations": generated_question.get("citations"),
+                "overwrite_dollars": overwrite,
+                "underwrite_dollars": underwrite,
+                "help_text": canonical_question.help_text,
+            }
+        )
+
+    try:
+        total_amount = _money(
+            generated.get("total_amount_reviewed_dollars"),
+            field_name="total_amount_reviewed_dollars",
+        )
+        if total_amount <= MONEY_ZERO:
+            problems.append("total_amount_reviewed_dollars must be greater than zero.")
+    except ValueError as exc:
+        problems.append(str(exc))
+        total_amount = MONEY_ZERO
+
+    if problems:
+        raise ValueError(" ".join(problems))
+
+    payload = dict(generated)
+    payload.update(
+        {
+            "form_kind": "financial",
+            "form_id": form_id or canonical.form_id,
+            "form_version": form_version or canonical.form_version,
+            "title": title or canonical.title,
+            "description": description or canonical.description,
+            "total_amount_reviewed_dollars": total_amount,
+            "questions": merged_questions,
+        }
+    )
+    return payload
+
+
 def merge_with_canonical(
-    generated: AuditFormResult,
-    canonical: AuditFormResult,
+    generated: AuditFormResult | AuditFormWithFinancialsResult,
+    canonical: AuditFormResult | AuditFormWithFinancialsResult,
     *,
     form_id: str | None = None,
     form_version: str | None = None,
@@ -507,10 +866,23 @@ def merge_with_canonical(
     description: str | None = None,
     require_citations: bool = True,
     require_yes_question_evidence: bool = True,
-) -> AuditFormResult:
+) -> AuditFormResult | AuditFormWithFinancialsResult:
     """Merge sparse generated audit answers with a complete canonical form."""
 
-    payload = merge_payload_with_canonical(
+    if isinstance(canonical, AuditFormWithFinancialsResult):
+        payload = merge_financial_payload_with_canonical(
+            generated.model_dump(mode="json"),
+            canonical,
+            form_id=form_id,
+            form_version=form_version,
+            title=title,
+            description=description,
+        )
+        return AuditFormWithFinancialsResult.model_validate(payload)
+
+    if not isinstance(generated, AuditFormResult):
+        generated = AuditFormResult.model_validate(generated.model_dump(mode="json"))
+    payload = merge_standard_payload_with_canonical(
         generated.model_dump(mode="json"),
         canonical,
         form_id=form_id,
@@ -523,4 +895,6 @@ def merge_with_canonical(
     return AuditFormResult.model_validate(payload)
 
 
-TFRAnalysisResult = AuditFormResult
+# Backwards-compatible aliases used by older imports.
+merge_payload_with_canonical = merge_standard_payload_with_canonical
+TFRAnalysisResult = AuditResult

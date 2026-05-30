@@ -1,4 +1,4 @@
-import type { AuditFormResult, FormQuestion, FormSubQuestion, OverallOutcome, ReviewRecord } from "@/lib/types";
+import type { AuditFormResult, FormKind, FormQuestion, FormSubQuestion, OverallOutcome, ReviewRecord } from "@/lib/types";
 
 export type ResultVersionKind = "current" | "original";
 export type TrendGranularity = "day" | "week" | "month";
@@ -9,7 +9,17 @@ export type TrendCompareBy =
   | "source"
   | "result_version"
   | "eval_result_role";
-export type TrendMetric = "review_volume" | "meets_rate" | "does_not_meet_rate" | "question_no_rate" | "driver_review_rate";
+export type TrendMetric =
+  | "review_volume"
+  | "meets_rate"
+  | "does_not_meet_rate"
+  | "question_no_rate"
+  | "driver_review_rate"
+  | "overwrite_percent"
+  | "underwrite_percent"
+  | "overwrite_total"
+  | "underwrite_total"
+  | "net_exception";
 
 export interface DashboardFilters {
   search: string;
@@ -44,6 +54,7 @@ export interface DashboardReviewRow {
   evalGroupKey: string;
   formId: string;
   formVersion: string;
+  formKind: FormKind;
   formKey: string;
   title: string;
   description: string;
@@ -54,6 +65,12 @@ export interface DashboardReviewRow {
   noCount: number;
   subQuestionCount: number;
   driverCount: number;
+  totalAmountReviewedDollars: number | null;
+  totalOverwriteDollars: number;
+  totalUnderwriteDollars: number;
+  overwritePercent: number | null;
+  underwritePercent: number | null;
+  netExceptionDollars: number;
   createdAt: string;
   updatedAt: string;
   resultVersion: ResultVersionKind;
@@ -84,6 +101,7 @@ export interface AggregatedSubQuestionRow {
 
 export interface AggregatedQuestionRow {
   key: string;
+  formKind: FormKind;
   formId: string;
   formVersion: string;
   formKey: string;
@@ -93,14 +111,19 @@ export interface AggregatedQuestionRow {
   noCount: number;
   totalCount: number;
   driverCount: number;
+  totalOverwriteDollars: number;
+  totalUnderwriteDollars: number;
+  netExceptionDollars: number;
   editCount: number;
   yesPercent: number;
   noPercent: number;
   driverPercent: number;
+  overwritePercent: number;
+  underwritePercent: number;
   subQuestions: AggregatedSubQuestionRow[];
 }
 
-export type CommentReportType = "Outcome justification" | "Question comments" | "Sub-question reasoning";
+export type CommentReportType = "Outcome justification" | "Question comments" | "Sub-question reasoning" | "Financial exception";
 
 export interface CommentReportRow {
   id: string;
@@ -155,6 +178,11 @@ export const trendMetricLabels: Record<TrendMetric, string> = {
   does_not_meet_rate: "Does Not Meet %",
   question_no_rate: "Question No %",
   driver_review_rate: "Reviews with drivers %",
+  overwrite_percent: "Overwrite %",
+  underwrite_percent: "Underwrite %",
+  overwrite_total: "Overwrite total",
+  underwrite_total: "Underwrite total",
+  net_exception: "Net exception",
 };
 
 export const trendCompareLabels: Record<TrendCompareBy, string> = {
@@ -246,15 +274,25 @@ function questionWasEdited(row: DashboardReviewRow, questionId: string): boolean
 
 function countQuestionStats(form: AuditFormResult) {
   const questions = form.questions ?? [];
+  const totalOverwriteDollars = questions.reduce((sum, question) => sum + (Number(question.overwrite_dollars) || 0), 0);
+  const totalUnderwriteDollars = questions.reduce((sum, question) => sum + (Number(question.underwrite_dollars) || 0), 0);
+  const totalAmountReviewedDollars =
+    form.form_kind === "financial" ? Number(form.total_amount_reviewed_dollars) || 0 : null;
   return {
     questionCount: questions.length,
     yesCount: questions.filter((question) => question.answer === "Yes").length,
     noCount: questions.filter((question) => question.answer === "No").length,
-    subQuestionCount: questions.reduce((sum, question) => sum + (question.sub_questions?.length ?? 0), 0),
+    subQuestionCount: form.form_kind === "financial" ? 0 : questions.reduce((sum, question) => sum + (question.sub_questions?.length ?? 0), 0),
     driverCount: questions.reduce(
       (sum, question) => sum + (question.sub_questions ?? []).filter((subQuestion) => Boolean(subQuestion.answer)).length,
       0,
     ),
+    totalAmountReviewedDollars,
+    totalOverwriteDollars,
+    totalUnderwriteDollars,
+    overwritePercent: totalAmountReviewedDollars ? (totalOverwriteDollars / totalAmountReviewedDollars) * 100 : null,
+    underwritePercent: totalAmountReviewedDollars ? (totalUnderwriteDollars / totalAmountReviewedDollars) * 100 : null,
+    netExceptionDollars: totalOverwriteDollars - totalUnderwriteDollars,
   };
 }
 
@@ -269,6 +307,7 @@ export function deriveReviewRows(records: ReviewRecord[], resultVersion: ResultV
       const stats = countQuestionStats(form);
       const formId = form.form_id || record.form_id || "";
       const formVersion = form.form_version || record.form_version || "";
+      const formKind = form.form_kind ?? record.form_kind ?? "standard";
       const evalResultRole =
         getStringField(record, "eval_result_role") || (record.source === "eval" ? "model" : "");
       const evalReferenceKind = getStringField(record, "eval_reference_kind");
@@ -300,6 +339,7 @@ export function deriveReviewRows(records: ReviewRecord[], resultVersion: ResultV
         ].filter(Boolean).join(":"),
         formId,
         formVersion,
+        formKind,
         formKey: formVersion ? `${formId}@${formVersion}` : formId,
         title: form.title,
         description: form.description,
@@ -372,6 +412,7 @@ export function filterDashboardRows(rows: DashboardReviewRow[], filters: Dashboa
       row.effectiveDate,
       row.formId,
       row.formVersion,
+      row.formKind,
       row.formKey,
       row.title,
       row.description,
@@ -413,6 +454,7 @@ export function aggregateQuestions(rows: DashboardReviewRow[]): AggregatedQuesti
     {
       key: string;
       formId: string;
+      formKind: FormKind;
       formVersion: string;
       formKey: string;
       id: string;
@@ -421,6 +463,8 @@ export function aggregateQuestions(rows: DashboardReviewRow[]): AggregatedQuesti
       noCount: number;
       totalCount: number;
       driverCount: number;
+      totalOverwriteDollars: number;
+      totalUnderwriteDollars: number;
       editCount: number;
       subQuestions: Map<string, AggregatedSubQuestionRow>;
     }
@@ -434,6 +478,7 @@ export function aggregateQuestions(rows: DashboardReviewRow[]): AggregatedQuesti
         entry = {
           key: questionKey,
           formId: row.formId,
+          formKind: row.formKind,
           formVersion: row.formVersion,
           formKey: row.formKey,
           id: question.id,
@@ -442,6 +487,8 @@ export function aggregateQuestions(rows: DashboardReviewRow[]): AggregatedQuesti
           noCount: 0,
           totalCount: 0,
           driverCount: 0,
+          totalOverwriteDollars: 0,
+          totalUnderwriteDollars: 0,
           editCount: 0,
           subQuestions: new Map(),
         };
@@ -451,6 +498,8 @@ export function aggregateQuestions(rows: DashboardReviewRow[]): AggregatedQuesti
       entry.totalCount += 1;
       if (question.answer === "Yes") entry.yesCount += 1;
       if (question.answer === "No") entry.noCount += 1;
+      entry.totalOverwriteDollars += Number(question.overwrite_dollars) || 0;
+      entry.totalUnderwriteDollars += Number(question.underwrite_dollars) || 0;
       if (questionWasEdited(row, question.id)) entry.editCount += 1;
 
       for (const subQuestion of question.sub_questions ?? []) {
@@ -487,6 +536,7 @@ export function aggregateQuestions(rows: DashboardReviewRow[]): AggregatedQuesti
     .map((entry) => ({
       key: entry.key,
       formId: entry.formId,
+      formKind: entry.formKind,
       formVersion: entry.formVersion,
       formKey: entry.formKey,
       id: entry.id,
@@ -495,10 +545,15 @@ export function aggregateQuestions(rows: DashboardReviewRow[]): AggregatedQuesti
       noCount: entry.noCount,
       totalCount: entry.totalCount,
       driverCount: entry.driverCount,
+      totalOverwriteDollars: entry.totalOverwriteDollars,
+      totalUnderwriteDollars: entry.totalUnderwriteDollars,
+      netExceptionDollars: entry.totalOverwriteDollars - entry.totalUnderwriteDollars,
       editCount: entry.editCount,
       yesPercent: percent(entry.yesCount, entry.totalCount),
       noPercent: percent(entry.noCount, entry.totalCount),
       driverPercent: percent(entry.driverCount, entry.totalCount),
+      overwritePercent: percent(entry.totalOverwriteDollars, entry.totalCount, 2),
+      underwritePercent: percent(entry.totalUnderwriteDollars, entry.totalCount, 2),
       subQuestions: Array.from(entry.subQuestions.values())
         .sort((first, second) => first.id.localeCompare(second.id, undefined, { numeric: true }))
         .map((subQuestion) => ({
@@ -568,6 +623,33 @@ export function buildCommentRows(rows: DashboardReviewRow[]): CommentReportRow[]
           applicable: null,
           comment: questionComment,
           citations: questionCitations,
+          row,
+        });
+      }
+
+      if (row.formKind === "financial" && ((question.overwrite_dollars ?? 0) || (question.underwrite_dollars ?? 0))) {
+        commentRows.push({
+          id: `${row.reviewId}:${question.id}:financial`,
+          reviewId: row.reviewId,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+          claimNumber: row.claimNumber,
+          runName: row.runName,
+          source: row.source,
+          formId: row.formId,
+          formVersion: row.formVersion,
+          title: row.title,
+          outcome: row.outcome,
+          resultVersion: row.resultVersion,
+          commentType: "Financial exception",
+          questionId: question.id,
+          questionText: question.text,
+          answer: question.answer,
+          subQuestionId: "",
+          subQuestionText: "",
+          applicable: null,
+          comment: `OW $${Number(question.overwrite_dollars ?? 0).toFixed(2)}; UW $${Number(question.underwrite_dollars ?? 0).toFixed(2)}`,
+          citations: question.citations ?? "",
           row,
         });
       }

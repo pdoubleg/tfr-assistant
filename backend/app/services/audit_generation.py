@@ -12,7 +12,7 @@ from app.agents.review_agent import (
 )
 from app.core.config import Settings, get_settings
 from app.db.session import AsyncSessionLocal
-from app.models.audit import AuditFormResult, merge_with_canonical
+from app.models.audit import AuditResult, merge_with_canonical
 from app.schemas.forms import AuditFormDefinition
 from app.schemas.reviews import (
     BatchCreateRequest,
@@ -30,7 +30,7 @@ from app.services.status_reporter import NullStatusReporter, StatusReporter
 
 @dataclass(slots=True)
 class GeneratedAuditResult:
-    result: AuditFormResult
+    result: AuditResult
     input_json_updates: dict[str, object] = field(default_factory=dict)
 
 
@@ -45,12 +45,12 @@ class AuditFormGenerator(Protocol):
 class AuditResultValidator:
     def align_to_canonical(
         self,
-        result: AuditFormResult,
+        result: AuditResult,
         canonical: AuditFormDefinition,
         *,
         require_citations: bool = True,
         require_yes_question_evidence: bool = True,
-    ) -> AuditFormResult:
+    ) -> AuditResult:
         return merge_with_canonical(
             result,
             canonical.canonical,

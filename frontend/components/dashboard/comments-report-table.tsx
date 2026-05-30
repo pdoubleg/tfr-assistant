@@ -88,6 +88,7 @@ function outcomeLabel(outcome: string): string {
 function commentTypeLabel(type: string): string {
   if (type === "Outcome justification") return "Outcome";
   if (type === "Question comments") return "Question";
+  if (type === "Financial exception") return "Financial";
   return "Sub-question";
 }
 

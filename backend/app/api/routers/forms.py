@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,7 +9,6 @@ from app.db.models import AuditReviewORM
 from app.db.session import get_session
 from app.schemas.forms import AuditFormDefinition, AuditFormRegistration, AuditFormSummary
 from app.services.catalog import FormCatalog
-from app.services.form_extraction import extract_audit_form_from_excel
 
 router = APIRouter()
 
@@ -56,23 +55,6 @@ async def list_forms(
     forms = catalog.list_forms()
     stats = await _usage_stats_by_form(session)
     return [form.model_copy(update=stats.get((form.id, form.version), {})) for form in forms]
-
-
-@router.post("/extract-excel", response_model=AuditFormDefinition)
-async def extract_form_from_excel(
-    workbook: Annotated[UploadFile, File()],
-) -> AuditFormDefinition:
-    canonical = extract_audit_form_from_excel(
-        await workbook.read(),
-        filename=workbook.filename,
-    )
-    return AuditFormDefinition(
-        id=canonical.form_id,
-        version=canonical.form_version,
-        title=canonical.title,
-        description=canonical.description,
-        canonical=canonical,
-    )
 
 
 @router.get("/{form_id}/{version}", response_model=AuditFormDefinition)

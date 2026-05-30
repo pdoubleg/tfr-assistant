@@ -59,6 +59,10 @@ class SQLDatabaseCapability(AbstractCapability[TFRChatDeps]):
                 "SQL can only query the "
                 "configured application database plus the selected_home_rows CTE when "
                 "scope='selected'. "
+                "For completed-form text analysis, prefer audit_result_texts.rendered_text "
+                "or compact_text. For question, driver, or financial exception analysis, "
+                "query audit_result_items; financial rows use level='financial_question' "
+                "and include direct/rollup overwrite and underwrite dollar columns. "
                 f"{database.prompt_instructions}"
             )
 
@@ -423,6 +427,7 @@ def _format_selected_rows_info(selected_rows: list[SelectedHomeRowContext]) -> s
                 "- "
                 f"row_id={row.row_id}; review_id={row.review_id}; "
                 f"result_version={row.result_version}; form={row.form_id}@{row.form_version}; "
+                f"form_kind={row.form_kind}; "
                 f"claim_number={row.claim_number}; batch_id={row.batch_id}; outcome={row.outcome}"
             )
         if len(selected_rows) > 5:
@@ -487,6 +492,7 @@ def _selected_rows_cte(selected_rows: list[SelectedHomeRowContext]) -> str:
                 _sql_literal(row.result_version),
                 _sql_literal(row.form_id),
                 _sql_literal(row.form_version),
+                _sql_literal(row.form_kind),
                 _sql_literal(row.form_key),
                 _sql_literal(row.claim_number),
                 _sql_literal(row.batch_id),
@@ -515,6 +521,7 @@ def _selected_rows_columns() -> list[str]:
         "result_version",
         "form_id",
         "form_version",
+        "form_kind",
         "form_key",
         "claim_number",
         "batch_id",

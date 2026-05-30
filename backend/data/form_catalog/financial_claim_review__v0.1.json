@@ -1,0 +1,58 @@
+{
+  "id": "financial_claim_review",
+  "version": "v0.1",
+  "title": "Financial Claim Review",
+  "form_kind": "financial",
+  "description": "Flat financial audit form for overwrite and underwrite exception review.",
+  "instructions": "Review the file for financial exceptions. Capture the total amount reviewed and any overwrite or underwrite dollars by question.",
+  "tools": [],
+  "knowledge_docs": [],
+  "canonical": {
+    "form_kind": "financial",
+    "form_id": "financial_claim_review",
+    "form_version": "v0.1",
+    "title": "Financial Claim Review",
+    "description": "Flat financial audit form for overwrite and underwrite exception review.",
+    "total_amount_reviewed_dollars": 1.0,
+    "questions": [
+      {
+        "id": "FQ1",
+        "text": "Was the covered amount calculated accurately from the available file evidence?",
+        "answer": "Yes",
+        "comments": "Canonical template.",
+        "citations": "Canonical template.",
+        "overwrite_dollars": 0.0,
+        "underwrite_dollars": 0.0,
+        "help_text": "Compare estimate, invoice, settlement, and policy/payment records."
+      },
+      {
+        "id": "FQ2",
+        "text": "Were all applicable deductibles, limits, and depreciation rules applied correctly?",
+        "answer": "Yes",
+        "comments": "Canonical template.",
+        "citations": "Canonical template.",
+        "overwrite_dollars": 0.0,
+        "underwrite_dollars": 0.0,
+        "help_text": "Cite the policy or settlement evidence supporting any exception."
+      },
+      {
+        "id": "FQ3",
+        "text": "Were prior payments, recoveries, or offsets reflected correctly in the final amount?",
+        "answer": "Yes",
+        "comments": "Canonical template.",
+        "citations": "Canonical template.",
+        "overwrite_dollars": 0.0,
+        "underwrite_dollars": 0.0,
+        "help_text": "Review payment history, recovery notes, and revised estimates."
+      }
+    ],
+    "overall_outcome": "Meets",
+    "outcome_justification": "Canonical template.",
+    "id": null,
+    "cost": null,
+    "image_cost": null,
+    "latency": null,
+    "ground_truth": null,
+    "extras": null
+  }
+}

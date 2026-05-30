@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
-from app.models.audit import AuditFormResult
+from app.models.audit import AuditResult
 from app.schemas.reviews import ReviewGenerateRequest, ReviewRecord, ReviewUpdate
 from app.services.audit_generation import AuditGenerationService
 from app.services.review_repository import ReviewRepository
@@ -33,7 +33,7 @@ async def get_review(
 
 @router.post("/agent-output", response_model=ReviewRecord, status_code=201)
 async def persist_agent_output(
-    result: AuditFormResult,
+    result: AuditResult,
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> ReviewRecord:
     return await ReviewRepository(session).create_from_agent_output(result)

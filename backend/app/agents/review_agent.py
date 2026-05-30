@@ -1,3 +1,4 @@
+import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -8,7 +9,12 @@ from pydantic_ai import Agent, RunContext
 
 from app.core.config import Settings, get_settings
 from app.core.llm import LLMModelConfig, build_llm_model
-from app.models.audit import AuditFormResult
+from app.models.audit import (
+    AuditFormResult,
+    AuditFormWithFinancialsResult,
+    AuditResult,
+    parse_audit_result,
+)
 from app.schemas.forms import AuditFormDefinition
 
 settings = get_settings()
@@ -20,13 +26,12 @@ DEFAULT_REVIEW_INSTRUCTIONS = (
     "questionnaires from file evidence. Use the registered audit form and runtime "
     "context provided in the additional instructions to guide your focus and output.\n"
     "If user requests an example audit, create a fictitious result as a demonstration.\n"
-    "Output must validate exactly as AuditFormResult. Use only Yes or No for question "
-    "answers. If the canonical question lists sub_questions, return only the listed "
-    "sub_question driver(s) that apply, with reasoning and citations on each one. "
-    "Do not include sub_question answer fields; including the sub_question means it "
-    "applies. If none apply and the answer is Yes, omit sub_questions or set it to "
-    "null/[]. If the canonical question does not list sub_questions, put "
-    "question-level reasoning in comments and supporting references in citations."
+    "Output must validate exactly as the registered audit form result schema. Use only "
+    "Yes or No for question answers. If the canonical standard question lists "
+    "sub_questions, return only the listed sub_question driver(s) that apply, with "
+    "reasoning and citations on each one. Financial audit forms are flat and require "
+    "total_amount_reviewed_dollars plus question-level overwrite_dollars and "
+    "underwrite_dollars."
 )
 
 SYNTHETIC_REVIEW_INSTRUCTIONS = (
@@ -34,7 +39,7 @@ SYNTHETIC_REVIEW_INSTRUCTIONS = (
     "and evaluation. The audit form is provided below. Create a plausible fictitious "
     "claim scenario and complete every canonical question. Follow the user's requested "
     "scenario, rating pattern, or issue mix when provided. Do not reference real people "
-    "or real claim files. Output must validate exactly as AuditFormResult."
+    "or real claim files. Output must validate exactly as the registered audit form result schema."
 )
 
 COMPLETED_INTAKE_INSTRUCTIONS = (
@@ -61,6 +66,18 @@ class CompletedAuditIntakeResult(BaseModel):
     result: AuditFormResult
 
 
+class CompletedFinancialAuditIntakeResult(BaseModel):
+    claim_number: str = Field(
+        default="",
+        description="Claim number extracted from the completed audit document.",
+    )
+    form_metadata: dict[str, str] = Field(
+        default_factory=dict,
+        description="Additional metadata copied from the document, such as reviewer or audit date.",
+    )
+    result: AuditFormWithFinancialsResult
+
+
 class AuditIntakeFailure(BaseModel):
     reason: str
     details: str = ""
@@ -77,7 +94,7 @@ class FileReviewAgentDeps:
     include_form_instructions: bool = True
     form_path: Path = field(init=False)
     form_definition: AuditFormDefinition = field(init=False)
-    canonical: AuditFormResult = field(init=False)
+    canonical: AuditResult = field(init=False)
 
     def __post_init__(self) -> None:
         self.form_path = Path(self.path_to_questionnaire or settings.default_questionnaire_path)
@@ -89,13 +106,13 @@ class FileReviewAgentDeps:
             self.knowledge_docs = list(self.form_definition.knowledge_docs or [])
 
 
-def load_canonical_form(path: str | Path) -> AuditFormResult:
+def load_canonical_form(path: str | Path) -> AuditResult:
     source = Path(path)
     payload = source.read_text(encoding="utf-8")
     try:
         return AuditFormDefinition.model_validate_json(payload).canonical
     except Exception:
-        return AuditFormResult.model_validate_json(payload)
+        return parse_audit_result(json.loads(payload))
 
 
 def load_form_definition(path: str | Path) -> AuditFormDefinition:
@@ -104,11 +121,12 @@ def load_form_definition(path: str | Path) -> AuditFormDefinition:
     try:
         return AuditFormDefinition.model_validate_json(payload)
     except Exception:
-        canonical = AuditFormResult.model_validate_json(payload)
+        canonical = parse_audit_result(json.loads(payload))
         return AuditFormDefinition(
             id=canonical.form_id,
             version=canonical.form_version,
             title=canonical.title,
+            form_kind=canonical.form_kind,
             description=canonical.description,
             canonical=canonical,
         )
@@ -241,7 +259,7 @@ async def run_file_review_agent(
     base_instructions: str | None = None,
     include_form_instructions: bool = True,
     active_settings: Settings | None = None,
-) -> AuditFormResult:
+) -> AuditResult:
     active_settings = active_settings or settings
     model_config = active_settings.audit_llm_config()
     agent = build_file_review_agent(active_settings)
@@ -261,11 +279,16 @@ async def run_file_review_agent(
         instructions=instructions,
     )
     try:
+        output_type = (
+            AuditFormWithFinancialsResult
+            if deps.canonical.form_kind == "financial"
+            else AuditFormResult
+        )
         if base_instructions:
             with agent.override(instructions=_mode_instructions(agent, base_instructions)):
-                result = await agent.run(user_prompt=prompt, deps=deps)
+                result = await agent.run(user_prompt=prompt, deps=deps, output_type=output_type)
         else:
-            result = await agent.run(user_prompt=prompt, deps=deps)
+            result = await agent.run(user_prompt=prompt, deps=deps, output_type=output_type)
     except Exception as exc:
         logger.exception(
             "File review agent failed for %s@%s",
@@ -286,7 +309,7 @@ async def run_synthetic_review_agent(
     user_prompt: str = "",
     knowledge_docs: list[str] | None = None,
     active_settings: Settings | None = None,
-) -> AuditFormResult:
+) -> AuditResult:
     active_settings = active_settings or settings
     model_config = active_settings.audit_llm_config()
     agent = build_file_review_agent(active_settings)
@@ -305,13 +328,18 @@ async def run_synthetic_review_agent(
         instructions=instructions,
     )
     try:
+        output_type = (
+            AuditFormWithFinancialsResult
+            if deps.canonical.form_kind == "financial"
+            else AuditFormResult
+        )
         with agent.override(
             instructions=_mode_instructions(agent, SYNTHETIC_REVIEW_INSTRUCTIONS),
             tools=(),
             toolsets=(),
             builtin_tools=(),
         ):
-            result = await agent.run(user_prompt=prompt, deps=deps)
+            result = await agent.run(user_prompt=prompt, deps=deps, output_type=output_type)
     except Exception as exc:
         logger.exception(
             "Synthetic review agent failed for %s@%s",
@@ -332,7 +360,7 @@ async def run_completed_intake_agent(
     instructions: str = "",
     knowledge_docs: list[str] | None = None,
     active_settings: Settings | None = None,
-) -> CompletedAuditIntakeResult | AuditIntakeFailure:
+) -> CompletedAuditIntakeResult | CompletedFinancialAuditIntakeResult | AuditIntakeFailure:
     active_settings = active_settings or settings
     model_config = active_settings.audit_llm_config()
     agent = build_file_review_agent(active_settings)
@@ -353,6 +381,11 @@ async def run_completed_intake_agent(
         if part
     )
     try:
+        output_type = (
+            CompletedFinancialAuditIntakeResult | AuditIntakeFailure
+            if deps.canonical.form_kind == "financial"
+            else CompletedAuditIntakeResult | AuditIntakeFailure
+        )
         with agent.override(
             instructions=_mode_instructions(agent, COMPLETED_INTAKE_INSTRUCTIONS),
             tools=(),
@@ -362,7 +395,7 @@ async def run_completed_intake_agent(
             result = await agent.run(
                 user_prompt=prompt,
                 deps=deps,
-                output_type=CompletedAuditIntakeResult | AuditIntakeFailure,
+                output_type=output_type,
             )
     except Exception as exc:
         logger.exception(

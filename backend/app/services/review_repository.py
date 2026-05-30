@@ -13,14 +13,21 @@ from app.core.config import get_settings
 from app.db.models import (
     AuditBatchORM,
     AuditBatchTemplateORM,
-    AuditQuestionAnswerORM,
+    AuditResultItemORM,
+    AuditResultTextORM,
     AuditResultVersionORM,
     AuditReviewORM,
-    AuditSubQuestionAnswerORM,
     EvaluationORM,
     FeedbackORM,
 )
-from app.models.audit import AuditFormResult
+from app.models.audit import (
+    AuditFormWithFinancialsResult,
+    AuditResult,
+    compact_audit_result_text,
+    financial_totals,
+    parse_audit_result,
+    render_audit_result,
+)
 from app.schemas.evaluations import EvaluationCreate, EvaluationRecord, FeedbackCreate
 from app.schemas.reviews import (
     BatchFormVolume,
@@ -40,7 +47,7 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
-def _payload_for(result: AuditFormResult) -> dict[str, Any]:
+def _payload_for(result: AuditResult) -> dict[str, Any]:
     return result.model_dump(mode="json")
 
 
@@ -49,13 +56,27 @@ def _payload_hash(payload: dict[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _ensure_registered_form(form_id: str, form_version: str) -> None:
+def _registered_form_kind(form_id: str, form_version: str) -> str:
     try:
-        FormCatalog(get_settings().form_catalog_dir).get_form(form_id, form_version)
+        return FormCatalog(get_settings().form_catalog_dir).get_form(
+            form_id,
+            form_version,
+        ).form_kind
     except KeyError as exc:
         raise ValueError(
             f"Registered form {form_id}@{form_version} was not found in the form catalog."
         ) from exc
+
+
+def _ensure_registered_form(form_id: str, form_version: str) -> None:
+    _registered_form_kind(form_id, form_version)
+
+
+def _form_kind_or_default(form_id: str, form_version: str) -> str:
+    try:
+        return _registered_form_kind(form_id, form_version)
+    except ValueError:
+        return "standard"
 
 
 def _repair_result_payload_for_read(payload: dict[str, Any]) -> dict[str, Any]:
@@ -202,12 +223,17 @@ class ReviewRepository:
                 select(
                     AuditReviewORM.form_id,
                     AuditReviewORM.form_version,
+                    AuditReviewORM.form_kind,
                     func.count(AuditReviewORM.id),
                     func.sum(case((AuditReviewORM.status == "completed", 1), else_=0)),
                     func.sum(case((AuditReviewORM.status == "failed", 1), else_=0)),
                 )
                 .where(AuditReviewORM.batch_id.is_not(None))
-                .group_by(AuditReviewORM.form_id, AuditReviewORM.form_version)
+                .group_by(
+                    AuditReviewORM.form_id,
+                    AuditReviewORM.form_version,
+                    AuditReviewORM.form_kind,
+                )
                 .order_by(func.count(AuditReviewORM.id).desc())
             )
         ).all()
@@ -233,6 +259,7 @@ class ReviewRepository:
                 BatchFormVolume(
                     form_id=form_id,
                     form_version=form_version,
+                    form_kind=form_kind,
                     total_count=total_count,
                     completed_count=completed_count or 0,
                     failed_count=failed_count or 0,
@@ -240,6 +267,7 @@ class ReviewRepository:
                 for (
                     form_id,
                     form_version,
+                    form_kind,
                     total_count,
                     completed_count,
                     failed_count,
@@ -314,11 +342,13 @@ class ReviewRepository:
         status: str = "queued",
     ) -> ReviewRecord:
         review_id = str(uuid4())
+        form_kind = _form_kind_or_default(form_id, form_version)
         record = AuditReviewORM(
             id=review_id,
             batch_id=batch_id,
             form_id=form_id,
             form_version=form_version,
+            form_kind=form_kind,
             status=status,
             source=source,
             input_json=input_json,
@@ -332,7 +362,7 @@ class ReviewRepository:
 
     async def create_from_agent_output(
         self,
-        result: AuditFormResult,
+        result: AuditResult,
         *,
         source: str = "api",
         batch_id: str | None = None,
@@ -343,6 +373,7 @@ class ReviewRepository:
             batch_id=batch_id,
             form_id=result.form_id,
             form_version=result.form_version,
+            form_kind=result.form_kind,
             status="running",
             source=source,
             input_json=input_json,
@@ -370,7 +401,7 @@ class ReviewRepository:
     async def complete_review_with_result(
         self,
         review_id: str,
-        result: AuditFormResult,
+        result: AuditResult,
         *,
         created_by: str = "agent",
     ) -> ReviewRecord:
@@ -653,7 +684,7 @@ class ReviewRepository:
     async def _save_completed_result(
         self,
         record: AuditReviewORM,
-        result: AuditFormResult,
+        result: AuditResult,
         *,
         created_by: str,
     ) -> None:
@@ -672,6 +703,7 @@ class ReviewRepository:
         )
         record.form_id = stamped.form_id
         record.form_version = stamped.form_version
+        record.form_kind = stamped.form_kind
         record.status = "completed"
         record.error_message = None
         record.original_result_version_id = original.id
@@ -681,7 +713,7 @@ class ReviewRepository:
     async def _create_result_version(
         self,
         record: AuditReviewORM,
-        result: AuditFormResult,
+        result: AuditResult,
         *,
         kind: str,
         created_by: str,
@@ -692,17 +724,45 @@ class ReviewRepository:
         )
         revision = (await self.session.scalar(revision_statement) or 0) + 1
         payload = _payload_for(result.model_copy(deep=True, update={"id": record.id}))
+        totals = financial_totals(result)
+        rendered_text = render_audit_result(result)
+        compact_text = compact_audit_result_text(result)
         version = AuditResultVersionORM(
             id=str(uuid4()),
             review_id=record.id,
             kind=kind,
+            form_kind=result.form_kind,
             revision=revision,
             payload_json=payload,
             payload_hash=_payload_hash(payload),
+            rendered_text=rendered_text,
+            compact_text=compact_text,
+            total_amount_reviewed_dollars=totals["total_amount_reviewed_dollars"],
+            total_overwrite_dollars=totals["total_overwrite_dollars"],
+            total_underwrite_dollars=totals["total_underwrite_dollars"],
+            overwrite_percent=totals["overwrite_percent"],
+            underwrite_percent=totals["underwrite_percent"],
+            renderer_version=1,
             created_by=created_by,
         )
         self.session.add(version)
         await self.session.flush()
+        input_json = record.input_json or {}
+        self.session.add(
+            AuditResultTextORM(
+                id=str(uuid4()),
+                result_version_id=version.id,
+                review_id=record.id,
+                kind=kind,
+                form_kind=result.form_kind,
+                form_id=result.form_id,
+                form_version=result.form_version,
+                claim_number=str(input_json.get("claim_number") or ""),
+                overall_outcome=result.overall_outcome,
+                rendered_text=rendered_text,
+                compact_text=compact_text,
+            )
+        )
         self._add_projection_rows(record.id, version.id, kind, result)
         return version
 
@@ -711,35 +771,126 @@ class ReviewRepository:
         review_id: str,
         version_id: str,
         kind: str,
-        result: AuditFormResult,
+        result: AuditResult,
     ) -> None:
         for question_position, question in enumerate(result.questions, start=1):
-            self.session.add(
-                AuditQuestionAnswerORM(
-                    id=str(uuid4()),
-                    result_version_id=version_id,
-                    review_id=review_id,
-                    kind=kind,
-                    question_id=question.id,
-                    question_text=question.text,
-                    answer=question.answer,
-                    position=question_position,
+            if isinstance(result, AuditFormWithFinancialsResult):
+                rendered = (
+                    f"{question.id}: {question.answer}; OW ${question.overwrite_dollars:,.2f}; "
+                    f"UW ${question.underwrite_dollars:,.2f}; {question.comments or ''}"
                 )
-            )
-            for sub_position, sub_question in enumerate(question.sub_questions or [], start=1):
                 self.session.add(
-                    AuditSubQuestionAnswerORM(
+                    AuditResultItemORM(
                         id=str(uuid4()),
                         result_version_id=version_id,
                         review_id=review_id,
                         kind=kind,
+                        form_kind=result.form_kind,
+                        level="financial_question",
                         question_id=question.id,
-                        subquestion_id=sub_question.id,
-                        subquestion_text=sub_question.text,
-                        answer=sub_question.answer,
+                        driver_id=None,
+                        question_text=question.text,
+                        driver_text=None,
+                        answer_text=question.answer,
+                        answer_bool=None,
+                        comments=question.comments,
+                        reasoning="",
+                        citations=question.citations or "",
+                        direct_overwrite_dollars=question.overwrite_dollars,
+                        direct_underwrite_dollars=question.underwrite_dollars,
+                        rollup_overwrite_dollars=question.overwrite_dollars,
+                        rollup_underwrite_dollars=question.underwrite_dollars,
+                        position=question_position,
+                        parent_position=None,
+                        rendered_item_text=rendered,
+                        search_text=" ".join(
+                            [
+                                question.id,
+                                question.text,
+                                question.answer,
+                                question.comments or "",
+                                question.citations or "",
+                            ]
+                        ),
+                    )
+                )
+                continue
+
+            rendered = f"{question.id}: {question.answer}; {question.comments or ''}"
+            self.session.add(
+                AuditResultItemORM(
+                    id=str(uuid4()),
+                    result_version_id=version_id,
+                    review_id=review_id,
+                    kind=kind,
+                    form_kind=result.form_kind,
+                    level="question",
+                    question_id=question.id,
+                    driver_id=None,
+                    question_text=question.text,
+                    driver_text=None,
+                    answer_text=question.answer,
+                    answer_bool=None,
+                    comments=question.comments,
+                    reasoning="",
+                    citations=question.citations or "",
+                    direct_overwrite_dollars=None,
+                    direct_underwrite_dollars=None,
+                    rollup_overwrite_dollars=None,
+                    rollup_underwrite_dollars=None,
+                    position=question_position,
+                    parent_position=None,
+                    rendered_item_text=rendered,
+                    search_text=" ".join(
+                        [
+                            question.id,
+                            question.text,
+                            question.answer,
+                            question.comments or "",
+                            question.citations or "",
+                        ]
+                    ),
+                )
+            )
+            for sub_position, sub_question in enumerate(question.sub_questions or [], start=1):
+                rendered = (
+                    f"{sub_question.id}: applicable={sub_question.answer}; "
+                    f"{sub_question.reasoning}"
+                )
+                self.session.add(
+                    AuditResultItemORM(
+                        id=str(uuid4()),
+                        result_version_id=version_id,
+                        review_id=review_id,
+                        kind=kind,
+                        form_kind=result.form_kind,
+                        level="subquestion",
+                        question_id=question.id,
+                        driver_id=sub_question.id,
+                        question_text=question.text,
+                        driver_text=sub_question.text,
+                        answer_text=None,
+                        answer_bool=sub_question.answer,
+                        comments=None,
                         reasoning=sub_question.reasoning,
                         citations=sub_question.citations,
+                        direct_overwrite_dollars=None,
+                        direct_underwrite_dollars=None,
+                        rollup_overwrite_dollars=None,
+                        rollup_underwrite_dollars=None,
                         position=sub_position,
+                        parent_position=question_position,
+                        rendered_item_text=rendered,
+                        search_text=" ".join(
+                            [
+                                question.id,
+                                question.text,
+                                sub_question.id,
+                                sub_question.text,
+                                sub_question.reasoning,
+                                sub_question.citations,
+                            ]
+                        ),
                     )
                 )
 
@@ -750,6 +901,7 @@ class ReviewRepository:
             id=record.id,
             form_id=record.form_id,
             form_version=record.form_version,
+            form_kind=record.form_kind,  # type: ignore[arg-type]
             status=record.status,  # type: ignore[arg-type]
             source=record.source,  # type: ignore[arg-type]
             batch_id=record.batch_id,
@@ -765,19 +917,17 @@ class ReviewRepository:
         self,
         version_id: str | None,
         review_id: str,
-    ) -> AuditFormResult | None:
+    ) -> AuditResult | None:
         if not version_id:
             return None
         version = await self.session.get(AuditResultVersionORM, version_id)
         if not version:
             return None
         try:
-            result = AuditFormResult.model_validate(version.payload_json)
+            result = parse_audit_result(version.payload_json)
         except ValidationError:
             try:
-                result = AuditFormResult.model_validate(
-                    _repair_result_payload_for_read(version.payload_json)
-                )
+                result = parse_audit_result(_repair_result_payload_for_read(version.payload_json))
             except ValidationError:
                 return None
         return result.model_copy(deep=True, update={"id": review_id})

@@ -21,7 +21,7 @@ from app.db.models import (
     EvalRunORM,
 )
 from app.db.session import AsyncSessionLocal
-from app.models.audit import AuditFormResult
+from app.models.audit import AuditResult, parse_audit_result
 from app.schemas.evaluations import (
     EvalAgreementItemRecord,
     EvalCaseCreate,
@@ -59,7 +59,7 @@ def _json_hash(payload: Any) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _payload_for(result: AuditFormResult) -> dict[str, Any]:
+def _payload_for(result: AuditResult) -> dict[str, Any]:
     return result.model_dump(mode="json")
 
 
@@ -76,7 +76,7 @@ class EvaluationRepository:
     async def create_dataset(self, request: EvalDatasetCreate) -> EvalDatasetDetail:
         if not request.cases:
             raise ValueError("Evaluation dataset must include at least one case.")
-        self._ensure_registered_form(request.form_id, request.form_version)
+        form_kind = self._ensure_registered_form(request.form_id, request.form_version)
 
         dataset = EvalDatasetORM(
             id=str(uuid4()),
@@ -84,6 +84,7 @@ class EvaluationRepository:
             description=request.description.strip(),
             form_id=request.form_id,
             form_version=request.form_version,
+            form_kind=form_kind,
             source_kind=request.source_kind,
             source_metadata_json=request.source_metadata,
             dataset_hash=_json_hash(request.model_dump(mode="json")),
@@ -92,7 +93,12 @@ class EvaluationRepository:
         await self.session.flush()
 
         for case_request in request.cases:
-            self._validate_case_ground_truths(case_request, request.form_id, request.form_version)
+            self._validate_case_ground_truths(
+                case_request,
+                request.form_id,
+                request.form_version,
+                form_kind,
+            )
             case = EvalCaseORM(
                 id=str(uuid4()),
                 dataset_id=dataset.id,
@@ -160,6 +166,7 @@ class EvaluationRepository:
         run = EvalRunORM(
             id=run_id,
             dataset_id=dataset.id,
+            form_kind=dataset.form_kind,
             lineage_id=lineage_id,
             source_run_id=base_run.id if base_run else None,
             config_version=config_version,
@@ -301,8 +308,8 @@ class EvaluationRepository:
         item_id: str,
         *,
         generated_review_id: str,
-        generated_result: AuditFormResult,
-        comparisons: list[tuple[EvalGroundTruthORM, AuditFormResult, dict[str, Any]]],
+        generated_result: AuditResult,
+        comparisons: list[tuple[EvalGroundTruthORM, AuditResult, dict[str, Any]]],
     ) -> EvalRunItemRecord:
         item = await self._get_run_item_orm(item_id)
         await self.session.execute(
@@ -324,6 +331,7 @@ class EvaluationRepository:
                 case_id=item.case_id,
                 ground_truth_id=truth.id,
                 reference_kind=truth.reference_kind,
+                form_kind=metrics.get("form_kind", generated_result.form_kind),
                 score=metrics.get("score"),
                 metrics_json=metrics,
             )
@@ -430,6 +438,7 @@ class EvaluationRepository:
             description=dataset.description,
             form_id=dataset.form_id,
             form_version=dataset.form_version,
+            form_kind=dataset.form_kind,  # type: ignore[arg-type]
             source_kind=dataset.source_kind,
             source_metadata=dataset.source_metadata_json,
             dataset_hash=dataset.dataset_hash,
@@ -473,6 +482,7 @@ class EvaluationRepository:
             id=run.id,
             dataset_id=run.dataset_id,
             dataset_name=dataset.name,
+            form_kind=run.form_kind,  # type: ignore[arg-type]
             lineage_id=run.lineage_id or run.id,
             source_run_id=run.source_run_id,
             config_version=run.config_version or 1,
@@ -568,7 +578,7 @@ class EvaluationRepository:
             id=truth.id,
             case_id=truth.case_id,
             reference_kind=truth.reference_kind,  # type: ignore[arg-type]
-            result=AuditFormResult.model_validate(truth.payload_json),
+            result=parse_audit_result(truth.payload_json),
             reviewer=truth.reviewer,
             source_metadata=truth.source_metadata_json,
             created_at=truth.created_at,
@@ -586,6 +596,7 @@ class EvaluationRepository:
             ground_truth_id=agreement_item.ground_truth_id,
             comparison_id=agreement_item.comparison_id,
             reference_kind=agreement_item.reference_kind,  # type: ignore[arg-type]
+            form_kind=agreement_item.form_kind,  # type: ignore[arg-type]
             level=agreement_item.level,  # type: ignore[arg-type]
             question_id=agreement_item.question_id,
             subquestion_id=agreement_item.subquestion_id,
@@ -599,6 +610,24 @@ class EvaluationRepository:
             reference_comment=agreement_item.reference_comment,
             generated_citations=agreement_item.generated_citations,
             reference_citations=agreement_item.reference_citations,
+            generated_overwrite_dollars=float(agreement_item.generated_overwrite_dollars)
+            if agreement_item.generated_overwrite_dollars is not None
+            else None,
+            reference_overwrite_dollars=float(agreement_item.reference_overwrite_dollars)
+            if agreement_item.reference_overwrite_dollars is not None
+            else None,
+            generated_underwrite_dollars=float(agreement_item.generated_underwrite_dollars)
+            if agreement_item.generated_underwrite_dollars is not None
+            else None,
+            reference_underwrite_dollars=float(agreement_item.reference_underwrite_dollars)
+            if agreement_item.reference_underwrite_dollars is not None
+            else None,
+            overwrite_dollar_error=float(agreement_item.overwrite_dollar_error)
+            if agreement_item.overwrite_dollar_error is not None
+            else None,
+            underwrite_dollar_error=float(agreement_item.underwrite_dollar_error)
+            if agreement_item.underwrite_dollar_error is not None
+            else None,
             created_at=agreement_item.created_at,
         )
 
@@ -614,6 +643,7 @@ class EvaluationRepository:
             case_id=comparison.case_id,
             ground_truth_id=comparison.ground_truth_id,
             reference_kind=comparison.reference_kind,  # type: ignore[arg-type]
+            form_kind=comparison.form_kind,  # type: ignore[arg-type]
             score=comparison.score,
             metrics=comparison.metrics_json,
             agreement_items=[
@@ -721,9 +751,12 @@ class EvaluationRepository:
             raise KeyError(f"Unknown evaluation run item: {item_id}")
         return item
 
-    def _ensure_registered_form(self, form_id: str, form_version: str) -> None:
+    def _ensure_registered_form(self, form_id: str, form_version: str) -> str:
         try:
-            FormCatalog(get_settings().form_catalog_dir).get_form(form_id, form_version)
+            return FormCatalog(get_settings().form_catalog_dir).get_form(
+                form_id,
+                form_version,
+            ).form_kind
         except KeyError as exc:
             raise ValueError(
                 f"Registered form {form_id}@{form_version} was not found in the form catalog."
@@ -734,6 +767,7 @@ class EvaluationRepository:
         case: EvalCaseCreate,
         form_id: str,
         form_version: str,
+        form_kind: str,
     ) -> None:
         if not case.ground_truths:
             raise ValueError(
@@ -746,6 +780,10 @@ class EvaluationRepository:
             if truth.result.form_id != form_id or truth.result.form_version != form_version:
                 raise ValueError(
                     f"Ground truth for claim {case.claim_number} must use {form_id}@{form_version}."
+                )
+            if truth.result.form_kind != form_kind:
+                raise ValueError(
+                    f"Ground truth for claim {case.claim_number} must use {form_kind} form kind."
                 )
 
 
@@ -816,7 +854,7 @@ class EvaluationRunService:
                 truths = await repository.ground_truths_for_case(case.id)
                 comparisons = []
                 for truth in truths:
-                    reference_result = AuditFormResult.model_validate(truth.payload_json)
+                    reference_result = parse_audit_result(truth.payload_json)
                     comparisons.append(
                         (
                             truth,
