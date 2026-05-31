@@ -283,6 +283,7 @@ class EvalCaseORM(Base):
     effective_date: Mapped[str | None] = mapped_column(String(64), nullable=True)
     instructions: Mapped[str] = mapped_column(Text, default="")
     input_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -314,6 +315,88 @@ class EvalGroundTruthORM(Base):
 
     case: Mapped[EvalCaseORM] = relationship(back_populates="ground_truths")
     comparisons: Mapped[list["EvalComparisonORM"]] = relationship(back_populates="ground_truth")
+
+
+class DatasetPopulationORM(Base):
+    __tablename__ = "dataset_populations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), index=True)
+    description: Mapped[str] = mapped_column(Text, default="")
+    form_id: Mapped[str] = mapped_column(String(128), index=True)
+    form_version: Mapped[str] = mapped_column(String(64), index=True)
+    form_kind: Mapped[str] = mapped_column(String(24), default="standard", index=True)
+    status: Mapped[str] = mapped_column(String(24), default="draft", index=True)
+    source_config_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
+    cluster_config_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
+    sample_config_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
+    published_dataset_id: Mapped[str | None] = mapped_column(
+        ForeignKey("eval_datasets.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+    candidates: Mapped[list["DatasetCandidateORM"]] = relationship(
+        back_populates="population",
+        cascade="all, delete-orphan",
+    )
+
+
+class DatasetCandidateORM(Base):
+    __tablename__ = "dataset_candidates"
+    __table_args__ = (
+        UniqueConstraint(
+            "population_id",
+            "dedupe_key",
+            name="uq_dataset_candidates_population_dedupe",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    population_id: Mapped[str] = mapped_column(
+        ForeignKey("dataset_populations.id", ondelete="CASCADE"),
+        index=True,
+    )
+    source_kind: Mapped[str] = mapped_column(String(32), index=True)
+    source_key: Mapped[str] = mapped_column(String(128), index=True)
+    source_label: Mapped[str] = mapped_column(String(160), default="")
+    source_record_id: Mapped[str] = mapped_column(String(256), index=True)
+    dedupe_key: Mapped[str] = mapped_column(String(64), index=True)
+    claim_number: Mapped[str] = mapped_column(String(128), default="", index=True)
+    effective_date: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    instructions: Mapped[str] = mapped_column(Text, default="")
+    input_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
+    references_json: Mapped[list[dict[str, Any]]] = mapped_column(
+        PortableJSON,
+        default=list,
+        nullable=False,
+    )
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
+    tags_json: Mapped[list[str]] = mapped_column(PortableJSON, default=list, nullable=False)
+    metrics_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
+    included: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
+    cluster_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    cluster_distance: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cluster_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cluster_metadata_json: Mapped[dict[str, Any] | None] = mapped_column(
+        PortableJSON,
+        nullable=True,
+    )
+    sample_reason: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+    population: Mapped[DatasetPopulationORM] = relationship(back_populates="candidates")
 
 
 class EvalRunORM(Base):

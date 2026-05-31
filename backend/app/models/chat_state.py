@@ -47,6 +47,11 @@ class SelectedHomeRowContext(BaseModel):
     no_count: int = 0
     driver_count: int = 0
     edited: bool = False
+    row_kind: Literal["review", "dataset_case"] = "review"
+    dataset_id: str = ""
+    dataset_case_id: str = ""
+    ground_truth_id: str = ""
+    reference_kind: str = ""
 
 
 class HomeTableFilters(BaseModel):

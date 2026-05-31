@@ -6,6 +6,7 @@
 
 @layer base {
   :root {
+    color-scheme: light;
     --background: 210 33% 98%;
     --foreground: 224 26% 14%;
     --card: 0 0% 100%;
@@ -27,6 +28,7 @@
   }
 
   .dark {
+    color-scheme: dark;
     --background: 224 24% 10%;
     --foreground: 210 29% 96%;
     --card: 224 21% 14%;
@@ -55,15 +57,38 @@
     letter-spacing: 0;
   }
 
-  input[type="date"] {
+  select,
+  input[type="date"],
+  input[type="datetime-local"],
+  input[type="month"],
+  input[type="number"],
+  input[type="time"] {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
     color-scheme: light;
   }
 
-  .dark input[type="date"] {
+  select option,
+  select optgroup {
+    background-color: hsl(var(--card));
+    color: hsl(var(--foreground));
+  }
+
+  .dark select,
+  .dark input[type="date"],
+  .dark input[type="datetime-local"],
+  .dark input[type="month"],
+  .dark input[type="number"],
+  .dark input[type="time"] {
     color-scheme: dark;
   }
 
-  .dark input[type="date"]::-webkit-calendar-picker-indicator {
+  .dark input[type="date"]::-webkit-calendar-picker-indicator,
+  .dark input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+  .dark input[type="month"]::-webkit-calendar-picker-indicator,
+  .dark input[type="time"]::-webkit-calendar-picker-indicator,
+  .dark input[type="number"]::-webkit-inner-spin-button,
+  .dark input[type="number"]::-webkit-outer-spin-button {
     filter: invert(1) brightness(1.4);
     opacity: 0.9;
   }

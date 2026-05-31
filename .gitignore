@@ -25,6 +25,7 @@ backend/data/*.db
 backend/data/*.db-*
 backend/data/generated_images/
 backend/data/chat_artifacts/
+backend/data/models/
 
 # OS / editor
 .DS_Store

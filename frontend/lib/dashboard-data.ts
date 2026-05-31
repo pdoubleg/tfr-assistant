@@ -1,4 +1,12 @@
-import type { AuditFormResult, FormKind, FormQuestion, FormSubQuestion, OverallOutcome, ReviewRecord } from "@/lib/types";
+import type {
+  AuditFormResult,
+  FormKind,
+  FormQuestion,
+  FormSubQuestion,
+  OverallOutcome,
+  PublishedDatasetRow,
+  ReviewRecord,
+} from "@/lib/types";
 
 export type ResultVersionKind = "current" | "original";
 export type TrendGranularity = "day" | "week" | "month";
@@ -78,6 +86,11 @@ export interface DashboardReviewRow {
   form: AuditFormResult;
   originalForm: AuditFormResult | null;
   currentForm: AuditFormResult | null;
+  rowKind?: "review" | "dataset_case";
+  datasetId?: string;
+  datasetCaseId?: string;
+  groundTruthId?: string;
+  referenceKind?: string;
 }
 
 export interface DashboardFilterOptions {
@@ -356,6 +369,56 @@ export function deriveReviewRows(records: ReviewRecord[], resultVersion: ResultV
       } satisfies DashboardReviewRow;
     })
     .filter((row): row is DashboardReviewRow => Boolean(row));
+}
+
+export function derivePublishedDatasetRows(records: PublishedDatasetRow[]): DashboardReviewRow[] {
+  return records.map((record) => {
+    const form = record.result;
+    const stats = countQuestionStats(form);
+    const formKind = form.form_kind ?? record.form_kind ?? "standard";
+    const source = record.source_label || record.source_kind || "dataset";
+    return {
+      reviewId: `dataset:${record.case_id}:${record.ground_truth_id}`,
+      batchId: record.dataset_id,
+      status: "completed",
+      source,
+      claimNumber: record.claim_number,
+      runName: record.dataset_name,
+      effectiveDate: record.effective_date ?? "",
+      synthetic: false,
+      inputJson: record.metadata ?? null,
+      batchDescription: record.sample_reason,
+      batchTemplateId: "",
+      sourceFileIds: "",
+      evalRunId: "",
+      evalRunName: record.dataset_name,
+      evalResultRole: "ground_truth",
+      evalReferenceKind: record.reference_kind,
+      evalConfigVersion: null,
+      evalGroupKey: [record.dataset_id, record.case_id, record.reference_kind].join(":"),
+      formId: record.form_id,
+      formVersion: record.form_version,
+      formKind,
+      formKey: `${record.form_id}@${record.form_version}`,
+      title: form.title,
+      description: form.description,
+      outcome: form.overall_outcome,
+      outcomeJustification: form.outcome_justification,
+      createdAt: record.created_at ?? "",
+      updatedAt: record.updated_at ?? record.created_at ?? "",
+      resultVersion: "current",
+      edited: false,
+      form,
+      originalForm: form,
+      currentForm: form,
+      rowKind: "dataset_case",
+      datasetId: record.dataset_id,
+      datasetCaseId: record.case_id,
+      groundTruthId: record.ground_truth_id,
+      referenceKind: record.reference_kind,
+      ...stats,
+    } satisfies DashboardReviewRow;
+  });
 }
 
 export function deriveVersionComparisonRows(records: ReviewRecord[]): DashboardReviewRow[] {

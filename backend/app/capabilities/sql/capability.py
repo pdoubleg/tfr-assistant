@@ -407,6 +407,9 @@ def _format_selected_rows_info(selected_rows: list[SelectedHomeRowContext]) -> s
         "- audit_reviews: selected_home_rows.review_id = audit_reviews.id",
         "- review/result projection tables: selected_home_rows.review_id = <table>.review_id",
         "- batch tables: selected_home_rows.batch_id = <table>.id when joining to batch records",
+        "- dataset rows: selected_home_rows.dataset_id = eval_datasets.id, "
+        "selected_home_rows.dataset_case_id = eval_cases.id, and "
+        "selected_home_rows.ground_truth_id = eval_ground_truths.id",
         "- form-scoped queries: selected_home_rows.form_id/form_version can "
         "constrain form tables or result versions",
         "",
@@ -428,7 +431,10 @@ def _format_selected_rows_info(selected_rows: list[SelectedHomeRowContext]) -> s
                 f"row_id={row.row_id}; review_id={row.review_id}; "
                 f"result_version={row.result_version}; form={row.form_id}@{row.form_version}; "
                 f"form_kind={row.form_kind}; "
-                f"claim_number={row.claim_number}; batch_id={row.batch_id}; outcome={row.outcome}"
+                f"claim_number={row.claim_number}; batch_id={row.batch_id}; outcome={row.outcome}; "
+                f"row_kind={row.row_kind}; dataset_id={row.dataset_id}; "
+                f"dataset_case_id={row.dataset_case_id}; ground_truth_id={row.ground_truth_id}; "
+                f"reference_kind={row.reference_kind}"
             )
         if len(selected_rows) > 5:
             lines.append(f"- ... {len(selected_rows) - 5} more selected row(s)")
@@ -506,6 +512,11 @@ def _selected_rows_cte(selected_rows: list[SelectedHomeRowContext]) -> str:
                 str(row.no_count),
                 str(row.driver_count),
                 "1" if row.edited else "0",
+                _sql_literal(row.row_kind),
+                _sql_literal(row.dataset_id),
+                _sql_literal(row.dataset_case_id),
+                _sql_literal(row.ground_truth_id),
+                _sql_literal(row.reference_kind),
             ]
         )
         + ")"
@@ -535,6 +546,11 @@ def _selected_rows_columns() -> list[str]:
         "no_count",
         "driver_count",
         "edited",
+        "row_kind",
+        "dataset_id",
+        "dataset_case_id",
+        "ground_truth_id",
+        "reference_kind",
     ]
 
 

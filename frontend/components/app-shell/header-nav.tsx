@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, FileCheck2, Files, Home, Moon, Rows3, Settings2, Sun } from "lucide-react";
+import { BarChart3, Database, FileCheck2, Files, Home, Moon, Rows3, Settings2, Sun } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,7 @@ const navItems = [
   { href: "/batch-audits", label: "Batch Audits", icon: Rows3 },
   { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
   { href: "/forms", label: "Forms", icon: Files },
+  { href: "/datasets", label: "Datasets", icon: Database },
   { href: "/evaluation", label: "Evaluation", icon: FileCheck2 },
   { href: "/optimization", label: "Optimization", icon: Settings2 },
 ];

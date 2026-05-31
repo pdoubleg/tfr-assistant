@@ -221,6 +221,7 @@ def test_selected_rows_info_explains_join_recipe() -> None:
 
     assert "Currently selected rows: 1" in info
     assert "selected_home_rows.review_id = audit_reviews.id" in info
+    assert "selected_home_rows.dataset_id = eval_datasets.id" in info
     assert "FROM selected_home_rows shr" in info
     assert "review_id=review-1" in info
 

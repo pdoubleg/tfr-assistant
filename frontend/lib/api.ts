@@ -5,6 +5,14 @@ import type {
   BatchSummary,
   BatchTemplatePayload,
   BatchTemplateRecord,
+  DatasetAddCandidatesResponse,
+  DatasetCandidateRecord,
+  DatasetClusterResult,
+  DatasetPopulationRecord,
+  DatasetSampleMode,
+  DatasetSampleResult,
+  DatasetSourceRecord,
+  DatasetSourceRowRecord,
   EvalDatasetRecord,
   EvalRunItemRecord,
   EvalRunPayload,
@@ -21,6 +29,7 @@ import type {
   PromptFamilyRecord,
   PromptReference,
   PromptVersionRecord,
+  PublishedDatasetRow,
   ReviewRecord,
 } from "@/lib/types";
 
@@ -395,6 +404,230 @@ export async function listEvalDatasets(): Promise<EvalDatasetRecord[]> {
     cache: "no-store",
   });
   return parseJsonResponse<EvalDatasetRecord[]>(response);
+}
+
+export async function listDatasetSources(
+  formId: string,
+  formVersion: string,
+): Promise<DatasetSourceRecord[]> {
+  const params = new URLSearchParams({ form_id: formId, form_version: formVersion });
+  const response = await fetch(`${apiBaseUrl}/api/datasets/sources?${params.toString()}`, {
+    cache: "no-store",
+  });
+  return parseJsonResponse<DatasetSourceRecord[]>(response);
+}
+
+export async function listDatasetPopulations(
+  formId?: string,
+  formVersion?: string,
+): Promise<DatasetPopulationRecord[]> {
+  const params = new URLSearchParams();
+  if (formId) params.set("form_id", formId);
+  if (formVersion) params.set("form_version", formVersion);
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  const response = await fetch(`${apiBaseUrl}/api/datasets/populations${suffix}`, {
+    cache: "no-store",
+  });
+  return parseJsonResponse<DatasetPopulationRecord[]>(response);
+}
+
+export async function createDatasetPopulation(payload: {
+  name: string;
+  description?: string;
+  form_id: string;
+  form_version: string;
+}): Promise<DatasetPopulationRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/datasets/populations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<DatasetPopulationRecord>(response);
+}
+
+export async function getDatasetPopulation(
+  populationId: string,
+): Promise<DatasetPopulationRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/datasets/populations/${populationId}`, {
+    cache: "no-store",
+  });
+  return parseJsonResponse<DatasetPopulationRecord>(response);
+}
+
+export async function fetchDatasetSource(
+  populationId: string,
+  payload: { source_id: string; params?: Record<string, unknown> },
+): Promise<DatasetAddCandidatesResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/datasets/populations/${populationId}/fetch-source`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...payload, params: payload.params ?? {} }),
+  });
+  return parseJsonResponse<DatasetAddCandidatesResponse>(response);
+}
+
+export async function browseDatasetSourceRows(
+  formId: string,
+  formVersion: string,
+  payload: { source_id: string; params?: Record<string, unknown>; limit?: number },
+): Promise<DatasetSourceRowRecord[]> {
+  const params = new URLSearchParams({ form_id: formId, form_version: formVersion });
+  const response = await fetch(`${apiBaseUrl}/api/datasets/source-preview?${params.toString()}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      source_id: payload.source_id,
+      params: payload.params ?? {},
+      limit: payload.limit ?? 100,
+    }),
+  });
+  return parseJsonResponse<DatasetSourceRowRecord[]>(response);
+}
+
+export async function addDatasetSourceRows(
+  populationId: string,
+  payload: {
+    source_id: string;
+    params?: Record<string, unknown>;
+    source_record_ids?: string[];
+    add_all_filtered?: boolean;
+    limit?: number;
+  },
+): Promise<DatasetAddCandidatesResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/datasets/populations/${populationId}/source-candidates`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      source_id: payload.source_id,
+      params: payload.params ?? {},
+      source_record_ids: payload.source_record_ids ?? [],
+      add_all_filtered: payload.add_all_filtered ?? false,
+      limit: payload.limit ?? 100,
+    }),
+  });
+  return parseJsonResponse<DatasetAddCandidatesResponse>(response);
+}
+
+export async function browseDatasetAppDbRows(
+  formId: string,
+  formVersion: string,
+  payload: {
+    search?: string;
+    source?: string;
+    outcome?: string;
+    result_version?: "current" | "original";
+    limit?: number;
+  },
+): Promise<DatasetSourceRowRecord[]> {
+  const params = new URLSearchParams({ form_id: formId, form_version: formVersion });
+  const response = await fetch(`${apiBaseUrl}/api/datasets/app-db/browse?${params.toString()}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      search: payload.search ?? "",
+      source: payload.source ?? "all",
+      outcome: payload.outcome ?? "all",
+      result_version: payload.result_version ?? "current",
+      limit: payload.limit ?? 100,
+    }),
+  });
+  return parseJsonResponse<DatasetSourceRowRecord[]>(response);
+}
+
+export async function addDatasetAppDbRows(
+  populationId: string,
+  payload: {
+    review_ids?: string[];
+    add_all_filtered?: boolean;
+    search?: string;
+    source?: string;
+    outcome?: string;
+    result_version?: "current" | "original";
+    limit?: number;
+  },
+): Promise<DatasetAddCandidatesResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/datasets/populations/${populationId}/app-db`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      review_ids: payload.review_ids ?? [],
+      add_all_filtered: payload.add_all_filtered ?? false,
+      search: payload.search ?? "",
+      source: payload.source ?? "all",
+      outcome: payload.outcome ?? "all",
+      result_version: payload.result_version ?? "current",
+      limit: payload.limit ?? 100,
+    }),
+  });
+  return parseJsonResponse<DatasetAddCandidatesResponse>(response);
+}
+
+export async function updateDatasetCandidate(
+  candidateId: string,
+  payload: { included?: boolean; tags?: string[]; sample_reason?: string },
+): Promise<DatasetCandidateRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/datasets/candidates/${candidateId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<DatasetCandidateRecord>(response);
+}
+
+export async function clusterDatasetPopulation(
+  populationId: string,
+  payload: {
+    min_clusters: number;
+    max_clusters: number;
+    seed: number;
+    semantic_weight?: number;
+    structured_weight?: number;
+  },
+): Promise<DatasetClusterResult> {
+  const response = await fetch(`${apiBaseUrl}/api/datasets/populations/${populationId}/cluster`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<DatasetClusterResult>(response);
+}
+
+export async function sampleDatasetPopulation(
+  populationId: string,
+  payload: { mode: DatasetSampleMode; size?: number | null; seed: number },
+): Promise<DatasetSampleResult> {
+  const response = await fetch(`${apiBaseUrl}/api/datasets/populations/${populationId}/sample`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<DatasetSampleResult>(response);
+}
+
+export async function publishDatasetPopulation(
+  populationId: string,
+  payload: { name: string; description?: string; include_only?: boolean },
+): Promise<EvalDatasetRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/datasets/populations/${populationId}/publish`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<EvalDatasetRecord>(response);
+}
+
+export async function listPublishedDatasets(): Promise<EvalDatasetRecord[]> {
+  const response = await fetch(`${apiBaseUrl}/api/datasets`, { cache: "no-store" });
+  return parseJsonResponse<EvalDatasetRecord[]>(response);
+}
+
+export async function listPublishedDatasetRows(
+  datasetId: string,
+): Promise<PublishedDatasetRow[]> {
+  const response = await fetch(`${apiBaseUrl}/api/datasets/${datasetId}/rows`, {
+    cache: "no-store",
+  });
+  return parseJsonResponse<PublishedDatasetRow[]>(response);
 }
 
 export async function getEvalDataset(datasetId: string): Promise<EvalDatasetRecord> {

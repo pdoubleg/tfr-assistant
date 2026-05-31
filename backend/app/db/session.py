@@ -113,6 +113,14 @@ async def repair_local_sqlite_schema(connection) -> None:
                 text("ALTER TABLE audit_batch_templates ADD COLUMN prompt_ref_json JSON")
             )
 
+    if "eval_cases" in tables:
+        eval_case_columns = {
+            row[1]
+            for row in (await connection.execute(text("PRAGMA table_info(eval_cases)"))).all()
+        }
+        if "metadata_json" not in eval_case_columns:
+            await connection.execute(text("ALTER TABLE eval_cases ADD COLUMN metadata_json JSON"))
+
 
 async def get_session() -> AsyncIterator[AsyncSession]:
     async with AsyncSessionLocal() as session:

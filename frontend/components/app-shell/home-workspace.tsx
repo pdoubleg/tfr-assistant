@@ -1,13 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type PointerEvent } from "react";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle, Database, Loader2 } from "lucide-react";
 
 import { useChatPanelMode } from "@/components/app-shell/chat-panel-mode-context";
 import { AuditDataTable } from "@/components/data-table/audit-data-table";
-import { listReviews, updateReviewUserVersion } from "@/lib/api";
-import { deriveReviewRows } from "@/lib/dashboard-data";
-import type { AuditFormResult, ReviewRecord } from "@/lib/types";
+import {
+  listPublishedDatasetRows,
+  listPublishedDatasets,
+  listReviews,
+  updateReviewUserVersion,
+} from "@/lib/api";
+import { derivePublishedDatasetRows, deriveReviewRows } from "@/lib/dashboard-data";
+import type { AuditFormResult, EvalDatasetRecord, PublishedDatasetRow, ReviewRecord } from "@/lib/types";
 
 const layoutSettingsKey = "tfr-home-table-layout";
 const chatOpenDefaultInset = 560;
@@ -37,7 +42,11 @@ function clampInset(value: number) {
 
 export function HomeWorkspace() {
   const { chatMode } = useChatPanelMode();
+  const [sourceMode, setSourceMode] = useState<"reviews" | "dataset">("reviews");
   const [reviews, setReviews] = useState<ReviewRecord[]>([]);
+  const [datasets, setDatasets] = useState<EvalDatasetRecord[]>([]);
+  const [selectedDatasetId, setSelectedDatasetId] = useState("");
+  const [datasetRows, setDatasetRows] = useState<PublishedDatasetRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isDesktop, setIsDesktop] = useState(false);
@@ -52,14 +61,27 @@ export function HomeWorkspace() {
     setLoading(true);
     setError("");
     try {
-      const nextReviews = await listReviews();
-      setReviews(nextReviews);
+      if (sourceMode === "reviews") {
+        const [nextReviews, nextDatasets] = await Promise.all([
+          listReviews(),
+          listPublishedDatasets(),
+        ]);
+        setReviews(nextReviews);
+        setDatasets(nextDatasets);
+        if (!selectedDatasetId && nextDatasets[0]) setSelectedDatasetId(nextDatasets[0].id);
+      } else {
+        const nextDatasets = await listPublishedDatasets();
+        setDatasets(nextDatasets);
+        const datasetId = selectedDatasetId || nextDatasets[0]?.id || "";
+        if (datasetId && datasetId !== selectedDatasetId) setSelectedDatasetId(datasetId);
+        setDatasetRows(datasetId ? await listPublishedDatasetRows(datasetId) : []);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load audit data.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedDatasetId, sourceMode]);
 
   useEffect(() => {
     void refresh();
@@ -83,9 +105,16 @@ export function HomeWorkspace() {
     window.localStorage.setItem(layoutSettingsKey, JSON.stringify(layoutSettings));
   }, [layoutSettings, layoutSettingsLoaded]);
 
-  const rows = useMemo(() => deriveReviewRows(reviews, "current"), [reviews]);
+  const rows = useMemo(
+    () =>
+      sourceMode === "dataset"
+        ? derivePublishedDatasetRows(datasetRows)
+        : deriveReviewRows(reviews, "current"),
+    [datasetRows, reviews, sourceMode],
+  );
 
   const saveForm = async (reviewId: string, form: AuditFormResult) => {
+    if (sourceMode === "dataset" || reviewId.startsWith("dataset:")) return;
     const updatedReview = await updateReviewUserVersion(reviewId, form);
     setReviews((current) =>
       current.map((review) => (review.id === reviewId ? updatedReview : review)),
@@ -148,15 +177,55 @@ export function HomeWorkspace() {
         <div>
           <h1 className="text-2xl font-semibold tracking-normal">Home</h1>
           <p className="text-sm text-muted-foreground">
-            Ask the assistant about audit data, then open or edit the stored form behind any row.
+            Ask the assistant about audit reviews or a selected published dataset.
           </p>
         </div>
-        {loading ? (
-          <div className="inline-flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-            Loading audit data
-          </div>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-2 rounded-md border bg-card px-2 py-1.5 text-xs text-muted-foreground">
+            <span className="font-semibold uppercase">Table Source</span>
+            <span className="flex rounded bg-muted p-0.5">
+              {(["reviews", "dataset"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setSourceMode(mode)}
+                  className={[
+                    "rounded px-2.5 py-1 text-xs font-medium",
+                    sourceMode === mode
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  ].join(" ")}
+                >
+                  {mode === "reviews" ? "Reviews" : "Dataset"}
+                </button>
+              ))}
+            </span>
+          </label>
+          {sourceMode === "dataset" ? (
+            <label className="flex items-center gap-2 rounded-md border bg-card px-2 py-1.5 text-xs text-muted-foreground">
+              <Database className="h-3.5 w-3.5 text-primary" />
+              <span className="font-semibold uppercase">Published Dataset</span>
+              <select
+                value={selectedDatasetId}
+                onChange={(event) => setSelectedDatasetId(event.target.value)}
+                className="max-w-[320px] bg-transparent text-foreground outline-none"
+              >
+                {datasets.length === 0 ? <option value="">No datasets</option> : null}
+                {datasets.map((dataset) => (
+                  <option key={dataset.id} value={dataset.id}>
+                    {dataset.name} ({dataset.case_count})
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          {loading ? (
+            <div className="inline-flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+              Loading audit data
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {error ? (

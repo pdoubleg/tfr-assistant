@@ -299,6 +299,7 @@ export interface EvalCaseRecord {
   effective_date?: string | null;
   instructions: string;
   input: Record<string, unknown>;
+  metadata?: Record<string, unknown> | null;
   ground_truths: EvalGroundTruthRecord[];
   created_at?: string;
   updated_at?: string;
@@ -586,6 +587,148 @@ export interface OptimizationDemoFixtureRecord {
   created: boolean;
 }
 
+export type DatasetSourceKind = "external_named_query" | "app_db_reviews";
+export type DatasetPopulationStatus = "draft" | "published";
+export type DatasetSampleMode =
+  | "all"
+  | "random"
+  | "outcome"
+  | "stratified_outcome_issues"
+  | "cluster_balanced"
+  | "diversity";
+
+export interface DatasetSourceRecord {
+  id: string;
+  label: string;
+  kind: DatasetSourceKind;
+  form_id: string;
+  form_versions: string[];
+  description: string;
+  params_schema: Record<string, unknown>;
+}
+
+export interface DatasetReferenceRecord {
+  reference_kind: EvalReferenceKind;
+  result: AuditFormResult;
+  reviewer?: string | null;
+  source_metadata?: Record<string, unknown> | null;
+}
+
+export interface DatasetPopulationRecord {
+  id: string;
+  name: string;
+  description: string;
+  form_id: string;
+  form_version: string;
+  form_kind?: FormKind;
+  status: DatasetPopulationStatus;
+  source_config?: Record<string, unknown> | null;
+  cluster_config?: Record<string, unknown> | null;
+  sample_config?: Record<string, unknown> | null;
+  published_dataset_id?: string | null;
+  candidate_count: number;
+  included_count: number;
+  clustered_count: number;
+  r1_count: number;
+  r2_count: number;
+  created_at?: string;
+  updated_at?: string;
+  candidates?: DatasetCandidateRecord[];
+}
+
+export interface DatasetCandidateRecord {
+  id: string;
+  population_id: string;
+  source_kind: string;
+  source_key: string;
+  source_label: string;
+  source_record_id: string;
+  dedupe_key: string;
+  claim_number: string;
+  effective_date?: string | null;
+  instructions: string;
+  input: Record<string, unknown>;
+  references: DatasetReferenceRecord[];
+  metadata?: Record<string, unknown> | null;
+  tags: string[];
+  metrics: Record<string, unknown>;
+  included: boolean;
+  cluster_id?: number | null;
+  cluster_distance?: number | null;
+  cluster_score?: number | null;
+  cluster_metadata?: Record<string, unknown> | null;
+  sample_reason: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface DatasetAddCandidatesResponse {
+  population: DatasetPopulationRecord;
+  added_count: number;
+  skipped_count: number;
+  candidate_ids: string[];
+}
+
+export interface DatasetSourceRowRecord {
+  source_record_id: string;
+  review_id: string;
+  source_id?: string;
+  source_kind?: string;
+  source_label?: string;
+  result_version: "current" | "original";
+  source: string;
+  claim_number: string;
+  effective_date?: string | null;
+  title: string;
+  outcome: string;
+  issue_count: number;
+  driver_count: number;
+  total_amount_reviewed_dollars?: number | null;
+  total_overwrite_dollars: number;
+  total_underwrite_dollars: number;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface DatasetClusterResult {
+  population: DatasetPopulationRecord;
+  feature_backend: string;
+  selected_k: number;
+  clustered_count: number;
+  silhouette_score?: number | null;
+  cluster_counts: Record<string, number>;
+}
+
+export interface DatasetSampleResult {
+  population: DatasetPopulationRecord;
+  selected_count: number;
+  mode: DatasetSampleMode;
+  sample_config: Record<string, unknown>;
+}
+
+export interface PublishedDatasetRow {
+  dataset_id: string;
+  dataset_name: string;
+  case_id: string;
+  ground_truth_id: string;
+  reference_kind: EvalReferenceKind;
+  form_id: string;
+  form_version: string;
+  form_kind?: FormKind;
+  claim_number: string;
+  effective_date?: string | null;
+  source_kind: string;
+  source_key: string;
+  source_label: string;
+  source_record_id: string;
+  cluster_id?: number | null;
+  sample_reason: string;
+  metadata?: Record<string, unknown> | null;
+  result: AuditFormResult;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface OptimizationDagNode {
   id: string;
   candidate_index: number;
@@ -712,6 +855,11 @@ export interface SelectedHomeRowContext {
   no_count: number;
   driver_count: number;
   edited: boolean;
+  row_kind?: "review" | "dataset_case";
+  dataset_id?: string;
+  dataset_case_id?: string;
+  ground_truth_id?: string;
+  reference_kind?: string;
 }
 
 export interface HomeTableContext {

@@ -195,7 +195,7 @@ function auditRowId(row: DashboardReviewRow): string {
 function selectedHomeRowFromDashboardRow(row: DashboardReviewRow): SelectedHomeRowContext {
   return {
     row_id: auditRowId(row),
-    review_id: row.reviewId,
+    review_id: row.rowKind === "dataset_case" ? "" : row.reviewId,
     result_version: row.resultVersion,
     form_id: row.formId,
     form_version: row.formVersion,
@@ -213,6 +213,11 @@ function selectedHomeRowFromDashboardRow(row: DashboardReviewRow): SelectedHomeR
     no_count: row.noCount,
     driver_count: row.driverCount,
     edited: row.edited,
+    row_kind: row.rowKind ?? "review",
+    dataset_id: row.datasetId ?? "",
+    dataset_case_id: row.datasetCaseId ?? "",
+    ground_truth_id: row.groundTruthId ?? "",
+    reference_kind: row.referenceKind ?? row.evalReferenceKind ?? "",
   };
 }
 
@@ -345,7 +350,7 @@ export function AuditDataTable({
       setAgentState((current) => ({
         ...current,
         active_route: "/",
-        active_review_id: row.reviewId,
+        active_review_id: row.rowKind === "dataset_case" ? null : row.reviewId,
         selected_form_ids: [row.formKey],
       }));
     },
@@ -424,17 +429,19 @@ export function AuditDataTable({
             >
               <Eye className="h-4 w-4" />
             </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className={cn("h-8 w-8", density === "compact" && "h-7 w-7")}
-              onClick={() => openEdit(row.original)}
-              title="Edit form"
-              aria-label="Edit form"
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
+            {row.original.rowKind !== "dataset_case" ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={cn("h-8 w-8", density === "compact" && "h-7 w-7")}
+                onClick={() => openEdit(row.original)}
+                title="Edit form"
+                aria-label="Edit form"
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            ) : null}
           </div>
         ),
         meta: {

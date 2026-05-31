@@ -106,6 +106,7 @@ class EvaluationRepository:
                 effective_date=case_request.effective_date,
                 instructions=case_request.instructions.strip(),
                 input_json=case_request.input,
+                metadata_json=case_request.metadata,
             )
             self.session.add(case)
             await self.session.flush()
@@ -464,6 +465,7 @@ class EvaluationRepository:
             effective_date=case.effective_date,
             instructions=case.instructions,
             input=case.input_json or {},
+            metadata=case.metadata_json,
             ground_truths=[self._ground_truth_to_schema(truth) for truth in truths],
             created_at=case.created_at,
             updated_at=case.updated_at,

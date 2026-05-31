@@ -50,6 +50,7 @@ class EvalCaseCreate(BaseModel):
     effective_date: str | None = None
     instructions: str = ""
     input: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] | None = None
     ground_truths: list[EvalGroundTruthCreate] = Field(default_factory=list)
 
 
@@ -81,6 +82,7 @@ class EvalCaseRecord(BaseModel):
     effective_date: str | None = None
     instructions: str = ""
     input: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] | None = None
     ground_truths: list[EvalGroundTruthRecord] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

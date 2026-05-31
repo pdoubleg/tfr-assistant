@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     chat_artifacts_dir: Path = Path("data/chat_artifacts")
     optimization_runs_dir: Path = Path("data/optimization_runs")
     agent_workspace_dir: Path = Path("data/workspace")
+    dataset_embedding_model_dir: Path = Path("data/models/all-MiniLM-L6-v2")
     monty_rlm_model: str = "gpt-5.4-nano"
     monty_rlm_model_api: LLMModelAPI = LLMModelAPI.CHAT
     monty_rlm_model_timeout_seconds: float | None = None

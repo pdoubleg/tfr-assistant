@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Filter, Loader2, RefreshCw, Search, X } from "lucide-react";
+import { Database, Filter, Loader2, RefreshCw, Search, X } from "lucide-react";
 
 import { CommentsReportTable } from "@/components/dashboard/comments-report-table";
 import { DashboardCharts } from "@/components/dashboard/dashboard-charts";
@@ -12,9 +12,16 @@ import { QuestionsAggregationTable } from "@/components/dashboard/questions-aggr
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { listEvalRunItems, listEvalRuns, listReviews } from "@/lib/api";
+import {
+  listEvalRunItems,
+  listEvalRuns,
+  listPublishedDatasetRows,
+  listPublishedDatasets,
+  listReviews,
+} from "@/lib/api";
 import {
   defaultDashboardFilters,
+  derivePublishedDatasetRows,
   deriveReviewRows,
   deriveVersionComparisonRows,
   filterDashboardRows,
@@ -25,7 +32,13 @@ import {
   type CommentQuestionFilter,
   type ResultVersionKind,
 } from "@/lib/dashboard-data";
-import type { EvalRunItemRecord, EvalRunRecord, ReviewRecord } from "@/lib/types";
+import type {
+  EvalDatasetRecord,
+  EvalRunItemRecord,
+  EvalRunRecord,
+  PublishedDatasetRow,
+  ReviewRecord,
+} from "@/lib/types";
 
 const dashboardSettingsKey = "tfr-dashboard-settings";
 
@@ -127,7 +140,11 @@ function buildEvalGroundTruthReviews(
 }
 
 export function DashboardClient() {
+  const [sourceMode, setSourceMode] = useState<"reviews" | "dataset">("reviews");
   const [reviews, setReviews] = useState<ReviewRecord[]>([]);
+  const [datasets, setDatasets] = useState<EvalDatasetRecord[]>([]);
+  const [selectedDatasetId, setSelectedDatasetId] = useState("");
+  const [datasetRows, setDatasetRows] = useState<PublishedDatasetRow[]>([]);
   const [filters, setFilters] = useState<DashboardFilters>(defaultDashboardFilters);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -143,21 +160,29 @@ export function DashboardClient() {
     setLoading(true);
     setError("");
     try {
-      const [nextReviews, evalRuns] = await Promise.all([listReviews(), listEvalRuns()]);
-      const evalItemsEntries = await Promise.all(
-        evalRuns.map(async (run) => [run.id, await listEvalRunItems(run.id)] as const),
-      );
-      const evalGroundTruthReviews = buildEvalGroundTruthReviews(
-        evalRuns,
-        Object.fromEntries(evalItemsEntries),
-      );
-      setReviews([...nextReviews, ...evalGroundTruthReviews]);
+      const nextDatasets = await listPublishedDatasets();
+      setDatasets(nextDatasets);
+      if (sourceMode === "dataset") {
+        const datasetId = selectedDatasetId || nextDatasets[0]?.id || "";
+        if (datasetId && datasetId !== selectedDatasetId) setSelectedDatasetId(datasetId);
+        setDatasetRows(datasetId ? await listPublishedDatasetRows(datasetId) : []);
+      } else {
+        const [nextReviews, evalRuns] = await Promise.all([listReviews(), listEvalRuns()]);
+        const evalItemsEntries = await Promise.all(
+          evalRuns.map(async (run) => [run.id, await listEvalRunItems(run.id)] as const),
+        );
+        const evalGroundTruthReviews = buildEvalGroundTruthReviews(
+          evalRuns,
+          Object.fromEntries(evalItemsEntries),
+        );
+        setReviews([...nextReviews, ...evalGroundTruthReviews]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard data.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedDatasetId, sourceMode]);
 
   useEffect(() => {
     void refresh();
@@ -188,11 +213,20 @@ export function DashboardClient() {
     });
   }, [commentQuestionFilter.questionKeys, commentQuestionFilter.subQuestionKeys, filters, settingsLoaded]);
 
-  const allRows = useMemo(() => deriveReviewRows(reviews, filters.resultVersion), [filters.resultVersion, reviews]);
+  const allRows = useMemo(
+    () =>
+      sourceMode === "dataset"
+        ? derivePublishedDatasetRows(datasetRows)
+        : deriveReviewRows(reviews, filters.resultVersion),
+    [datasetRows, filters.resultVersion, reviews, sourceMode],
+  );
   const filteredRows = useMemo(() => filterDashboardRows(allRows, filters), [allRows, filters]);
   const versionComparisonRows = useMemo(
-    () => filterDashboardRows(deriveVersionComparisonRows(reviews), filters),
-    [filters, reviews],
+    () =>
+      sourceMode === "dataset"
+        ? filteredRows
+        : filterDashboardRows(deriveVersionComparisonRows(reviews), filters),
+    [filteredRows, filters, reviews, sourceMode],
   );
   const filterOptions = useMemo(() => getFilterOptions(allRows), [allRows]);
   const completedReviewCount = allRows.length;
@@ -229,10 +263,46 @@ export function DashboardClient() {
           <h1 className="text-2xl font-semibold">Dashboard</h1>
           <p className="text-sm text-muted-foreground">Review volume, audit outcomes, question results, and stored comments.</p>
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={refreshDataAndFilters} disabled={loading}>
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          Refresh
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex rounded-md border bg-card p-1">
+            {(["reviews", "dataset"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setSourceMode(mode)}
+                className={[
+                  "rounded px-3 py-1.5 text-xs font-medium",
+                  sourceMode === mode
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                ].join(" ")}
+              >
+                {mode === "reviews" ? "Reviews" : "Dataset"}
+              </button>
+            ))}
+          </div>
+          {sourceMode === "dataset" ? (
+            <label className="flex items-center gap-2 rounded-md border bg-card px-2 py-1.5 text-xs text-muted-foreground">
+              <Database className="h-3.5 w-3.5 text-primary" />
+              <select
+                value={selectedDatasetId}
+                onChange={(event) => setSelectedDatasetId(event.target.value)}
+                className="max-w-[260px] bg-transparent text-foreground outline-none"
+              >
+                {datasets.length === 0 ? <option value="">No datasets</option> : null}
+                {datasets.map((dataset) => (
+                  <option key={dataset.id} value={dataset.id}>
+                    {dataset.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <Button type="button" variant="outline" size="sm" onClick={refreshDataAndFilters} disabled={loading}>
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <Card>
