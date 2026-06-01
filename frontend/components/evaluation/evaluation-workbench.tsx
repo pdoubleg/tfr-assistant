@@ -32,6 +32,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   cancelEvalRun,
   createEvalRun,
+  listFormCatalog,
   listEvalDatasets,
   listEvalRunItems,
   listEvalRuns,
@@ -49,6 +50,7 @@ import type {
   EvalRunPayload,
   EvalRunRecord,
   EvalRunStatus,
+  FormCatalogEntry,
   FormQuestion,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -57,6 +59,8 @@ const pollMs = 3000;
 const evalQueueStorageKey = "tfr.eval.executionQueue.v1";
 
 type RunAction = "start" | "pause" | "resume" | "cancel";
+type RunLifecycleFilter = "all" | "queued" | "active" | "completed" | "stopped";
+type RunSortKey = "form" | "created" | "score" | "progress" | "status";
 type HierarchyLevel = "form" | "question" | "subquestion";
 type MetricColumnKey =
   | "score"
@@ -153,6 +157,13 @@ interface PairResultRow {
   subquestionF1: number | null;
   generatedOutcome: string;
   referenceOutcome: string;
+}
+
+interface EvalRunDisplayMeta {
+  formKey: string;
+  formTitle: string;
+  formSubtitle: string;
+  datasetName: string;
 }
 
 interface MetricColumnDefinition {
@@ -536,6 +547,56 @@ function primaryComparison(item: EvalRunItemRecord, policy: EvalReferencePolicy)
 
 function visibleVersion(run: EvalRunRecord): string {
   return `v${run.config_version || 1}`;
+}
+
+function formKeyForDataset(dataset?: EvalDatasetRecord): string {
+  return dataset ? `${dataset.form_id}@${dataset.form_version}` : "";
+}
+
+function formKeyForCatalogEntry(form: FormCatalogEntry): string {
+  return `${form.id}@${form.version}`;
+}
+
+function runDisplayMeta(
+  run: EvalRunRecord,
+  datasetsById: Map<string, EvalDatasetRecord>,
+  formsByKey: Map<string, FormCatalogEntry>,
+): EvalRunDisplayMeta {
+  const dataset = datasetsById.get(run.dataset_id);
+  const formKey = formKeyForDataset(dataset);
+  const form = formKey ? formsByKey.get(formKey) : undefined;
+  const fallbackKey = formKey || run.dataset_name || run.dataset_id;
+  return {
+    formKey: fallbackKey,
+    formTitle: form?.title || fallbackKey,
+    formSubtitle: formKey && form?.title ? formKey : dataset?.form_kind || run.form_kind || "",
+    datasetName: dataset?.name || run.dataset_name || run.dataset_id,
+  };
+}
+
+function runMatchesLifecycle(run: EvalRunRecord, filter: RunLifecycleFilter): boolean {
+  if (filter === "all") return true;
+  if (filter === "queued") return run.status === "queued";
+  if (filter === "active") return run.status === "running" || run.status === "paused";
+  if (filter === "completed") return run.status === "completed";
+  return run.status === "failed" || run.status === "canceled";
+}
+
+function runLifecycleLabel(run: EvalRunRecord): string {
+  if (run.status === "queued") return "Queued";
+  if (run.status === "running" || run.status === "paused") return "Active";
+  if (run.status === "completed") return "Completed";
+  return "Stopped";
+}
+
+function runCreatedTime(run: EvalRunRecord): number {
+  const date = new Date(run.created_at ?? "");
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+}
+
+function compareRunValues(first: string | number, second: string | number): number {
+  if (typeof first === "number" && typeof second === "number") return first - second;
+  return String(first).localeCompare(String(second), undefined, { numeric: true, sensitivity: "base" });
 }
 
 function initialDialogState(datasets: EvalDatasetRecord[], run?: EvalRunRecord | null): EvalRunDialogState {
@@ -1180,6 +1241,7 @@ function persistQueue(ids: string[]) {
 }
 
 export function EvaluationWorkbench() {
+  const [forms, setForms] = useState<FormCatalogEntry[]>([]);
   const [datasets, setDatasets] = useState<EvalDatasetRecord[]>([]);
   const [runs, setRuns] = useState<EvalRunRecord[]>([]);
   const [itemsByRun, setItemsByRun] = useState<Record<string, EvalRunItemRecord[]>>({});
@@ -1187,7 +1249,9 @@ export function EvaluationWorkbench() {
   const [queueHydrated, setQueueHydrated] = useState(false);
   const [analysisRunId, setAnalysisRunId] = useState("");
   const [runSearch, setRunSearch] = useState("");
-  const [runStatusFilter, setRunStatusFilter] = useState("all");
+  const [runFormFilter, setRunFormFilter] = useState("all");
+  const [runStatusFilter, setRunStatusFilter] = useState<RunLifecycleFilter>("all");
+  const [runSortKey, setRunSortKey] = useState<RunSortKey>("form");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRun, setEditingRun] = useState<EvalRunRecord | null>(null);
   const [viewingPair, setViewingPair] = useState<PairResultRow | null>(null);
@@ -1223,6 +1287,16 @@ export function EvaluationWorkbench() {
     analysisRunIdRef.current = analysisRunId;
   }, [analysisRunId]);
 
+  const datasetsById = useMemo(() => new Map(datasets.map((dataset) => [dataset.id, dataset])), [datasets]);
+  const formsByKey = useMemo(() => new Map(forms.map((form) => [formKeyForCatalogEntry(form), form])), [forms]);
+  const runFormOptions = useMemo(() => {
+    const options = new Map<string, string>();
+    for (const run of runs) {
+      const meta = runDisplayMeta(run, datasetsById, formsByKey);
+      options.set(meta.formKey, meta.formTitle);
+    }
+    return [...options.entries()].sort((first, second) => first[1].localeCompare(second[1], undefined, { sensitivity: "base" }));
+  }, [datasetsById, formsByKey, runs]);
   const completedRuns = useMemo(() => runs.filter((run) => run.status === "completed"), [runs]);
   const queueRuns = useMemo(
     () => queueRunIds.map((runId) => runs.find((run) => run.id === runId)).filter((run): run is EvalRunRecord => Boolean(run)),
@@ -1236,22 +1310,52 @@ export function EvaluationWorkbench() {
   const hasActiveRuns = useMemo(() => runs.some(isActiveRun), [runs]);
   const filteredRuns = useMemo(() => {
     const query = runSearch.trim().toLowerCase();
-    return runs.filter((run) => {
-      if (runStatusFilter !== "all" && run.status !== runStatusFilter) return false;
+    const filtered = runs.filter((run) => {
+      const meta = runDisplayMeta(run, datasetsById, formsByKey);
+      if (runFormFilter !== "all" && meta.formKey !== runFormFilter) return false;
+      if (!runMatchesLifecycle(run, runStatusFilter)) return false;
       if (!query) return true;
-      return [run.name, run.dataset_name, run.model_name, run.status, visibleVersion(run)]
+      return [
+        meta.formTitle,
+        meta.formKey,
+        meta.datasetName,
+        run.name,
+        run.model_name,
+        run.status,
+        runLifecycleLabel(run),
+        visibleVersion(run),
+      ]
         .join(" ")
         .toLowerCase()
         .includes(query);
     });
-  }, [runSearch, runStatusFilter, runs]);
+    return [...filtered].sort((first, second) => {
+      const firstMeta = runDisplayMeta(first, datasetsById, formsByKey);
+      const secondMeta = runDisplayMeta(second, datasetsById, formsByKey);
+      const sortValue = (run: EvalRunRecord, meta: EvalRunDisplayMeta): string | number => {
+        if (runSortKey === "created") return runCreatedTime(run);
+        if (runSortKey === "score") return run.primary_score ?? -1;
+        if (runSortKey === "progress") return run.progress_percent;
+        if (runSortKey === "status") return `${runLifecycleLabel(run)} ${run.status}`;
+        return meta.formTitle;
+      };
+      const compared = compareRunValues(sortValue(first, firstMeta), sortValue(second, secondMeta));
+      if (compared !== 0) return runSortKey === "created" || runSortKey === "score" || runSortKey === "progress" ? -compared : compared;
+      return runCreatedTime(second) - runCreatedTime(first);
+    });
+  }, [datasetsById, formsByKey, runFormFilter, runSearch, runSortKey, runStatusFilter, runs]);
 
   const refresh = useCallback(async ({ initial = false, manual = false }: { initial?: boolean; manual?: boolean } = {}) => {
     if (initial) setLoading(true);
     if (manual) setRefreshing(true);
     setError("");
     try {
-      const [nextDatasets, nextRuns] = await Promise.all([listEvalDatasets(), listEvalRuns()]);
+      const [nextForms, nextDatasets, nextRuns] = await Promise.all([
+        listFormCatalog().catch(() => []),
+        listEvalDatasets(),
+        listEvalRuns(),
+      ]);
+      setForms(nextForms);
       setDatasets(nextDatasets);
       setRuns(nextRuns);
 
@@ -1381,19 +1485,28 @@ export function EvaluationWorkbench() {
       <div className="grid gap-4 xl:grid-cols-[minmax(340px,420px)_1fr]">
         <EvalRunSetupCard
           runs={filteredRuns}
+          datasetsById={datasetsById}
+          formsByKey={formsByKey}
           queueRunIds={queueRunIds}
           runSearch={runSearch}
+          runFormFilter={runFormFilter}
+          runFormOptions={runFormOptions}
           runStatusFilter={runStatusFilter}
+          runSortKey={runSortKey}
           loading={loading}
           refreshing={refreshing}
           onRunSearchChange={setRunSearch}
+          onRunFormFilterChange={setRunFormFilter}
           onRunStatusFilterChange={setRunStatusFilter}
+          onRunSortKeyChange={setRunSortKey}
           onRefresh={() => void refresh({ manual: true })}
           onCreateRun={openCreateDialog}
           onAddRun={addToQueue}
         />
         <EvalQueuePanel
           runs={queueRuns}
+          datasetsById={datasetsById}
+          formsByKey={formsByKey}
           itemsByRun={itemsByRun}
           actioningRun={actioningRun}
           onAction={runAction}
@@ -1406,6 +1519,8 @@ export function EvaluationWorkbench() {
         runs={completedRuns}
         run={analysisRun}
         items={analysisItems}
+        datasetsById={datasetsById}
+        formsByKey={formsByKey}
         onRunChange={setAnalysisRunId}
       />
 
@@ -1435,25 +1550,39 @@ export function EvaluationWorkbench() {
 
 function EvalRunSetupCard({
   runs,
+  datasetsById,
+  formsByKey,
   queueRunIds,
   runSearch,
+  runFormFilter,
+  runFormOptions,
   runStatusFilter,
+  runSortKey,
   loading,
   refreshing,
   onRunSearchChange,
+  onRunFormFilterChange,
   onRunStatusFilterChange,
+  onRunSortKeyChange,
   onRefresh,
   onCreateRun,
   onAddRun,
 }: {
   runs: EvalRunRecord[];
+  datasetsById: Map<string, EvalDatasetRecord>;
+  formsByKey: Map<string, FormCatalogEntry>;
   queueRunIds: string[];
   runSearch: string;
-  runStatusFilter: string;
+  runFormFilter: string;
+  runFormOptions: Array<[string, string]>;
+  runStatusFilter: RunLifecycleFilter;
+  runSortKey: RunSortKey;
   loading: boolean;
   refreshing: boolean;
   onRunSearchChange: (value: string) => void;
-  onRunStatusFilterChange: (value: string) => void;
+  onRunFormFilterChange: (value: string) => void;
+  onRunStatusFilterChange: (value: RunLifecycleFilter) => void;
+  onRunSortKeyChange: (value: RunSortKey) => void;
   onRefresh: () => void;
   onCreateRun: () => void;
   onAddRun: (run: EvalRunRecord) => void;
@@ -1485,22 +1614,48 @@ function EvalRunSetupCard({
               value={runSearch}
               onChange={(event) => onRunSearchChange(event.target.value)}
               className="h-8 pl-8 text-xs"
-              placeholder="Search eval runs"
+              placeholder="Search form, dataset, run..."
             />
           </label>
-          <select
-            value={runStatusFilter}
-            onChange={(event) => onRunStatusFilterChange(event.target.value)}
-            className="h-8 rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <option value="all">All statuses</option>
-            <option value="queued">Queued</option>
-            <option value="running">Running</option>
-            <option value="paused">Paused</option>
-            <option value="completed">Completed</option>
-            <option value="failed">Failed</option>
-            <option value="canceled">Canceled</option>
-          </select>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <select
+              value={runFormFilter}
+              onChange={(event) => onRunFormFilterChange(event.target.value)}
+              className="h-8 rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label="Filter by registered form"
+            >
+              <option value="all">All forms</option>
+              {runFormOptions.map(([formKey, formTitle]) => (
+                <option key={formKey} value={formKey}>
+                  {formTitle}
+                </option>
+              ))}
+            </select>
+            <select
+              value={runStatusFilter}
+              onChange={(event) => onRunStatusFilterChange(event.target.value as RunLifecycleFilter)}
+              className="h-8 rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label="Filter by lifecycle"
+            >
+              <option value="all">All stages</option>
+              <option value="queued">Queued</option>
+              <option value="active">Active</option>
+              <option value="completed">Completed</option>
+              <option value="stopped">Stopped</option>
+            </select>
+            <select
+              value={runSortKey}
+              onChange={(event) => onRunSortKeyChange(event.target.value as RunSortKey)}
+              className="h-8 rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label="Sort eval runs"
+            >
+              <option value="form">Sort by form</option>
+              <option value="created">Newest first</option>
+              <option value="score">Best score</option>
+              <option value="progress">Most progress</option>
+              <option value="status">Lifecycle stage</option>
+            </select>
+          </div>
         </div>
 
         <div className="chat-scrollbar max-h-[430px] overflow-y-auto">
@@ -1512,15 +1667,21 @@ function EvalRunSetupCard({
           ) : (
             runs.map((run) => {
               const queued = queueRunIds.includes(run.id);
+              const meta = runDisplayMeta(run, datasetsById, formsByKey);
               return (
                 <div key={run.id} className="grid gap-3 border-b px-4 py-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="truncate text-sm font-medium">{run.name}</p>
+                      <p className="truncate text-sm font-semibold">{meta.formTitle}</p>
                       <Badge variant="outline">{visibleVersion(run)}</Badge>
                       <Badge variant={statusVariant(run.status)}>{run.status}</Badge>
                     </div>
-                    <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{run.dataset_name || run.dataset_id}</p>
+                    <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+                      {run.name} / {meta.datasetName}
+                    </p>
+                    {meta.formSubtitle ? (
+                      <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">{meta.formSubtitle}</p>
+                    ) : null}
                   </div>
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex flex-wrap gap-1.5">
@@ -1549,6 +1710,8 @@ function EvalRunSetupCard({
 
 function EvalQueuePanel({
   runs,
+  datasetsById,
+  formsByKey,
   itemsByRun,
   actioningRun,
   onAction,
@@ -1556,6 +1719,8 @@ function EvalQueuePanel({
   onRemove,
 }: {
   runs: EvalRunRecord[];
+  datasetsById: Map<string, EvalDatasetRecord>;
+  formsByKey: Map<string, FormCatalogEntry>;
   itemsByRun: Record<string, EvalRunItemRecord[]>;
   actioningRun: string;
   onAction: (run: EvalRunRecord, action: RunAction) => Promise<void>;
@@ -1577,7 +1742,7 @@ function EvalQueuePanel({
         <Table>
           <TableHeader>
             <TableRow className="bg-secondary/60">
-              <TableHead>Run</TableHead>
+              <TableHead>Form</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Progress</TableHead>
               <TableHead>Score</TableHead>
@@ -1594,14 +1759,17 @@ function EvalQueuePanel({
             ) : (
               runs.map((run) => {
                 const metrics = aggregateRunMetrics(run, itemsByRun[run.id] ?? []);
+                const meta = runDisplayMeta(run, datasetsById, formsByKey);
                 return (
                   <TableRow key={run.id}>
                     <TableCell className="min-w-[260px]">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-medium">{run.name}</p>
+                        <p className="font-medium">{meta.formTitle}</p>
                         <Badge variant="outline">{visibleVersion(run)}</Badge>
                       </div>
-                      <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{run.dataset_name || run.dataset_id}</p>
+                      <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+                        {run.name} / {meta.datasetName}
+                      </p>
                     </TableCell>
                     <TableCell>
                       <Badge variant={statusVariant(run.status)}>{run.status}</Badge>
@@ -1691,11 +1859,15 @@ function CompletedRunAnalysisCard({
   runs,
   run,
   items,
+  datasetsById,
+  formsByKey,
   onRunChange,
 }: {
   runs: EvalRunRecord[];
   run: EvalRunRecord | null;
   items: EvalRunItemRecord[];
+  datasetsById: Map<string, EvalDatasetRecord>;
+  formsByKey: Map<string, FormCatalogEntry>;
   onRunChange: (runId: string) => void;
 }) {
   const [search, setSearch] = useState("");
@@ -1703,8 +1875,12 @@ function CompletedRunAnalysisCard({
   const visibleRuns = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return runs;
-    return runs.filter((candidate) =>
-      [
+    return runs.filter((candidate) => {
+      const meta = runDisplayMeta(candidate, datasetsById, formsByKey);
+      return [
+        meta.formTitle,
+        meta.formKey,
+        meta.datasetName,
         candidate.name,
         candidate.dataset_name,
         candidate.model_name,
@@ -1713,9 +1889,9 @@ function CompletedRunAnalysisCard({
       ]
         .join(" ")
         .toLowerCase()
-        .includes(query),
-    );
-  }, [runs, search]);
+        .includes(query);
+    });
+  }, [datasetsById, formsByKey, runs, search]);
   const selectValue = visibleRuns.some((candidate) => candidate.id === run?.id) ? run?.id ?? "" : "";
   return (
     <Card className="overflow-hidden">
@@ -1732,7 +1908,7 @@ function CompletedRunAnalysisCard({
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 className="h-9 w-[240px] pl-8 text-xs"
-                placeholder="Search completed runs"
+                placeholder="Search form or run"
               />
             </label>
             <select
@@ -1745,7 +1921,7 @@ function CompletedRunAnalysisCard({
               {runs.length > 0 && visibleRuns.length === 0 ? <option value="">No runs match</option> : null}
               {visibleRuns.map((candidate) => (
                 <option key={candidate.id} value={candidate.id}>
-                  {candidate.name} {visibleVersion(candidate)}
+                  {runDisplayMeta(candidate, datasetsById, formsByKey).formTitle} / {candidate.name} {visibleVersion(candidate)}
                 </option>
               ))}
             </select>
