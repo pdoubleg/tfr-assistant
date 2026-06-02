@@ -79,4 +79,37 @@ INFO:     127.0.0.1:51253 - "GET /api/datasets HTTP/1.1" 200 OK
 INFO:     127.0.0.1:51253 - "GET /api/datasets/populations/9f49d6d4-351b-4ff2-80fe-d655d2726910 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:51253 - "GET /api/datasets/sources?form_id=demo_receipt_policy&form_version=v0.1 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:51252 - "GET /api/datasets/populations?form_id=demo_receipt_policy&form_version=v0.1 HTTP/1.1" 200 OK
- 
+ INFO:     127.0.0.1:51257 - "GET /api/datasets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51257 - "GET /api/datasets/populations/9f49d6d4-351b-4ff2-80fe-d655d2726910 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51258 - "GET /api/forms HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51259 - "GET /api/forms HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51260 - "GET /api/forms/exterior_hail/v0.1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51260 - "GET /api/prompts/forms/exterior_hail/families?form_version=v0.1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51286 - "GET /api/forms/financial_claim_review/v0.1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51286 - "GET /api/prompts/forms/financial_claim_review/families?form_version=v0.1 HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:51287 - "GET /api/forms/demo_receipt_policy/v0.1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51287 - "GET /api/prompts/forms/demo_receipt_policy/families?form_version=v0.1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51287 - "GET /api/forms/exterior_hail/v0.1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51287 - "GET /api/prompts/forms/exterior_hail/families?form_version=v0.1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51291 - "GET /api/forms/tfr_default/v0.2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51291 - "GET /api/prompts/forms/tfr_default/families?form_version=v0.2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51296 - "GET /api/forms/tfr_default/v0.3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51296 - "GET /api/prompts/forms/tfr_default/families?form_version=v0.3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51297 - "GET /api/reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51297 - "GET /api/datasets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51297 - "GET /api/reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51297 - "GET /api/datasets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51297 - "GET /api/reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51297 - "GET /api/datasets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51303 - "GET /api/datasets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51303 - "GET /api/datasets/4d3955a1-aa1c-4ca7-b3a0-1edbc28ad542/rows HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51306 - "GET /api/evaluations/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51305 - "GET /api/evaluations/datasets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51304 - "GET /api/forms HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51316 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51320 - "GET /api/optimizations/cases?form_id=tfr_default&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51317 - "GET /api/optimizations/cases?form_id=tfr_default&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51319 - "GET /api/optimizations/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51315 - "GET /api/forms HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51318 - "GET /api/forms HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51318 - "GET /api/optimizations/cases?form_id=demo_receipt_policy&form_version=v0.1&search=&include_demo=true HTTP/1.1" 200 OK
