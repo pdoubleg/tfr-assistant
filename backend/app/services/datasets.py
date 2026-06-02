@@ -5,12 +5,17 @@ import json
 import math
 import random
 import re
+import warnings
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 from uuid import uuid4
 
+import numpy as np
+from sklearn.cluster import KMeans
+from sklearn.exceptions import ConvergenceWarning
+from sklearn.metrics import silhouette_score
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -1547,7 +1552,6 @@ def _minilm_vectors(
     if not model_path.exists() or not tokenizer_path.exists():
         return None, "lexical"
     try:
-        import numpy as np
         import onnxruntime as ort
         from tokenizers import Tokenizer
     except Exception:
@@ -1648,103 +1652,83 @@ def _cluster_vectors(
     max_k: int,
     seed: int,
 ) -> tuple[int, list[int], list[float], float | None]:
-    n = len(vectors)
+    matrix = np.asarray(vectors, dtype=float)
+    n = matrix.shape[0]
     max_k = min(max_k, n)
     min_k = min(min_k, max_k)
-    if n == 2 or max_k < 2:
-        labels = [index for index in range(n)]
-        return n, labels, [0.0] * n, None
-    best: tuple[float, int, list[int], list[list[float]]] | None = None
+    if max_k <= 1:
+        model = _fit_kmeans(matrix, 1, seed)
+        return _cluster_model_result(matrix, model, selected_k=1, score=None)
+    if n == 2:
+        model = _fit_kmeans(matrix, 2, seed)
+        return _cluster_model_result(matrix, model, selected_k=2, score=None)
+
+    best: tuple[float | None, int, np.ndarray, np.ndarray] | None = None
     for k in range(max(2, min_k), max_k + 1):
-        labels, centroids = _kmeans(vectors, k, seed)
-        score = _silhouette(vectors, labels)
-        if best is None or score > best[0]:
-            best = (score, k, labels, centroids)
+        model = _fit_kmeans(matrix, k, seed)
+        labels = model.labels_
+        score = _score_silhouette(matrix, labels)
+        if best is None or _silhouette_rank(score) > _silhouette_rank(best[0]):
+            best = (score, k, labels, model.cluster_centers_)
     if best is None:
-        labels, centroids = _kmeans(vectors, 2, seed)
-        best = (_silhouette(vectors, labels), 2, labels, centroids)
+        model = _fit_kmeans(matrix, 2, seed)
+        best = (_score_silhouette(matrix, model.labels_), 2, model.labels_, model.cluster_centers_)
     score, selected_k, labels, centroids = best
-    distances = [
-        _distance(vector, centroids[label]) if label < len(centroids) else 0.0
-        for vector, label in zip(vectors, labels, strict=True)
-    ]
-    return selected_k, labels, distances, score
+    return _cluster_result(matrix, labels, centroids, selected_k=selected_k, score=score)
 
 
-def _kmeans(
-    vectors: list[list[float]],
-    k: int,
-    seed: int,
-    iterations: int = 40,
-) -> tuple[list[int], list[list[float]]]:
-    rng = random.Random(seed)
-    centroids = [vectors[index][:] for index in rng.sample(range(len(vectors)), k)]
-    labels = [0] * len(vectors)
-    for _ in range(iterations):
-        changed = False
-        for index, vector in enumerate(vectors):
-            label = min(
-                range(k), key=lambda centroid_index: _distance(vector, centroids[centroid_index])
-            )
-            if labels[index] != label:
-                labels[index] = label
-                changed = True
-        next_centroids = []
-        for label in range(k):
-            members = [
-                vector
-                for vector, item_label in zip(vectors, labels, strict=True)
-                if item_label == label
-            ]
-            if not members:
-                next_centroids.append(vectors[rng.randrange(len(vectors))][:])
-                continue
-            next_centroids.append(
-                [sum(values) / len(members) for values in zip(*members, strict=True)]
-            )
-        centroids = [_l2_normalize(centroid) for centroid in next_centroids]
-        if not changed:
-            break
-    return labels, centroids
+def _cluster_model_result(
+    vectors: np.ndarray,
+    model: KMeans,
+    *,
+    selected_k: int,
+    score: float | None,
+) -> tuple[int, list[int], list[float], float | None]:
+    return _cluster_result(
+        vectors,
+        model.labels_,
+        model.cluster_centers_,
+        selected_k=selected_k,
+        score=score,
+    )
 
 
-def _silhouette(vectors: list[list[float]], labels: list[int]) -> float:
-    if len(set(labels)) < 2:
-        return 0.0
-    scores = []
-    for index, vector in enumerate(vectors):
-        own = labels[index]
-        same = [
-            _distance(vector, other)
-            for other_index, other in enumerate(vectors)
-            if labels[other_index] == own and other_index != index
-        ]
-        a = sum(same) / len(same) if same else 0.0
-        b_values = []
-        for label in set(labels):
-            if label == own:
-                continue
-            distances = [
-                _distance(vector, other)
-                for other_index, other in enumerate(vectors)
-                if labels[other_index] == label
-            ]
-            if distances:
-                b_values.append(sum(distances) / len(distances))
-        b = min(b_values) if b_values else 0.0
-        scores.append((b - a) / max(a, b) if max(a, b) else 0.0)
-    return sum(scores) / len(scores)
+def _cluster_result(
+    vectors: np.ndarray,
+    labels: np.ndarray,
+    centroids: np.ndarray,
+    *,
+    selected_k: int,
+    score: float | None,
+) -> tuple[int, list[int], list[float], float | None]:
+    assigned_centroids = centroids[labels]
+    distances = np.linalg.norm(vectors - assigned_centroids, axis=1).astype(float).tolist()
+    return selected_k, labels.astype(int).tolist(), distances, score
 
 
-def _distance(first: list[float], second: list[float]) -> float:
-    return math.sqrt(sum((left - right) ** 2 for left, right in zip(first, second, strict=False)))
+def _fit_kmeans(vectors: np.ndarray, k: int, seed: int) -> KMeans:
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", ConvergenceWarning)
+        return KMeans(n_clusters=k, random_state=seed, n_init=10).fit(vectors)
+
+
+def _score_silhouette(vectors: np.ndarray, labels: np.ndarray) -> float | None:
+    unique_labels = np.unique(labels)
+    if len(unique_labels) < 2 or len(unique_labels) >= len(labels):
+        return None
+    return float(silhouette_score(vectors, labels, metric="euclidean"))
+
+
+def _silhouette_rank(score: float | None) -> float:
+    return score if score is not None else float("-inf")
 
 
 def _l2_normalize(vector: list[float]) -> list[float]:
-    norm = math.sqrt(sum(value * value for value in vector))
-    if not norm:
+    array = np.asarray(vector, dtype=float)
+    norm = np.linalg.norm(array)
+    if norm == 0:
         return vector
-    return [value / norm for value in vector]
+    return (array / norm).astype(float).tolist()
 
 
 def _sample_candidates(
@@ -1769,7 +1753,10 @@ def _sample_candidates(
         return _round_robin_sample(
             included,
             size,
-            lambda item: f"{(item.metrics_json or {}).get('outcome')}:{(item.metrics_json or {}).get('issue_count')}",
+            lambda item: (
+                f"{(item.metrics_json or {}).get('outcome')}:"
+                f"{(item.metrics_json or {}).get('issue_count')}"
+            ),
             rng,
         )
     if request.mode == "cluster_balanced":

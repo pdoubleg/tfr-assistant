@@ -64,3 +64,19 @@ INFO:     127.0.0.1:50350 - "GET /api/evaluations/runs HTTP/1.1" 200 OK
 INFO:     127.0.0.1:50354 - "GET /api/reviews HTTP/1.1" 200 OK
 INFO:     127.0.0.1:50354 - "GET /api/evaluations/runs HTTP/1.1" 200 OK
 INFO:     127.0.0.1:50350 - "GET /api/reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50595 - "GET /api/datasets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50595 - "GET /api/datasets/4d3955a1-aa1c-4ca7-b3a0-1edbc28ad542/rows HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50595 - "GET /api/datasets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50595 - "GET /api/datasets/4d3955a1-aa1c-4ca7-b3a0-1edbc28ad542/rows HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50596 - "GET /api/datasets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50596 - "GET /api/reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50596 - "GET /api/evaluations/runs HTTP/1.1" 200 OK
+ INFO:     127.0.0.1:51252 - "GET /api/forms HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51253 - "GET /api/forms HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51253 - "GET /api/datasets/sources?form_id=demo_receipt_policy&form_version=v0.1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51252 - "GET /api/datasets/populations?form_id=demo_receipt_policy&form_version=v0.1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51253 - "GET /api/datasets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51253 - "GET /api/datasets/populations/9f49d6d4-351b-4ff2-80fe-d655d2726910 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51253 - "GET /api/datasets/sources?form_id=demo_receipt_policy&form_version=v0.1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51252 - "GET /api/datasets/populations?form_id=demo_receipt_policy&form_version=v0.1 HTTP/1.1" 200 OK
+ 

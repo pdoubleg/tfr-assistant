@@ -17,13 +17,28 @@ from app.schemas.datasets import (
     DatasetSourceFetchRequest,
 )
 from app.services.catalog import FormCatalog
-from app.services.datasets import DatasetRepository
+from app.services.datasets import DatasetRepository, _cluster_vectors
 from app.services.review_repository import ReviewRepository
 
 
 @pytest.fixture
 def anyio_backend() -> str:
     return "asyncio"
+
+
+def test_cluster_vectors_supports_single_cluster_request() -> None:
+    selected_k, labels, distances, silhouette = _cluster_vectors(
+        [[1.0, 0.0], [0.9, 0.1], [0.0, 1.0]],
+        min_k=1,
+        max_k=1,
+        seed=7,
+    )
+
+    assert selected_k == 1
+    assert labels == [0, 0, 0]
+    assert len(distances) == 3
+    assert all(distance >= 0 for distance in distances)
+    assert silhouette is None
 
 
 @pytest.mark.anyio
