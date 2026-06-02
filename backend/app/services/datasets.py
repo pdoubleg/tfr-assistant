@@ -8,7 +8,7 @@ import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 from sqlalchemy import func, select
@@ -38,12 +38,16 @@ from app.schemas.datasets import (
     DatasetAppDbAddRequest,
     DatasetAppDbBrowseRequest,
     DatasetCandidateRecord,
+    DatasetCandidateReferenceUpdate,
     DatasetCandidateUpdate,
+    DatasetCloneRequest,
     DatasetClusterRequest,
     DatasetClusterResult,
+    DatasetMaterializeResponse,
     DatasetPopulationCreate,
     DatasetPopulationDetail,
     DatasetPopulationRecord,
+    DatasetPopulationUpdate,
     DatasetPublishRequest,
     DatasetReference,
     DatasetSampleRequest,
@@ -59,6 +63,7 @@ from app.schemas.evaluations import EvalCaseCreate, EvalDatasetCreate
 from app.services.catalog import FormCatalog
 from app.services.evaluation_service import EvaluationRepository
 from app.services.optimization.metrics import driver_count, issue_count
+from app.services.review_repository import ReviewRepository
 
 
 def _now() -> datetime:
@@ -117,6 +122,34 @@ def _candidate_metrics(result: AuditResult) -> dict[str, Any]:
 def _preferred_reference(references: list[dict[str, Any]]) -> DatasetReference:
     parsed = [DatasetReference.model_validate(reference) for reference in references]
     return next((reference for reference in parsed if reference.reference_kind == "R2"), parsed[0])
+
+
+def _dedupe_key_for(
+    source_key: str,
+    source_record_id: str,
+    references: list[DatasetReference],
+) -> str:
+    return _json_hash(
+        {
+            "source_key": source_key,
+            "source_record_id": source_record_id,
+            "references": [reference.result.model_dump(mode="json") for reference in references],
+        }
+    )
+
+
+def _reference_payload(reference: DatasetReference) -> dict[str, Any]:
+    return {
+        "reference_kind": reference.reference_kind,
+        "result": _payload_for(reference.result),
+        "reviewer": reference.reviewer,
+        "source_metadata": reference.source_metadata,
+    }
+
+
+def _materialized_source_for(source_key: str) -> str:
+    source = f"dataset:{source_key}"
+    return source if len(source) <= 32 else source[:32]
 
 
 @dataclass(frozen=True, slots=True)
@@ -338,6 +371,22 @@ class DatasetRepository:
         await self.session.refresh(population)
         return await self._population_to_schema(population)
 
+    async def update_population(
+        self,
+        population_id: str,
+        request: DatasetPopulationUpdate,
+    ) -> DatasetPopulationRecord:
+        population = await self._get_population_orm(population_id)
+        self._require_draft_population(population)
+        if request.name is not None:
+            population.name = request.name.strip()
+        if request.description is not None:
+            population.description = request.description.strip()
+        population.updated_at = _now()
+        await self.session.commit()
+        await self.session.refresh(population)
+        return await self._population_to_schema(population)
+
     async def list_populations(
         self,
         form_id: str | None = None,
@@ -366,6 +415,7 @@ class DatasetRepository:
         request: DatasetSourceFetchRequest,
     ) -> DatasetAddCandidatesResponse:
         population = await self._get_population_orm(population_id)
+        self._require_draft_population(population)
         candidates = self._fetch_source_candidates(
             request.source_id,
             form_id=population.form_id,
@@ -401,6 +451,7 @@ class DatasetRepository:
         request: DatasetSourceAddRequest,
     ) -> DatasetAddCandidatesResponse:
         population = await self._get_population_orm(population_id)
+        self._require_draft_population(population)
         candidates = self._fetch_source_candidates(
             request.source_id,
             form_id=population.form_id,
@@ -422,6 +473,66 @@ class DatasetRepository:
             "last_add_all_filtered": request.add_all_filtered,
         }
         return await self._add_canonical_candidates(population, candidates)
+
+    async def materialize_source_reviews(
+        self,
+        form_id: str,
+        form_version: str,
+        request: DatasetSourceAddRequest,
+    ) -> DatasetMaterializeResponse:
+        self.catalog.get_form(form_id, form_version)
+        candidates = self._fetch_source_candidates(
+            request.source_id,
+            form_id=form_id,
+            form_version=form_version,
+            params=request.params,
+        )[: request.limit]
+        if not request.add_all_filtered:
+            selected_ids = set(request.source_record_ids)
+            if not selected_ids:
+                raise ValueError("Select at least one source row before importing reviews.")
+            candidates = [
+                candidate for candidate in candidates if candidate.source_record_id in selected_ids
+            ]
+
+        created_ids: list[str] = []
+        skipped_ids: list[str] = []
+        repository = ReviewRepository(self.session)
+        for candidate in candidates:
+            if await self._materialized_review_exists(candidate):
+                skipped_ids.append(candidate.source_record_id)
+                continue
+            reference = next(
+                (item for item in candidate.references if item.reference_kind == "R2"),
+                candidate.references[0],
+            )
+            input_json = {
+                **candidate.input,
+                "claim_number": candidate.claim_number,
+                "effective_date": candidate.effective_date,
+                "instructions": candidate.instructions,
+                "dataset_materialized": True,
+                "dataset_source_key": candidate.source_key,
+                "dataset_source_kind": candidate.source_kind,
+                "dataset_source_label": candidate.source_label,
+                "dataset_source_record_id": candidate.source_record_id,
+                "dataset_source_metadata": candidate.metadata or {},
+                "dataset_reference_kind": reference.reference_kind,
+                "dataset_reference_source_metadata": reference.source_metadata or {},
+            }
+            review = await repository.create_from_agent_output(
+                reference.result,
+                source=_materialized_source_for(candidate.source_key),
+                input_json=input_json,
+            )
+            created_ids.append(review.id)
+
+        return DatasetMaterializeResponse(
+            created_count=len(created_ids),
+            skipped_count=len(skipped_ids),
+            review_ids=created_ids,
+            skipped_source_record_ids=skipped_ids,
+        )
 
     async def browse_app_db_source(
         self,
@@ -447,6 +558,7 @@ class DatasetRepository:
         request: DatasetAppDbAddRequest,
     ) -> DatasetAddCandidatesResponse:
         population = await self._get_population_orm(population_id)
+        self._require_draft_population(population)
         review_ids = request.review_ids if not request.add_all_filtered else None
         reviews = await self._app_db_review_rows(
             form_id=population.form_id,
@@ -471,6 +583,8 @@ class DatasetRepository:
         request: DatasetCandidateUpdate,
     ) -> DatasetCandidateRecord:
         candidate = await self._get_candidate_orm(candidate_id)
+        population = await self._get_population_orm(candidate.population_id)
+        self._require_draft_population(population)
         if request.included is not None:
             candidate.included = request.included
         if request.tags is not None:
@@ -482,12 +596,117 @@ class DatasetRepository:
         await self.session.refresh(candidate)
         return self._candidate_to_schema(candidate)
 
+    async def update_candidate_reference(
+        self,
+        candidate_id: str,
+        reference_kind: Literal["R1", "R2"],
+        request: DatasetCandidateReferenceUpdate,
+    ) -> DatasetCandidateRecord:
+        candidate = await self._get_candidate_orm(candidate_id)
+        population = await self._get_population_orm(candidate.population_id)
+        self._require_draft_population(population)
+        update_reference = DatasetReference(
+            reference_kind=reference_kind,
+            result=request.result,
+            reviewer=request.reviewer,
+            source_metadata=request.source_metadata,
+        )
+        self._validate_candidate(
+            CanonicalDatasetCandidate(
+                source_key=candidate.source_key,
+                source_kind=candidate.source_kind,
+                source_label=candidate.source_label,
+                source_record_id=candidate.source_record_id,
+                claim_number=candidate.claim_number,
+                effective_date=candidate.effective_date,
+                instructions=candidate.instructions,
+                input=candidate.input_json or {},
+                references=[update_reference],
+                metadata=candidate.metadata_json,
+                tags=candidate.tags_json or [],
+            ),
+            population,
+        )
+
+        references = [
+            DatasetReference.model_validate(reference)
+            for reference in candidate.references_json or []
+        ]
+        replaced = False
+        for index, reference in enumerate(references):
+            if reference.reference_kind == reference_kind:
+                references[index] = update_reference
+                replaced = True
+                break
+        if not replaced:
+            references.append(update_reference)
+        references = sorted(references, key=lambda item: item.reference_kind)
+
+        next_dedupe_key = _dedupe_key_for(
+            candidate.source_key,
+            candidate.source_record_id,
+            references,
+        )
+        existing = await self.session.scalar(
+            select(DatasetCandidateORM).where(
+                DatasetCandidateORM.population_id == population.id,
+                DatasetCandidateORM.dedupe_key == next_dedupe_key,
+                DatasetCandidateORM.id != candidate.id,
+            )
+        )
+        if existing:
+            raise ValueError("Edited candidate would duplicate another candidate in this draft.")
+
+        edited_at = _now().isoformat()
+        metadata = dict(candidate.metadata_json or {})
+        curation = dict(metadata.get("curation") or {})
+        edited_kinds = set(curation.get("edited_reference_kinds") or [])
+        edited_kinds.add(reference_kind)
+        edits = list(curation.get("reference_edits") or [])
+        edits.append(
+            {
+                "reference_kind": reference_kind,
+                "edited_at": edited_at,
+                "reviewer": request.reviewer,
+            }
+        )
+        curation.update(
+            {
+                "edited": True,
+                "last_edited_at": edited_at,
+                "edited_reference_kinds": sorted(edited_kinds),
+                "reference_edits": edits,
+            }
+        )
+        metadata["curation"] = curation
+        metadata["curated_edited"] = True
+
+        preferred = next(
+            (reference.result for reference in references if reference.reference_kind == "R2"),
+            references[0].result,
+        )
+        candidate.references_json = [_reference_payload(reference) for reference in references]
+        candidate.dedupe_key = next_dedupe_key
+        candidate.metrics_json = _candidate_metrics(preferred)
+        candidate.metadata_json = metadata
+        candidate.sample_reason = candidate.sample_reason or "Edited in dataset draft."
+        candidate.updated_at = _now()
+        await self._mark_analysis_stale(
+            population,
+            reason=f"reference_{reference_kind.lower()}_edited",
+            candidate_id=candidate.id,
+        )
+        await self.session.commit()
+        await self.session.refresh(candidate)
+        return self._candidate_to_schema(candidate)
+
     async def cluster_population(
         self,
         population_id: str,
         request: DatasetClusterRequest,
     ) -> DatasetClusterResult:
         population = await self._get_population_orm(population_id)
+        self._require_draft_population(population)
         candidates = [
             candidate
             for candidate in await self._candidate_rows(population.id)
@@ -542,6 +761,7 @@ class DatasetRepository:
         request: DatasetSampleRequest,
     ) -> DatasetSampleResult:
         population = await self._get_population_orm(population_id)
+        self._require_draft_population(population)
         candidates = await self._candidate_rows(population.id)
         selected_ids = _sample_candidates(candidates, request)
         for candidate in candidates:
@@ -570,6 +790,7 @@ class DatasetRepository:
         request: DatasetPublishRequest,
     ):
         population = await self._get_population_orm(population_id)
+        self._require_draft_population(population)
         candidates = await self._candidate_rows(population.id)
         selected = [
             candidate for candidate in candidates if candidate.included or not request.include_only
@@ -646,6 +867,121 @@ class DatasetRepository:
 
     async def get_published_dataset(self, dataset_id: str):
         return await EvaluationRepository(self.session).get_dataset(dataset_id)
+
+    async def clone_published_dataset(
+        self,
+        dataset_id: str,
+        request: DatasetCloneRequest,
+    ) -> DatasetPopulationDetail:
+        dataset = await self.session.get(EvalDatasetORM, dataset_id)
+        if not dataset:
+            raise KeyError(f"Unknown dataset: {dataset_id}")
+        cases = (
+            await self.session.scalars(
+                select(EvalCaseORM)
+                .options(selectinload(EvalCaseORM.ground_truths))
+                .where(EvalCaseORM.dataset_id == dataset_id)
+                .order_by(EvalCaseORM.created_at.asc())
+            )
+        ).all()
+        population = DatasetPopulationORM(
+            id=str(uuid4()),
+            name=(request.name or f"{dataset.name} Draft Copy").strip()[:120],
+            description=(
+                request.description
+                if request.description is not None
+                else f"Cloned from published dataset {dataset.name}."
+            ).strip(),
+            form_id=dataset.form_id,
+            form_version=dataset.form_version,
+            form_kind=dataset.form_kind,
+            status="draft",
+            source_config_json={
+                "cloned_from_dataset_id": dataset.id,
+                "cloned_from_dataset_name": dataset.name,
+                "cloned_at": _now().isoformat(),
+            },
+            cluster_config_json=(dataset.source_metadata_json or {}).get("cluster_config"),
+            sample_config_json=(dataset.source_metadata_json or {}).get("sample_config"),
+        )
+        self.session.add(population)
+        await self.session.flush()
+
+        for case in cases:
+            references = [
+                DatasetReference(
+                    reference_kind=truth.reference_kind,  # type: ignore[arg-type]
+                    result=parse_audit_result(truth.payload_json),
+                    reviewer=truth.reviewer,
+                    source_metadata=truth.source_metadata_json,
+                )
+                for truth in sorted(
+                    case.ground_truths,
+                    key=lambda truth: truth.reference_kind,
+                )
+            ]
+            if not references:
+                continue
+            case_metadata = case.metadata_json or {}
+            source_key = _string(case_metadata.get("source_key")) or dataset.id
+            source_record_id = _string(case_metadata.get("source_record_id")) or case.id
+            candidate_metadata = (
+                dict(case_metadata.get("candidate_metadata"))
+                if isinstance(case_metadata.get("candidate_metadata"), dict)
+                else {}
+            )
+            candidate_metadata.update(
+                {
+                    "cloned_from_dataset_id": dataset.id,
+                    "cloned_from_dataset_name": dataset.name,
+                    "cloned_from_case_id": case.id,
+                    "original_case_metadata": case_metadata,
+                }
+            )
+            tags = [tag for tag in case_metadata.get("tags", []) if isinstance(tag, str)]
+            if "cloned" not in tags:
+                tags.append("cloned")
+            preferred = next(
+                (reference.result for reference in references if reference.reference_kind == "R2"),
+                references[0].result,
+            )
+            candidate = DatasetCandidateORM(
+                id=str(uuid4()),
+                population_id=population.id,
+                source_kind=_string(case_metadata.get("source_kind")) or "published_dataset",
+                source_key=source_key,
+                source_label=_string(case_metadata.get("source_label")) or dataset.name,
+                source_record_id=source_record_id,
+                dedupe_key=_dedupe_key_for(source_key, source_record_id, references),
+                claim_number=case.claim_number,
+                effective_date=case.effective_date,
+                instructions=case.instructions,
+                input_json=case.input_json or {},
+                references_json=[_reference_payload(reference) for reference in references],
+                metadata_json=candidate_metadata,
+                tags_json=tags,
+                metrics_json=_candidate_metrics(preferred),
+                included=True,
+                cluster_id=case_metadata.get("cluster_id")
+                if isinstance(case_metadata.get("cluster_id"), int)
+                else None,
+                cluster_distance=case_metadata.get("cluster_distance")
+                if isinstance(case_metadata.get("cluster_distance"), (int, float))
+                else None,
+                cluster_score=case_metadata.get("cluster_score")
+                if isinstance(case_metadata.get("cluster_score"), (int, float))
+                else None,
+                cluster_metadata_json=case_metadata.get("cluster_metadata")
+                if isinstance(case_metadata.get("cluster_metadata"), dict)
+                else None,
+                sample_reason=_string(case_metadata.get("sample_reason"))
+                or "Cloned from published dataset.",
+            )
+            self.session.add(candidate)
+
+        population.updated_at = _now()
+        await self.session.commit()
+        return await self.get_population(population.id)
 
     async def list_published_rows(self, dataset_id: str) -> list[PublishedDatasetRow]:
         dataset = await self.session.get(EvalDatasetORM, dataset_id)
@@ -767,15 +1103,10 @@ class DatasetRepository:
                 ),
                 candidate.references[0].result,
             )
-            dedupe_key = _json_hash(
-                {
-                    "source_key": candidate.source_key,
-                    "source_record_id": candidate.source_record_id,
-                    "references": [
-                        reference.result.model_dump(mode="json")
-                        for reference in candidate.references
-                    ],
-                }
+            dedupe_key = _dedupe_key_for(
+                candidate.source_key,
+                candidate.source_record_id,
+                candidate.references,
             )
             existing = await self.session.scalar(
                 select(DatasetCandidateORM).where(
@@ -799,13 +1130,7 @@ class DatasetRepository:
                 instructions=candidate.instructions,
                 input_json=candidate.input,
                 references_json=[
-                    {
-                        "reference_kind": reference.reference_kind,
-                        "result": _payload_for(reference.result),
-                        "reviewer": reference.reviewer,
-                        "source_metadata": reference.source_metadata,
-                    }
-                    for reference in candidate.references
+                    _reference_payload(reference) for reference in candidate.references
                 ],
                 metadata_json=candidate.metadata,
                 tags_json=candidate.tags,
@@ -847,6 +1172,78 @@ class DatasetRepository:
                     f"Candidate {candidate.claim_number} uses form kind {result.form_kind}, "
                     f"expected {population.form_kind}."
                 )
+
+    def _require_draft_population(self, population: DatasetPopulationORM) -> None:
+        if population.status != "draft":
+            raise ValueError(
+                "Published dataset populations are immutable. Clone to a new draft before editing."
+            )
+
+    async def _mark_analysis_stale(
+        self,
+        population: DatasetPopulationORM,
+        *,
+        reason: str,
+        candidate_id: str,
+    ) -> None:
+        marked_at = _now().isoformat()
+        candidates = await self._candidate_rows(population.id)
+        for candidate in candidates:
+            candidate.cluster_id = None
+            candidate.cluster_distance = None
+            candidate.cluster_score = None
+            candidate.cluster_metadata_json = None
+            candidate.updated_at = _now()
+            self.session.add(candidate)
+
+        cluster_config = dict(population.cluster_config_json or {})
+        if cluster_config:
+            cluster_config.update(
+                {
+                    "stale": True,
+                    "stale_reason": reason,
+                    "stale_candidate_id": candidate_id,
+                    "stale_at": marked_at,
+                }
+            )
+            population.cluster_config_json = cluster_config
+
+        sample_config = dict(population.sample_config_json or {})
+        if sample_config:
+            sample_config.update(
+                {
+                    "stale": True,
+                    "stale_reason": reason,
+                    "stale_candidate_id": candidate_id,
+                    "stale_at": marked_at,
+                }
+            )
+            population.sample_config_json = sample_config
+
+        population.updated_at = _now()
+        self.session.add(population)
+
+    async def _materialized_review_exists(self, candidate: CanonicalDatasetCandidate) -> bool:
+        source = _materialized_source_for(candidate.source_key)
+        records = (
+            await self.session.scalars(
+                select(AuditReviewORM).where(
+                    AuditReviewORM.form_id == candidate.references[0].result.form_id,
+                    AuditReviewORM.form_version == candidate.references[0].result.form_version,
+                    AuditReviewORM.status == "completed",
+                    AuditReviewORM.source == source,
+                )
+            )
+        ).all()
+        for record in records:
+            input_json = record.input_json or {}
+            if (
+                input_json.get("dataset_materialized") is True
+                and input_json.get("dataset_source_key") == candidate.source_key
+                and input_json.get("dataset_source_record_id") == candidate.source_record_id
+            ):
+                return True
+        return False
 
     async def _app_db_review_rows(
         self,

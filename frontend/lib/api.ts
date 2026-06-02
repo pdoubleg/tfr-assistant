@@ -8,6 +8,7 @@ import type {
   DatasetAddCandidatesResponse,
   DatasetCandidateRecord,
   DatasetClusterResult,
+  DatasetMaterializeResponse,
   DatasetPopulationRecord,
   DatasetSampleMode,
   DatasetSampleResult,
@@ -445,6 +446,18 @@ export async function createDatasetPopulation(payload: {
   return parseJsonResponse<DatasetPopulationRecord>(response);
 }
 
+export async function updateDatasetPopulation(
+  populationId: string,
+  payload: { name?: string; description?: string },
+): Promise<DatasetPopulationRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/datasets/populations/${populationId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<DatasetPopulationRecord>(response);
+}
+
 export async function getDatasetPopulation(
   populationId: string,
 ): Promise<DatasetPopulationRecord> {
@@ -506,6 +519,32 @@ export async function addDatasetSourceRows(
     }),
   });
   return parseJsonResponse<DatasetAddCandidatesResponse>(response);
+}
+
+export async function materializeDatasetSourceRows(
+  formId: string,
+  formVersion: string,
+  payload: {
+    source_id: string;
+    params?: Record<string, unknown>;
+    source_record_ids?: string[];
+    add_all_filtered?: boolean;
+    limit?: number;
+  },
+): Promise<DatasetMaterializeResponse> {
+  const params = new URLSearchParams({ form_id: formId, form_version: formVersion });
+  const response = await fetch(`${apiBaseUrl}/api/datasets/source-materialize?${params.toString()}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      source_id: payload.source_id,
+      params: payload.params ?? {},
+      source_record_ids: payload.source_record_ids ?? [],
+      add_all_filtered: payload.add_all_filtered ?? false,
+      limit: payload.limit ?? 100,
+    }),
+  });
+  return parseJsonResponse<DatasetMaterializeResponse>(response);
 }
 
 export async function browseDatasetAppDbRows(
@@ -574,6 +613,23 @@ export async function updateDatasetCandidate(
   return parseJsonResponse<DatasetCandidateRecord>(response);
 }
 
+export async function updateDatasetCandidateReference(
+  candidateId: string,
+  referenceKind: "R1" | "R2",
+  payload: {
+    result: AuditFormResult;
+    reviewer?: string | null;
+    source_metadata?: Record<string, unknown> | null;
+  },
+): Promise<DatasetCandidateRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/datasets/candidates/${candidateId}/references/${referenceKind}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<DatasetCandidateRecord>(response);
+}
+
 export async function clusterDatasetPopulation(
   populationId: string,
   payload: {
@@ -628,6 +684,18 @@ export async function listPublishedDatasetRows(
     cache: "no-store",
   });
   return parseJsonResponse<PublishedDatasetRow[]>(response);
+}
+
+export async function clonePublishedDataset(
+  datasetId: string,
+  payload: { name?: string; description?: string } = {},
+): Promise<DatasetPopulationRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/datasets/${datasetId}/clone`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<DatasetPopulationRecord>(response);
 }
 
 export async function getEvalDataset(datasetId: string): Promise<EvalDatasetRecord> {

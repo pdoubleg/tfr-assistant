@@ -4,19 +4,23 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
+  Copy,
   Database,
   Eye,
+  FilePenLine,
   GitBranch,
   Layers3,
   Loader2,
   PanelRightOpen,
   Plus,
   RefreshCw,
+  Save,
   Search,
   Shuffle,
   X,
 } from "lucide-react";
 
+import { AuditResultEditSheet, type AuditResultEditSheetRow } from "@/components/data-table/audit-result-edit-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,6 +32,7 @@ import {
   browseDatasetAppDbRows,
   browseDatasetSourceRows,
   clusterDatasetPopulation,
+  clonePublishedDataset,
   createDatasetPopulation,
   getDatasetPopulation,
   listDatasetPopulations,
@@ -35,14 +40,18 @@ import {
   listFormCatalog,
   listPublishedDatasetRows,
   listPublishedDatasets,
+  materializeDatasetSourceRows,
   publishDatasetPopulation,
   sampleDatasetPopulation,
   updateDatasetCandidate,
+  updateDatasetCandidateReference,
+  updateDatasetPopulation,
 } from "@/lib/api";
 import type {
   AuditFormResult,
   DatasetCandidateRecord,
   DatasetPopulationRecord,
+  DatasetReferenceRecord,
   DatasetSampleMode,
   DatasetSourceRecord,
   DatasetSourceRowRecord,
@@ -118,12 +127,55 @@ function referenceBadges(candidate: DatasetCandidateRecord) {
   );
 }
 
+function hasStaleFlag(value?: Record<string, unknown> | null): boolean {
+  return Boolean(value && value.stale);
+}
+
+function preferredReference(candidate: DatasetCandidateRecord): DatasetReferenceRecord | null {
+  return candidate.references.find((reference) => reference.reference_kind === "R2") ?? candidate.references[0] ?? null;
+}
+
+function candidateWasEdited(candidate: DatasetCandidateRecord): boolean {
+  const metadata = candidate.metadata ?? {};
+  const curation = metadata.curation;
+  return Boolean(
+    metadata.curated_edited ||
+      (typeof curation === "object" && curation !== null && "edited_at" in curation),
+  );
+}
+
+function buildCandidateEditRow(
+  candidate: DatasetCandidateRecord | null,
+  referenceKind: "R1" | "R2",
+): AuditResultEditSheetRow | null {
+  if (!candidate) return null;
+  const reference =
+    candidate.references.find((item) => item.reference_kind === referenceKind) ??
+    preferredReference(candidate);
+  if (!reference) return null;
+  return {
+    reviewId: `dataset-candidate:${candidate.id}:${reference.reference_kind}`,
+    title: reference.result.title || candidate.claim_number || candidate.source_record_id,
+    formKey: `${reference.result.form_id}@${reference.result.form_version}`,
+    edited: candidateWasEdited(candidate),
+    claimNumber: candidate.claim_number,
+    form: reference.result,
+    createdAt: candidate.created_at ?? "",
+    updatedAt: candidate.updated_at ?? "",
+    source: candidate.source_label || candidate.source_key,
+  };
+}
+
 export default function DatasetsPage() {
   const [forms, setForms] = useState<FormCatalogEntry[]>([]);
   const [formKeyValue, setFormKeyValue] = useState("");
   const [sources, setSources] = useState<DatasetSourceRecord[]>([]);
   const [selectedSourceId, setSelectedSourceId] = useState("");
   const [population, setPopulation] = useState<DatasetPopulationRecord | null>(null);
+  const [draftPopulations, setDraftPopulations] = useState<DatasetPopulationRecord[]>([]);
+  const [draftDrawerOpen, setDraftDrawerOpen] = useState(false);
+  const [draftName, setDraftName] = useState("");
+  const [draftDescription, setDraftDescription] = useState("");
   const [publishedDatasets, setPublishedDatasets] = useState<EvalDatasetRecord[]>([]);
   const [selectedPublishedDatasetId, setSelectedPublishedDatasetId] = useState("");
   const [publishedRows, setPublishedRows] = useState<PublishedDatasetRow[]>([]);
@@ -143,6 +195,8 @@ export default function DatasetsPage() {
   const [appDbResultVersion, setAppDbResultVersion] = useState<AppDbResultVersion>("current");
 
   const [selectedCandidate, setSelectedCandidate] = useState<DatasetCandidateRecord | null>(null);
+  const [editingCandidate, setEditingCandidate] = useState<DatasetCandidateRecord | null>(null);
+  const [editingReferenceKind, setEditingReferenceKind] = useState<"R1" | "R2">("R2");
   const [selectedPublishedRow, setSelectedPublishedRow] = useState<PublishedDatasetRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
@@ -168,10 +222,24 @@ export default function DatasetsPage() {
     () => Array.from(new Set(appDbRows.map((row) => row.source).filter(Boolean))).sort(),
     [appDbRows],
   );
+  const analysisStale = hasStaleFlag(population?.cluster_config) || hasStaleFlag(population?.sample_config);
+  const candidateEditRow = buildCandidateEditRow(editingCandidate, editingReferenceKind);
 
   const refreshPopulation = useCallback(async (populationId: string) => {
     const nextPopulation = await getDatasetPopulation(populationId);
     setPopulation(nextPopulation);
+    setDraftName(nextPopulation.name);
+    setDraftDescription(nextPopulation.description);
+    if (nextPopulation.status === "draft") {
+      setDraftPopulations((current) => {
+        const withoutCurrent = current.filter((item) => item.id !== nextPopulation.id);
+        return [nextPopulation, ...withoutCurrent].sort((first, second) => {
+          const firstDate = first.updated_at ? new Date(first.updated_at).getTime() : 0;
+          const secondDate = second.updated_at ? new Date(second.updated_at).getTime() : 0;
+          return secondDate - firstDate;
+        });
+      });
+    }
     return nextPopulation;
   }, []);
 
@@ -197,9 +265,14 @@ export default function DatasetsPage() {
       const scopedPublished = nextPublished.filter(
         (dataset) => dataset.form_id === formId && dataset.form_version === formVersion,
       );
-      const currentDraft = nextPopulations.find((item) => item.status === "draft")?.id;
+      const drafts = nextPopulations.filter((item) => item.status === "draft");
+      const currentDraft =
+        population?.status === "draft" && drafts.some((item) => item.id === population.id)
+          ? population.id
+          : drafts[0]?.id;
 
       setSources(nextSources);
+      setDraftPopulations(drafts);
       setSelectedSourceId((current) =>
         current && nextSources.some((source) => source.id === current)
           ? current
@@ -219,6 +292,8 @@ export default function DatasetsPage() {
         await refreshPopulation(currentDraft);
       } else {
         setPopulation(null);
+        setDraftName("");
+        setDraftDescription("");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load datasets.");
@@ -228,6 +303,8 @@ export default function DatasetsPage() {
   }, [
     formId,
     formVersion,
+    population?.id,
+    population?.status,
     refreshPopulation,
   ]);
 
@@ -295,6 +372,9 @@ export default function DatasetsPage() {
       form_version: selectedForm.version,
     });
     setPopulation(next);
+    setDraftPopulations((current) => [next, ...current.filter((item) => item.id !== next.id)]);
+    setDraftName(next.name);
+    setDraftDescription(next.description);
     setPublishName(`${selectedForm.title} Curated Dataset`);
     setPublishDescription("");
     return next;
@@ -309,6 +389,24 @@ export default function DatasetsPage() {
     await run(async () => {
       await createDraft();
     }, "New draft dataset started.");
+  };
+
+  const saveDraft = async () => {
+    if (!population || population.status !== "draft") return;
+    await run(async () => {
+      const updated = await updateDatasetPopulation(population.id, {
+        name: draftName.trim() || population.name,
+        description: draftDescription,
+      });
+      await refreshPopulation(updated.id);
+    }, "Draft details saved.");
+  };
+
+  const resumeDraft = async (populationId: string) => {
+    await run(async () => {
+      await refreshPopulation(populationId);
+      setDraftDrawerOpen(false);
+    }, "Draft resumed.");
   };
 
   const refreshExternalRows = async () => {
@@ -339,6 +437,29 @@ export default function DatasetsPage() {
       await refreshPopulation(response.population.id);
       setSelectedExternalIds(new Set());
     }, "Selected source rows added.");
+  };
+
+  const materializeExternalRows = async () => {
+    if (!formId || !formVersion || !selectedSourceId || selectedExternalIds.size === 0) return;
+    setWorking(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await materializeDatasetSourceRows(formId, formVersion, {
+        source_id: selectedSourceId,
+        params: { count: externalCount },
+        source_record_ids: Array.from(selectedExternalIds),
+        add_all_filtered: false,
+        limit: externalCount,
+      });
+      setNotice(
+        `Imported ${result.created_count} source row${result.created_count === 1 ? "" : "s"} to Reviews; skipped ${result.skipped_count} already imported.`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to import source rows to Reviews.");
+    } finally {
+      setWorking(false);
+    }
   };
 
   const refreshAppDbRows = async () => {
@@ -381,6 +502,29 @@ export default function DatasetsPage() {
     }, candidate.included ? "Candidate removed from draft." : "Candidate restored to draft.");
   };
 
+  const openCandidateEditor = (candidate: DatasetCandidateRecord, referenceKind?: "R1" | "R2") => {
+    const kind = referenceKind ?? (candidate.references.some((reference) => reference.reference_kind === "R2") ? "R2" : "R1");
+    setEditingCandidate(candidate);
+    setEditingReferenceKind(kind);
+  };
+
+  const saveCandidateReference = async (form: AuditFormResult) => {
+    if (!editingCandidate) return;
+    const currentReference =
+      editingCandidate.references.find((reference) => reference.reference_kind === editingReferenceKind) ??
+      preferredReference(editingCandidate);
+    await updateDatasetCandidateReference(editingCandidate.id, editingReferenceKind, {
+      result: form,
+      reviewer: currentReference?.reviewer ?? "dataset-curator",
+      source_metadata: currentReference?.source_metadata ?? {},
+    });
+    const nextPopulation = await refreshPopulation(editingCandidate.population_id);
+    const nextCandidate = nextPopulation.candidates?.find((candidate) => candidate.id === editingCandidate.id) ?? null;
+    if (selectedCandidate?.id === editingCandidate.id) setSelectedCandidate(nextCandidate);
+    setEditingCandidate(null);
+    setNotice("Candidate reference updated. Cluster and sample analysis should be rerun before publishing.");
+  };
+
   const cluster = async () => {
     if (!population) return;
     await run(async () => {
@@ -420,11 +564,25 @@ export default function DatasetsPage() {
       const scopedPublished = nextPublished.filter(
         (dataset) => dataset.form_id === formId && dataset.form_version === formVersion,
       );
+      const drafts = nextPopulations.filter((item) => item.status === "draft");
       setPublishedDatasets(scopedPublished);
       setSelectedPublishedDatasetId(published.id);
-      setPopulation(nextPopulations.find((item) => item.status === "draft") ?? null);
+      setDraftPopulations(drafts);
+      setPopulation(drafts[0] ?? null);
       await loadPublishedRows(published.id);
     }, "Dataset published.");
+  };
+
+  const cloneToDraft = async (dataset: EvalDatasetRecord) => {
+    await run(async () => {
+      const cloned = await clonePublishedDataset(dataset.id, {
+        name: `${dataset.name} Draft`,
+        description: dataset.description || `Draft cloned from ${dataset.name}.`,
+      });
+      await refreshPopulation(cloned.id);
+      setDraftDrawerOpen(false);
+      setPublishedDrawerOpen(false);
+    }, "Published dataset cloned into an editable draft.");
   };
 
   return (
@@ -437,6 +595,10 @@ export default function DatasetsPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => setDraftDrawerOpen(true)}>
+            <PanelRightOpen className="h-4 w-4" />
+            Drafts
+          </Button>
           <Button type="button" variant="outline" size="sm" onClick={() => setPublishedDrawerOpen(true)}>
             <PanelRightOpen className="h-4 w-4" />
             Published
@@ -468,59 +630,90 @@ export default function DatasetsPage() {
             Form Scope
           </CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-4 lg:grid-cols-[minmax(260px,1.3fr)_minmax(260px,1fr)_auto]">
-          <label className="grid min-w-0 gap-1.5">
-            <span className="text-xs font-medium text-muted-foreground">Registered Form</span>
-            <select
-              value={formKeyValue}
-              onChange={(event) => {
-                setFormKeyValue(event.target.value);
-                setPopulation(null);
-                setExternalRows([]);
-                setPublishedRows([]);
-              }}
-              className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {forms.map((form) => (
-                <option key={formKey(form)} value={formKey(form)}>
-                  {compactFormLabel(form)}
-                </option>
-              ))}
-            </select>
-            {selectedForm ? (
-              <p className="truncate text-xs text-muted-foreground" title={selectedForm.title}>
-                {selectedForm.title}
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-[minmax(260px,1.3fr)_minmax(260px,1fr)_auto]">
+            <label className="grid min-w-0 gap-1.5">
+              <span className="text-xs font-medium text-muted-foreground">Registered Form</span>
+              <select
+                value={formKeyValue}
+                onChange={(event) => {
+                  setFormKeyValue(event.target.value);
+                  setPopulation(null);
+                  setExternalRows([]);
+                  setPublishedRows([]);
+                }}
+                className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {forms.map((form) => (
+                  <option key={formKey(form)} value={formKey(form)}>
+                    {compactFormLabel(form)}
+                  </option>
+                ))}
+              </select>
+              {selectedForm ? (
+                <p className="truncate text-xs text-muted-foreground" title={selectedForm.title}>
+                  {selectedForm.title}
+                </p>
+              ) : null}
+            </label>
+
+            <label className="grid min-w-0 gap-1.5">
+              <span className="text-xs font-medium text-muted-foreground">Selected Published Dataset</span>
+              <select
+                value={selectedPublishedDatasetId}
+                onChange={(event) => setSelectedPublishedDatasetId(event.target.value)}
+                className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {publishedDatasets.length === 0 ? <option value="">No published datasets</option> : null}
+                {publishedDatasets.map((dataset) => (
+                  <option key={dataset.id} value={dataset.id}>
+                    {dataset.name}
+                  </option>
+                ))}
+              </select>
+              <p className="truncate text-xs text-muted-foreground">
+                {selectedPublishedDataset
+                  ? `${selectedPublishedDataset.case_count} cases · ${selectedPublishedDataset.r2_count} R2 refs`
+                  : "Publish a draft or open the drawer to review saved datasets."}
               </p>
-            ) : null}
-          </label>
+            </label>
 
-          <label className="grid min-w-0 gap-1.5">
-            <span className="text-xs font-medium text-muted-foreground">Selected Published Dataset</span>
-            <select
-              value={selectedPublishedDatasetId}
-              onChange={(event) => setSelectedPublishedDatasetId(event.target.value)}
-              className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {publishedDatasets.length === 0 ? <option value="">No published datasets</option> : null}
-              {publishedDatasets.map((dataset) => (
-                <option key={dataset.id} value={dataset.id}>
-                  {dataset.name}
-                </option>
-              ))}
-            </select>
-            <p className="truncate text-xs text-muted-foreground">
-              {selectedPublishedDataset
-                ? `${selectedPublishedDataset.case_count} cases · ${selectedPublishedDataset.r2_count} R2 refs`
-                : "Publish a draft or open the drawer to review saved datasets."}
-            </p>
-          </label>
-
-          <div className="flex items-end gap-2">
-            <Button type="button" onClick={() => void startNewDraft()} disabled={working || !selectedForm}>
-              <Plus className="h-4 w-4" />
-              New Draft
-            </Button>
+            <div className="flex items-end gap-2">
+              <Button type="button" onClick={() => void startNewDraft()} disabled={working || !selectedForm}>
+                <Plus className="h-4 w-4" />
+                New Draft
+              </Button>
+            </div>
           </div>
+
+          {population?.status === "draft" ? (
+            <div className="grid gap-3 rounded-md border bg-secondary/20 p-3 lg:grid-cols-[minmax(220px,0.8fr)_minmax(280px,1.2fr)_auto]">
+              <label className="grid min-w-0 gap-1.5">
+                <span className="text-xs font-medium text-muted-foreground">Active Draft</span>
+                <Input value={draftName} onChange={(event) => setDraftName(event.target.value)} placeholder="Draft name" />
+              </label>
+              <label className="grid min-w-0 gap-1.5">
+                <span className="text-xs font-medium text-muted-foreground">Description</span>
+                <Textarea
+                  value={draftDescription}
+                  onChange={(event) => setDraftDescription(event.target.value)}
+                  placeholder="Draft purpose, intended eval split, SME notes..."
+                  className="min-h-10"
+                />
+              </label>
+              <div className="flex items-end gap-2">
+                {analysisStale ? <Badge variant="warning">Analysis stale</Badge> : null}
+                <Button type="button" variant="outline" onClick={() => void saveDraft()} disabled={working}>
+                  <Save className="h-4 w-4" />
+                  Save Draft
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+              Start a draft or resume one from the drawer to curate candidates for this form.
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -581,6 +774,8 @@ export default function DatasetsPage() {
               onSelectAll={() => setSelectedExternalIds(new Set(externalRows.map((row) => row.source_record_id)))}
               onClearSelection={() => setSelectedExternalIds(new Set())}
               onAddSelected={() => void addExternalRows()}
+              secondaryLabel="Import Selected to Reviews"
+              onSecondarySelected={() => void materializeExternalRows()}
             />
           </CardContent>
         </Card>
@@ -660,6 +855,7 @@ export default function DatasetsPage() {
               <span className="flex items-center gap-2">
                 <Layers3 className="h-4 w-4 text-primary" />
                 Draft Candidates
+                {analysisStale ? <Badge variant="warning">Analysis stale</Badge> : null}
               </span>
               <span className="text-xs font-normal text-muted-foreground">
                 {population?.included_count ?? 0} kept / {population?.candidate_count ?? 0} total
@@ -710,7 +906,7 @@ export default function DatasetsPage() {
                     <th className="px-3 py-2 text-right">Issues</th>
                     <th className="px-3 py-2">Cluster</th>
                     <th className="px-3 py-2">Source</th>
-                    <th className="w-12 px-3 py-2"></th>
+                    <th className="w-24 px-3 py-2"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -749,9 +945,23 @@ export default function DatasetsPage() {
                         <Badge variant="secondary">{candidate.source_label || candidate.source_key}</Badge>
                       </td>
                       <td className="px-3 py-2">
-                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelectedCandidate(candidate)}>
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => openCandidateEditor(candidate)}
+                            disabled={population?.status !== "draft" || candidate.references.length === 0}
+                            title="Edit reference"
+                            aria-label="Edit reference"
+                          >
+                            <FilePenLine className="h-4 w-4" />
+                          </Button>
+                          <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelectedCandidate(candidate)}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -815,6 +1025,10 @@ export default function DatasetsPage() {
                 <Badge variant="outline">{selectedPublishedDataset.form_id}@{selectedPublishedDataset.form_version}</Badge>
                 <Badge variant="secondary">R1 {selectedPublishedDataset.r1_count}</Badge>
                 <Badge variant="secondary">R2 {selectedPublishedDataset.r2_count}</Badge>
+                <Button type="button" variant="outline" size="sm" onClick={() => void cloneToDraft(selectedPublishedDataset)} disabled={working}>
+                  <Copy className="h-4 w-4" />
+                  Clone to Draft
+                </Button>
               </div>
             ) : null}
             <PublishedRowsTable rows={publishedRows} onView={setSelectedPublishedRow} />
@@ -822,8 +1036,19 @@ export default function DatasetsPage() {
         </Card>
       </section>
 
-      <CandidateDrawer candidate={selectedCandidate} onClose={() => setSelectedCandidate(null)} />
+      <CandidateDrawer
+        candidate={selectedCandidate}
+        onClose={() => setSelectedCandidate(null)}
+        onEditReference={(candidate, referenceKind) => openCandidateEditor(candidate, referenceKind)}
+      />
       <PublishedRowDrawer row={selectedPublishedRow} onClose={() => setSelectedPublishedRow(null)} />
+      <DraftDatasetsDrawer
+        open={draftDrawerOpen}
+        populations={draftPopulations}
+        selectedId={population?.id ?? ""}
+        onResume={(populationId) => void resumeDraft(populationId)}
+        onClose={() => setDraftDrawerOpen(false)}
+      />
       <PublishedDatasetsDrawer
         open={publishedDrawerOpen}
         datasets={publishedDatasets}
@@ -832,7 +1057,13 @@ export default function DatasetsPage() {
           setSelectedPublishedDatasetId(datasetId);
           setPublishedDrawerOpen(false);
         }}
+        onClone={(dataset) => void cloneToDraft(dataset)}
         onClose={() => setPublishedDrawerOpen(false)}
+      />
+      <AuditResultEditSheet
+        row={candidateEditRow}
+        onClose={() => setEditingCandidate(null)}
+        onSubmit={saveCandidateReference}
       />
       {working ? (
         <div className="fixed bottom-4 right-4 flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-sm shadow-lg">
@@ -982,6 +1213,8 @@ function SourceActions({
   onSelectAll,
   onClearSelection,
   onAddSelected,
+  secondaryLabel,
+  onSecondarySelected,
 }: {
   selectedCount: number;
   totalCount: number;
@@ -989,6 +1222,8 @@ function SourceActions({
   onSelectAll: () => void;
   onClearSelection: () => void;
   onAddSelected: () => void;
+  secondaryLabel?: string;
+  onSecondarySelected?: () => void;
 }) {
   const allSelected = totalCount > 0 && selectedCount >= totalCount;
   return (
@@ -1001,9 +1236,16 @@ function SourceActions({
           Unselect All
         </Button>
       </div>
-      <Button type="button" onClick={onAddSelected} disabled={disabled || selectedCount === 0}>
-        Add Selected ({selectedCount})
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        {secondaryLabel && onSecondarySelected ? (
+          <Button type="button" variant="outline" onClick={onSecondarySelected} disabled={disabled || selectedCount === 0}>
+            {secondaryLabel}
+          </Button>
+        ) : null}
+        <Button type="button" onClick={onAddSelected} disabled={disabled || selectedCount === 0}>
+          Add Selected ({selectedCount})
+        </Button>
+      </div>
     </div>
   );
 }
@@ -1071,17 +1313,87 @@ function PublishedRowsTable({
   );
 }
 
+function DraftDatasetsDrawer({
+  open,
+  populations,
+  selectedId,
+  onResume,
+  onClose,
+}: {
+  open: boolean;
+  populations: DatasetPopulationRecord[];
+  selectedId: string;
+  onResume: (populationId: string) => void;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50">
+      <button type="button" className="absolute inset-0 bg-foreground/30 backdrop-blur-[1px]" onClick={onClose} aria-label="Close draft datasets" />
+      <aside className="absolute right-0 top-0 flex h-full w-full max-w-xl flex-col border-l bg-background shadow-2xl">
+        <header className="flex items-center justify-between border-b bg-secondary/35 p-5">
+          <div>
+            <h2 className="text-lg font-semibold">Draft Datasets</h2>
+            <p className="text-sm text-muted-foreground">Resume a saved curation workspace for the selected form.</p>
+          </div>
+          <Button type="button" variant="ghost" size="icon" onClick={onClose}>
+            <X className="h-5 w-5" />
+          </Button>
+        </header>
+        <div className="chat-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto p-5">
+          {populations.map((population) => (
+            <div
+              key={population.id}
+              className={[
+                "rounded-md border bg-background p-3 transition",
+                selectedId === population.id ? "border-primary/60 ring-1 ring-primary/20" : "",
+              ].join(" ")}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{population.name}</p>
+                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{population.description || "No description."}</p>
+                </div>
+                <Badge variant="outline">{population.candidate_count}</Badge>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-1">
+                <Badge variant="outline">{population.form_id}@{population.form_version}</Badge>
+                <Badge variant="secondary">Kept {population.included_count}</Badge>
+                <Badge variant="secondary">R2 {population.r2_count}</Badge>
+                {hasStaleFlag(population.cluster_config) || hasStaleFlag(population.sample_config) ? (
+                  <Badge variant="warning">Stale</Badge>
+                ) : null}
+                <Button type="button" variant="outline" size="sm" className="ml-auto h-7" onClick={() => onResume(population.id)}>
+                  Resume
+                </Button>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">Updated {formatDate(population.updated_at)}</p>
+            </div>
+          ))}
+          {populations.length === 0 ? (
+            <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+              No draft datasets for the selected form yet.
+            </p>
+          ) : null}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
 function PublishedDatasetsDrawer({
   open,
   datasets,
   selectedId,
   onSelect,
+  onClone,
   onClose,
 }: {
   open: boolean;
   datasets: EvalDatasetRecord[];
   selectedId: string;
   onSelect: (datasetId: string) => void;
+  onClone: (dataset: EvalDatasetRecord) => void;
   onClose: () => void;
 }) {
   if (!open) return null;
@@ -1100,30 +1412,34 @@ function PublishedDatasetsDrawer({
         </header>
         <div className="chat-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto p-5">
           {datasets.map((dataset) => (
-            <button
+            <div
               key={dataset.id}
-              type="button"
-              onClick={() => onSelect(dataset.id)}
               className={[
                 "w-full rounded-md border bg-background p-3 text-left transition hover:border-primary/50",
                 selectedId === dataset.id ? "border-primary/60 ring-1 ring-primary/20" : "",
               ].join(" ")}
             >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{dataset.name}</p>
-                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{dataset.description || dataset.source_kind}</p>
+              <button type="button" onClick={() => onSelect(dataset.id)} className="w-full text-left">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{dataset.name}</p>
+                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{dataset.description || dataset.source_kind}</p>
+                  </div>
+                  <Badge variant={dataset.source_kind === "curated" ? "success" : "outline"}>
+                    {dataset.case_count}
+                  </Badge>
                 </div>
-                <Badge variant={dataset.source_kind === "curated" ? "success" : "outline"}>
-                  {dataset.case_count}
-                </Badge>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-1">
+              </button>
+              <div className="mt-2 flex flex-wrap items-center gap-1">
                 <Badge variant="outline">{dataset.form_id}@{dataset.form_version}</Badge>
                 <Badge variant="secondary">R1 {dataset.r1_count}</Badge>
                 <Badge variant="secondary">R2 {dataset.r2_count}</Badge>
+                <Button type="button" variant="ghost" size="sm" className="ml-auto h-7" onClick={() => onClone(dataset)}>
+                  <Copy className="h-3.5 w-3.5" />
+                  Clone
+                </Button>
               </div>
-            </button>
+            </div>
           ))}
           {datasets.length === 0 ? (
             <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
@@ -1191,12 +1507,13 @@ function MiniMetric({ label, value }: { label: string; value: string }) {
 function CandidateDrawer({
   candidate,
   onClose,
+  onEditReference,
 }: {
   candidate: DatasetCandidateRecord | null;
   onClose: () => void;
+  onEditReference: (candidate: DatasetCandidateRecord, referenceKind: "R1" | "R2") => void;
 }) {
   if (!candidate) return null;
-  const activeReference = candidate.references[0];
   return (
     <div className="fixed inset-0 z-50">
       <button type="button" className="absolute inset-0 bg-foreground/30 backdrop-blur-[1px]" onClick={onClose} aria-label="Close candidate" />
@@ -1225,9 +1542,17 @@ function CandidateDrawer({
             <MiniMetric label="OW Total" value={formatCurrency(metricNumber(candidate.metrics, "total_overwrite_dollars"))} />
           </div>
           <JsonBlock title="Source Metadata" value={candidate.metadata ?? {}} />
-          {activeReference ? (
-            <ReadOnlyResult title={`Reference ${activeReference.reference_kind}`} result={activeReference.result} />
-          ) : null}
+          {candidate.references.map((reference) => (
+            <div key={reference.reference_kind} className="space-y-2">
+              <div className="flex justify-end">
+                <Button type="button" variant="outline" size="sm" onClick={() => onEditReference(candidate, reference.reference_kind)}>
+                  <FilePenLine className="h-4 w-4" />
+                  Edit {reference.reference_kind}
+                </Button>
+              </div>
+              <ReadOnlyResult title={`Reference ${reference.reference_kind}`} result={reference.result} />
+            </div>
+          ))}
         </div>
       </aside>
     </div>

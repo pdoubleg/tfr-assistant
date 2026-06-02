@@ -61,6 +61,11 @@ class DatasetPopulationCreate(BaseModel):
     form_version: str
 
 
+class DatasetPopulationUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = None
+
+
 class DatasetPopulationRecord(BaseModel):
     id: str
     name: str
@@ -118,6 +123,12 @@ class DatasetCandidateUpdate(BaseModel):
     sample_reason: str | None = None
 
 
+class DatasetCandidateReferenceUpdate(BaseModel):
+    result: AuditResult
+    reviewer: str | None = None
+    source_metadata: dict[str, Any] | None = None
+
+
 class DatasetSourceFetchRequest(BaseModel):
     source_id: str
     params: dict[str, Any] = Field(default_factory=dict)
@@ -137,6 +148,13 @@ class DatasetAddCandidatesResponse(BaseModel):
     added_count: int
     skipped_count: int
     candidate_ids: list[str] = Field(default_factory=list)
+
+
+class DatasetMaterializeResponse(BaseModel):
+    created_count: int
+    skipped_count: int
+    review_ids: list[str] = Field(default_factory=list)
+    skipped_source_record_ids: list[str] = Field(default_factory=list)
 
 
 class DatasetAppDbBrowseRequest(BaseModel):
@@ -213,6 +231,11 @@ class DatasetPublishRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
     description: str = ""
     include_only: bool = True
+
+
+class DatasetCloneRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = None
 
 
 class PublishedDatasetRow(BaseModel):

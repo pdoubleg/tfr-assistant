@@ -669,6 +669,13 @@ export interface DatasetAddCandidatesResponse {
   candidate_ids: string[];
 }
 
+export interface DatasetMaterializeResponse {
+  created_count: number;
+  skipped_count: number;
+  review_ids: string[];
+  skipped_source_record_ids: string[];
+}
+
 export interface DatasetSourceRowRecord {
   source_record_id: string;
   review_id: string;

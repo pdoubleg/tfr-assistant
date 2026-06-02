@@ -9,12 +9,16 @@ from app.schemas.datasets import (
     DatasetAppDbAddRequest,
     DatasetAppDbBrowseRequest,
     DatasetCandidateRecord,
+    DatasetCandidateReferenceUpdate,
     DatasetCandidateUpdate,
+    DatasetCloneRequest,
     DatasetClusterRequest,
     DatasetClusterResult,
+    DatasetMaterializeResponse,
     DatasetPopulationCreate,
     DatasetPopulationDetail,
     DatasetPopulationRecord,
+    DatasetPopulationUpdate,
     DatasetPublishRequest,
     DatasetSampleRequest,
     DatasetSampleResult,
@@ -63,6 +67,20 @@ async def create_dataset_population(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@router.patch("/populations/{population_id}", response_model=DatasetPopulationRecord)
+async def update_dataset_population(
+    population_id: str,
+    request: DatasetPopulationUpdate,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> DatasetPopulationRecord:
+    try:
+        return await DatasetRepository(session).update_population(population_id, request)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.get("/populations/{population_id}", response_model=DatasetPopulationDetail)
 async def get_dataset_population(
     population_id: str,
@@ -100,6 +118,25 @@ async def browse_dataset_source(
 ) -> list[DatasetSourceRowRecord]:
     try:
         return await DatasetRepository(session).browse_source(form_id, form_version, request)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/source-materialize", response_model=DatasetMaterializeResponse)
+async def materialize_dataset_source_reviews(
+    request: DatasetSourceAddRequest,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    form_id: Annotated[str, Query()],
+    form_version: Annotated[str, Query()],
+) -> DatasetMaterializeResponse:
+    try:
+        return await DatasetRepository(session).materialize_source_reviews(
+            form_id,
+            form_version,
+            request,
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -160,6 +197,31 @@ async def update_dataset_candidate(
         return await DatasetRepository(session).update_candidate(candidate_id, request)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.put(
+    "/candidates/{candidate_id}/references/{reference_kind}", response_model=DatasetCandidateRecord
+)
+async def update_dataset_candidate_reference(
+    candidate_id: str,
+    reference_kind: str,
+    request: DatasetCandidateReferenceUpdate,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> DatasetCandidateRecord:
+    if reference_kind not in {"R1", "R2"}:
+        raise HTTPException(status_code=400, detail="reference_kind must be R1 or R2.")
+    try:
+        return await DatasetRepository(session).update_candidate_reference(
+            candidate_id,
+            reference_kind,  # type: ignore[arg-type]
+            request,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/populations/{population_id}/cluster", response_model=DatasetClusterResult)
@@ -186,6 +248,8 @@ async def sample_dataset_population(
         return await DatasetRepository(session).sample_population(population_id, request)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/populations/{population_id}/publish", response_model=EvalDatasetDetail)
@@ -207,6 +271,20 @@ async def list_published_datasets(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> list[EvalDatasetRecord]:
     return await DatasetRepository(session).list_published_datasets()
+
+
+@router.post("/{dataset_id}/clone", response_model=DatasetPopulationDetail, status_code=201)
+async def clone_published_dataset(
+    dataset_id: str,
+    request: DatasetCloneRequest,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> DatasetPopulationDetail:
+    try:
+        return await DatasetRepository(session).clone_published_dataset(dataset_id, request)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/{dataset_id}", response_model=EvalDatasetDetail)

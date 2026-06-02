@@ -79,7 +79,7 @@ class ReviewRecord(BaseModel):
     form_version: str
     form_kind: FormKind = "standard"
     status: ReviewStatus = "completed"
-    source: ReviewSource = "api"
+    source: str = "api"
     batch_id: str | None = None
     input_json: dict[str, Any] | None = None
     original: AuditResult | None = None
