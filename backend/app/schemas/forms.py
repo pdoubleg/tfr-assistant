@@ -3,6 +3,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.core.llm import DEFAULT_AUDIT_MODEL_NAME
 from app.models.audit import AuditResult, FormKind
 
 
@@ -42,6 +43,7 @@ class AuditFormDefinition(BaseModel):
     version: str
     title: str
     form_kind: FormKind = "standard"
+    model_name: str = DEFAULT_AUDIT_MODEL_NAME
     description: str | None = None
     instructions: str | None = None
     tools: list[str] | None = None
@@ -62,7 +64,7 @@ class AuditFormDefinition(BaseModel):
 
     @property
     def catalog_key(self) -> str:
-        return f"{self.id}@{self.version}"
+        return f"{self.id}@{self.version}-{self.model_name}"
 
 
 class AuditFormRegistration(BaseModel):
@@ -70,6 +72,7 @@ class AuditFormRegistration(BaseModel):
     version: str
     title: str
     form_kind: FormKind = "standard"
+    model_name: str = DEFAULT_AUDIT_MODEL_NAME
     description: str | None = None
     instructions: str | None = None
     tools: list[str] | None = None
@@ -93,6 +96,7 @@ class AuditFormSummary(BaseModel):
     version: str
     title: str
     form_kind: FormKind = "standard"
+    model_name: str = DEFAULT_AUDIT_MODEL_NAME
     description: str | None = None
     instructions: str | None = None
     tools: list[str] | None = None

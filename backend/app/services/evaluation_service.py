@@ -842,6 +842,7 @@ class EvaluationRunService:
                     instructions=case.instructions,
                     form_id=dataset.form_id,
                     form_version=dataset.form_version,
+                    model_name=run.model_name,
                     prompt_ref=PromptReference.model_validate(run.input_json["prompt_ref"])
                     if (run.input_json or {}).get("prompt_ref")
                     else None,

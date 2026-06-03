@@ -75,6 +75,7 @@ class AgentAuditFormGenerator:
         canonical: AuditFormDefinition,
     ) -> GeneratedAuditResult:
         form_path = self.catalog.path_for(canonical.id, canonical.version)
+        model_name = request.model_name.strip() or canonical.model_name
         if self.mode == "synthetic":
             result = await run_synthetic_review_agent(
                 claim_number=request.claim_number,
@@ -84,6 +85,7 @@ class AgentAuditFormGenerator:
                 user_prompt=request.prompt or request.generation_prompt,
                 knowledge_docs=canonical.knowledge_docs,
                 active_settings=self.settings,
+                model_name=model_name,
             )
         else:
             base_prompt = (
@@ -105,6 +107,7 @@ class AgentAuditFormGenerator:
                 base_instructions=base_prompt,
                 include_form_instructions=base_prompt is None,
                 active_settings=self.settings,
+                model_name=model_name,
             )
         return GeneratedAuditResult(result=result)
 
@@ -137,6 +140,7 @@ class CompletedIntakeAuditFormGenerator:
         if not document.content.strip():
             raise ValueError(f"Intake document has no extractable text: {document_id}")
         form_path = self.catalog.path_for(canonical.id, canonical.version)
+        model_name = request.model_name.strip() or canonical.model_name
         output = await run_completed_intake_agent(
             document_text=document.content,
             document_name=document_path.name,
@@ -144,6 +148,7 @@ class CompletedIntakeAuditFormGenerator:
             instructions=request.instructions,
             knowledge_docs=canonical.knowledge_docs,
             active_settings=self.settings,
+            model_name=model_name,
         )
         if isinstance(output, AuditIntakeFailure):
             raise AuditIntakeFailureError(output)

@@ -1,6 +1,26 @@
 export type QuestionAnswer = "Yes" | "No";
 export type OverallOutcome = "Meets" | "Does Not Meet";
 export type FormKind = "standard" | "financial";
+export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+
+export interface ChatModelOption {
+  name: string;
+  label: string;
+  base_name: string;
+  deployment_name: string;
+  context_window?: number | null;
+  api: "chat" | "responses" | "test";
+  reasoning_efforts: ReasoningEffort[];
+  default_reasoning_effort?: ReasoningEffort | null;
+  default_for_chat?: boolean;
+  default_for_audit?: boolean;
+}
+
+export interface ChatModelCatalog {
+  models: ChatModelOption[];
+  default_model_name: string;
+  default_reasoning_effort?: ReasoningEffort | null;
+}
 
 export interface FormSubQuestion {
   id: string;
@@ -34,6 +54,9 @@ export interface AuditFormResult {
   questions: FormQuestion[];
   overall_outcome: OverallOutcome;
   outcome_justification: string;
+  cost?: number | null;
+  image_cost?: number | null;
+  latency?: number | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -43,6 +66,7 @@ export interface AuditFormDefinition {
   version: string;
   title: string;
   form_kind?: FormKind;
+  model_name?: string;
   description?: string | null;
   instructions?: string | null;
   tools?: string[] | null;
@@ -767,6 +791,7 @@ export interface FormCatalogEntry {
   version: string;
   title: string;
   formKind: FormKind;
+  modelName: string;
   description: string;
   instructions: string;
   tools: string[];
@@ -904,6 +929,13 @@ export interface TFRChatState {
   current_step: string;
   activity_log: ToolStep[];
   error_message: string | null;
+  chat_model_name: string;
+  chat_context_window: number | null;
+  chat_context_used_tokens: number;
+  chat_context_remaining_percent: number | null;
+  chat_run_cost: number;
+  chat_total_cost: number;
+  chat_last_usage: Record<string, number>;
 }
 
 export type OutputComponent =

@@ -58,6 +58,7 @@ class ReviewGenerateRequest(BaseModel):
     instructions: str = ""
     form_id: str = "tfr_default"
     form_version: str = "v0.1"
+    model_name: str = ""
     prompt_ref: PromptReference | None = None
     resolved_prompt: ResolvedPrompt | None = None
     source_file_ids: list[str] = Field(default_factory=list)

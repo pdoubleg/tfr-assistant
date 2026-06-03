@@ -39,3 +39,17 @@ def test_ag_ui_endpoint_rejects_whitespace_body_with_clear_message() -> None:
 
     assert response.status_code == 400
     assert response.json()["detail"] == "AG-UI endpoint requires a JSON RunAgentInput request body."
+
+
+def test_chat_models_endpoint_returns_defaults() -> None:
+    app = FastAPI()
+    app.include_router(router, prefix="/api/chat")
+    client = TestClient(app)
+
+    response = client.get("/api/chat/models")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["default_model_name"] == "gpt-5.4-mini"
+    mini = next(model for model in body["models"] if model["name"] == "gpt-5.4-mini")
+    assert mini["context_window"] == 400_000

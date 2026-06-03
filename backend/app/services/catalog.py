@@ -16,6 +16,7 @@ class FormCatalog:
                 version=form.version,
                 title=form.title,
                 form_kind=form.form_kind,
+                model_name=form.model_name,
                 description=form.description,
                 instructions=form.instructions,
                 tools=form.tools,

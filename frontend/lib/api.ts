@@ -5,6 +5,7 @@ import type {
   BatchSummary,
   BatchTemplatePayload,
   BatchTemplateRecord,
+  ChatModelCatalog,
   DatasetAddCandidatesResponse,
   DatasetCandidateRecord,
   DatasetClusterResult,
@@ -110,6 +111,13 @@ export async function updateReviewUserVersion(
   return parseJsonResponse<ReviewRecord>(response);
 }
 
+export async function listChatModels(): Promise<ChatModelCatalog> {
+  const response = await fetch(`${apiBaseUrl}/api/chat/models`, {
+    cache: "no-store",
+  });
+  return parseJsonResponse<ChatModelCatalog>(response);
+}
+
 export async function listFormCatalog(): Promise<FormCatalogEntry[]> {
   const response = await fetch(`${apiBaseUrl}/api/forms`, {
     cache: "no-store",
@@ -120,6 +128,7 @@ export async function listFormCatalog(): Promise<FormCatalogEntry[]> {
       version: string;
       title: string;
       form_kind?: "standard" | "financial";
+      model_name?: string;
       description?: string | null;
       instructions?: string | null;
       tools?: string[] | null;
@@ -138,6 +147,7 @@ export async function listFormCatalog(): Promise<FormCatalogEntry[]> {
     version: form.version,
     title: form.title,
     formKind: form.form_kind ?? "standard",
+    modelName: form.model_name ?? "gpt-5.4-nano",
     description: form.description ?? "",
     instructions: form.instructions ?? "",
     tools: form.tools ?? [],
@@ -178,6 +188,7 @@ export async function registerForm(
       version: definition.version,
       title: definition.title,
       form_kind: definition.form_kind ?? definition.canonical.form_kind ?? "standard",
+      model_name: definition.model_name ?? "gpt-5.4-nano",
       description: definition.description ?? "",
       instructions: definition.instructions ?? null,
       tools: definition.tools ?? null,

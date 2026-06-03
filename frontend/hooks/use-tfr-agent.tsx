@@ -8,18 +8,23 @@ import {
   type ReactNode,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
 } from "react";
 
+import { listChatModels } from "@/lib/api";
 import type {
+  ChatModelOption,
   ChatRunContext,
   HomeTableContext,
   OutputComponent,
+  ReasoningEffort,
   TFRChatState,
 } from "@/lib/types";
 
 export const TFR_AGENT_ID = "tfr_agent";
+export const TFR_CHAT_MODEL_CONTEXT_DESCRIPTION = "TFR chat model selection";
 
 const agentUpdates = [
   "OnMessagesChanged",
@@ -41,6 +46,16 @@ const emptyHomeTableContext: HomeTableContext = {
   },
 };
 
+interface ChatModelSelection {
+  modelName: string;
+  reasoningEffort: ReasoningEffort | null;
+}
+
+const defaultChatModelSelection: ChatModelSelection = {
+  modelName: "gpt-5.4-mini",
+  reasoningEffort: "low",
+};
+
 export const initialTfrChatState: TFRChatState = {
   active_route: "/",
   active_review_id: null,
@@ -55,6 +70,13 @@ export const initialTfrChatState: TFRChatState = {
   current_step: "",
   activity_log: [],
   error_message: null,
+  chat_model_name: "",
+  chat_context_window: null,
+  chat_context_used_tokens: 0,
+  chat_context_remaining_percent: null,
+  chat_run_cost: 0,
+  chat_total_cost: 0,
+  chat_last_usage: {},
 };
 
 interface TfrAgentContextValue {
@@ -67,6 +89,9 @@ interface TfrAgentContextValue {
   runChatMessage: (content: string) => Promise<void>;
   stop: () => void;
   isRunning: boolean;
+  chatModelOptions: ChatModelOption[];
+  chatModelSelection: ChatModelSelection;
+  setChatModelSelection: (selection: ChatModelSelection) => void;
   outputComponents: OutputComponent[];
   openOutputComponent: (component: OutputComponent) => void;
   closeOutputComponent: (componentId: string) => void;
@@ -85,6 +110,9 @@ export function TfrAgentProvider({ children }: { children: ReactNode }) {
   const [homeTableContext, setHomeTableContext] =
     useState<HomeTableContext>(emptyHomeTableContext);
   const [outputComponents, setOutputComponents] = useState<OutputComponent[]>([]);
+  const [chatModelOptions, setChatModelOptions] = useState<ChatModelOption[]>([]);
+  const [chatModelSelection, setChatModelSelectionState] =
+    useState<ChatModelSelection>(defaultChatModelSelection);
 
   const state = useMemo(
     () => normalizeTfrChatState(agent.state as Partial<TFRChatState>),
@@ -109,6 +137,40 @@ export function TfrAgentProvider({ children }: { children: ReactNode }) {
       captured_at: new Date().toISOString(),
     };
   }, [homeTableContext]);
+
+  useEffect(() => {
+    let active = true;
+    void listChatModels()
+      .then((catalog) => {
+        if (!active) return;
+        setChatModelOptions(catalog.models);
+        setChatModelSelectionState((current) => {
+          const modelExists = catalog.models.some((model) => model.name === current.modelName);
+          if (modelExists) return normalizeChatModelSelection(current, catalog.models);
+          return normalizeChatModelSelection(
+            {
+              modelName: catalog.default_model_name || defaultChatModelSelection.modelName,
+              reasoningEffort:
+                catalog.default_reasoning_effort ?? defaultChatModelSelection.reasoningEffort,
+            },
+            catalog.models,
+          );
+        });
+      })
+      .catch(() => {
+        if (active) setChatModelOptions([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const setChatModelSelection = useCallback(
+    (selection: ChatModelSelection) => {
+      setChatModelSelectionState(normalizeChatModelSelection(selection, chatModelOptions));
+    },
+    [chatModelOptions],
+  );
 
   const runChatMessage = useCallback(
     async (content: string) => {
@@ -144,6 +206,13 @@ export function TfrAgentProvider({ children }: { children: ReactNode }) {
               description: "TFR run context captured when the user submitted chat input",
               value: JSON.stringify(runContext),
             },
+            {
+              description: TFR_CHAT_MODEL_CONTEXT_DESCRIPTION,
+              value: JSON.stringify({
+                model_name: chatModelSelection.modelName,
+                reasoning_effort: chatModelSelection.reasoningEffort,
+              }),
+            },
           ],
         });
         const finalState = normalizeTfrChatState(agent.state as Partial<TFRChatState>);
@@ -166,7 +235,7 @@ export function TfrAgentProvider({ children }: { children: ReactNode }) {
         throw error;
       }
     },
-    [agent, buildRunContextSnapshot],
+    [agent, buildRunContextSnapshot, chatModelSelection],
   );
 
   const stop = useCallback(() => {
@@ -210,6 +279,9 @@ export function TfrAgentProvider({ children }: { children: ReactNode }) {
     runChatMessage,
     stop,
     isRunning: agent.isRunning,
+    chatModelOptions,
+    chatModelSelection,
+    setChatModelSelection,
     outputComponents,
     openOutputComponent,
     closeOutputComponent,
@@ -218,6 +290,24 @@ export function TfrAgentProvider({ children }: { children: ReactNode }) {
   };
 
   return <TfrAgentContext.Provider value={value}>{children}</TfrAgentContext.Provider>;
+}
+
+function normalizeChatModelSelection(
+  selection: ChatModelSelection,
+  models: ChatModelOption[],
+): ChatModelSelection {
+  const model =
+    models.find((candidate) => candidate.name === selection.modelName) ?? models[0] ?? null;
+  if (!model) return selection;
+  const efforts = model.reasoning_efforts ?? [];
+  const reasoningEffort =
+    selection.reasoningEffort && efforts.includes(selection.reasoningEffort)
+      ? selection.reasoningEffort
+      : model.default_reasoning_effort ?? efforts[0] ?? null;
+  return {
+    modelName: model.name,
+    reasoningEffort,
+  };
 }
 
 export function useTfrAgent() {
@@ -239,6 +329,9 @@ export function normalizeTfrChatState(snapshot: Partial<TFRChatState> | null | u
     components: snapshot?.components ?? [],
     run_context: snapshot?.run_context ?? null,
     activity_log: snapshot?.activity_log ?? [],
+    chat_context_window: snapshot?.chat_context_window ?? null,
+    chat_context_remaining_percent: snapshot?.chat_context_remaining_percent ?? null,
+    chat_last_usage: snapshot?.chat_last_usage ?? {},
   };
 }
 

@@ -39,6 +39,7 @@ import {
   createPromptVersion,
   getFormDefinition,
   listFormCatalog,
+  listChatModels,
   listPromptFamilies,
   registerForm,
   setPromptActivation,
@@ -46,6 +47,7 @@ import {
 import type {
   AuditFormDefinition,
   AuditFormResult,
+  ChatModelOption,
   FormCatalogEntry,
   FormKind,
   FormQuestion,
@@ -63,12 +65,14 @@ type PromptViewerMode = "prompt" | "diff";
 
 const FORM_TOOL_OPTIONS = ["Claim Summary", "Notes", "Documents", "Images"] as const;
 const CANONICAL_PLACEHOLDER = "Canonical template placeholder.";
+const DEFAULT_AUDIT_MODEL_NAME = "gpt-5.4-nano";
 
 interface FormEditorState {
   id: string;
   version: string;
   title: string;
   formKind: FormKind;
+  modelName: string;
   description: string;
   instructions: string;
   tools: string[];
@@ -275,6 +279,7 @@ function buildDefinition(state: FormEditorState): AuditFormDefinition {
     version: canonical.form_version,
     title: canonical.title,
     form_kind: canonical.form_kind ?? state.formKind,
+    model_name: state.modelName || DEFAULT_AUDIT_MODEL_NAME,
     description: canonical.description,
     instructions: normalizeOptionalText(state.instructions),
     tools: normalizeList(state.tools),
@@ -334,6 +339,7 @@ function definitionToState(
   const title = definition?.title ?? canonical?.title ?? titleFromId(baseId);
   const description = definition?.description ?? canonical?.description ?? "";
   const formKind = definition?.form_kind ?? canonical?.form_kind ?? "standard";
+  const modelName = definition?.model_name ?? DEFAULT_AUDIT_MODEL_NAME;
   const questions = canonical?.questions?.length
       ? canonical.questions.map((question) => ({
         ...question,
@@ -357,6 +363,7 @@ function definitionToState(
     version,
     title,
     formKind,
+    modelName,
     description,
     instructions: mode === "edit" ? registryInstructions || definition?.instructions || "" : definition?.instructions ?? "",
     tools: definition?.tools ?? [],
@@ -410,7 +417,7 @@ function MetadataPill({ label, value }: { label: string; value: string | number 
   return (
     <div className="rounded-md border bg-background px-3 py-2">
       <p className="text-[11px] font-semibold uppercase text-muted-foreground">{label}</p>
-      <p className="mt-1 text-sm font-medium tabular-nums">{value}</p>
+      <p className="mt-1 break-words text-sm font-medium tabular-nums">{value}</p>
     </div>
   );
 }
@@ -506,6 +513,9 @@ function FormCatalogRow({
           {selected ? <Badge variant="outline">Open</Badge> : null}
           <Badge variant="outline" className="font-mono text-[10px]">
             {form.id}@{form.version}
+          </Badge>
+          <Badge variant="secondary" className="font-mono text-[10px]">
+            {form.modelName}
           </Badge>
         </div>
         <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
@@ -1401,6 +1411,7 @@ function FormPreviewPanel({
 
 export function FormCatalog() {
   const [forms, setForms] = useState<FormCatalogEntry[]>([]);
+  const [modelOptions, setModelOptions] = useState<ChatModelOption[]>([]);
   const [query, setQuery] = useState("");
   const [usageFilter, setUsageFilter] = useState<UsageFilter>("all");
   const [selectedKey, setSelectedKey] = useState("");
@@ -1419,8 +1430,12 @@ export function FormCatalog() {
     setLoading(true);
     setError("");
     try {
-      const nextForms = await listFormCatalog();
+      const [nextForms, nextModels] = await Promise.all([
+        listFormCatalog(),
+        listChatModels().catch(() => null),
+      ]);
       setForms(nextForms);
+      if (nextModels) setModelOptions(nextModels.models);
       setSelectedKey((current) => {
         if (current && nextForms.some((form) => formKey(form) === current)) return current;
         return "";
@@ -1496,6 +1511,7 @@ export function FormCatalog() {
           form.title,
           form.description,
           form.instructions,
+          form.modelName,
           form.tools.join(" "),
           form.knowledgeDocs.join(" "),
         ]
@@ -1766,6 +1782,9 @@ export function FormCatalog() {
                     <Badge variant="outline" className="font-mono text-[10px]">
                       {selectedDefinition.id}@{selectedDefinition.version}
                     </Badge>
+                    <Badge variant="secondary" className="font-mono text-[10px]">
+                      {selectedDefinition.model_name ?? DEFAULT_AUDIT_MODEL_NAME}
+                    </Badge>
                     <Badge variant="outline">{selectedDefinition.form_kind ?? "standard"}</Badge>
                   </div>
                   <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
@@ -1779,6 +1798,7 @@ export function FormCatalog() {
                     <MetadataPill label="Sub-Questions" value={selectedForm.subQuestionCount} />
                   ) : null}
                   <MetadataPill label="Reviews" value={selectedForm.reviewCount} />
+                  <MetadataPill label="Model" value={selectedForm.modelName} />
                   <MetadataPill label="Completed" value={selectedForm.completedCount} />
                   <MetadataPill label="Failed" value={selectedForm.failedCount} />
                   <MetadataPill label="Created" value={formatDate(selectedForm.createdAt)} />
@@ -1855,6 +1875,7 @@ export function FormCatalog() {
         open={dialogOpen}
         mode={dialogMode}
         forms={forms}
+        modelOptions={modelOptions}
         sourceDefinition={dialogMode === "edit" ? selectedDefinition : null}
         registryInstructions={dialogMode === "edit" ? selectedActivePrompt?.text ?? "" : ""}
         saving={saving}
@@ -1872,6 +1893,7 @@ function FormRegistrationDialog({
   open,
   mode,
   forms,
+  modelOptions,
   sourceDefinition,
   registryInstructions,
   saving,
@@ -1881,6 +1903,7 @@ function FormRegistrationDialog({
   open: boolean;
   mode: DialogMode;
   forms: FormCatalogEntry[];
+  modelOptions: ChatModelOption[];
   sourceDefinition: AuditFormDefinition | null;
   registryInstructions?: string;
   saving: boolean;
@@ -1903,6 +1926,25 @@ function FormRegistrationDialog({
   );
   const runtimeMetadataMissing =
     state.tools.length === 0 && state.knowledgeDocs.length === 0;
+  const baseGenerationModelOptions = modelOptions.length
+    ? modelOptions
+    : [
+        {
+          name: state.modelName || DEFAULT_AUDIT_MODEL_NAME,
+          label: state.modelName || DEFAULT_AUDIT_MODEL_NAME,
+        } as ChatModelOption,
+      ];
+  const generationModelOptions = baseGenerationModelOptions.some(
+    (model) => model.name === state.modelName,
+  )
+    ? baseGenerationModelOptions
+    : [
+        {
+          name: state.modelName,
+          label: state.modelName,
+        } as ChatModelOption,
+        ...baseGenerationModelOptions,
+      ];
 
   useBodyScrollLock(open);
 
@@ -2123,7 +2165,7 @@ function FormRegistrationDialog({
         <div className="chat-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-6">
           <div className="space-y-5">
             <div className="rounded-lg border bg-background p-4">
-              <div className="grid gap-4 lg:grid-cols-[minmax(220px,1fr)_150px_minmax(260px,1.2fr)_minmax(260px,1.3fr)]">
+              <div className="grid gap-4 lg:grid-cols-[minmax(220px,1fr)_minmax(180px,0.8fr)_150px_minmax(220px,1fr)_minmax(240px,1.2fr)]">
                 <div className="grid gap-2">
                   <FieldLabel
                     htmlFor="form-kind-standard"
@@ -2170,6 +2212,29 @@ function FormRegistrationDialog({
                       {importMessage}
                     </p>
                   ) : null}
+                </div>
+
+                <div className="grid gap-2">
+                  <FieldLabel
+                    htmlFor="form-model"
+                    label="Generation Model"
+                    tooltip="The audit generation model is part of this registered form version."
+                  />
+                  <select
+                    id="form-model"
+                    value={state.modelName}
+                    onChange={(event) =>
+                      setState((current) => ({ ...current, modelName: event.target.value }))
+                    }
+                    disabled={saving}
+                    className="h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {generationModelOptions.map((model) => (
+                      <option key={model.name} value={model.name}>
+                        {model.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="grid gap-2">

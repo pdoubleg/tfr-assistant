@@ -17,7 +17,7 @@ uv sync
 uv run uvicorn app.main:app --reload
 ```
 
-The chat agent defaults to the OpenAI Responses API with `CHAT_MODEL=gpt-5.4-mini` and `CHAT_MODEL_API=responses`. Set `CHAT_MODEL_API=test` for local streaming without external credentials, or set `CHAT_MODEL_API=chat` to use Chat Completions. Model names should be the underlying OpenAI model name only, not Pydantic-AI prefixes such as `openai-responses:`. For Responses models, tune `CHAT_MODEL_REASONING_EFFORT`, `CHAT_MODEL_REASONING_SUMMARY`, and `CHAT_MODEL_TIMEOUT_SECONDS` as needed.
+The chat agent defaults to `CHAT_MODEL=gpt-5.4-mini`. Set `CHAT_MODEL_API=test` for local streaming without external credentials, or set `CHAT_MODEL_API=responses` / `chat` for OpenAI-backed runs. Selectable chat/form models are registered in `app.core.llm`; each option has a base pricing name and a deployment name. For Azure OpenAI deployment aliases, set `LLM_DEPLOYMENTS` as JSON, for example `{"gpt-5.4-mini":"gpt-5.4-mini-2026-03-17-us-data-zone"}`, or set `*_MODEL_BASE_NAME` when a role default points directly at a custom deployment. Model names should not use Pydantic-AI prefixes such as `openai-responses:`. Tune `CHAT_MODEL_REASONING_EFFORT`, `CHAT_MODEL_REASONING_SUMMARY`, and `CHAT_MODEL_TIMEOUT_SECONDS` as needed.
 
 ## Database
 

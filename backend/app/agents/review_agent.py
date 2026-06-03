@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
 
 from app.core.config import Settings, get_settings
-from app.core.llm import LLMModelConfig, build_llm_model
+from app.core.llm import LLMModelConfig, LLMRunCostTracker, build_llm_model
 from app.models.audit import (
     AuditFormResult,
     AuditFormWithFinancialsResult,
@@ -92,6 +92,7 @@ class FileReviewAgentDeps:
     tools: list[str] | None = None
     knowledge_docs: list[str] | None = None
     include_form_instructions: bool = True
+    cost_tracker: LLMRunCostTracker = field(default_factory=LLMRunCostTracker)
     form_path: Path = field(init=False)
     form_definition: AuditFormDefinition = field(init=False)
     canonical: AuditResult = field(init=False)
@@ -134,10 +135,14 @@ def load_form_definition(path: str | Path) -> AuditFormDefinition:
 
 def build_file_review_agent(
     active_settings: Settings | None = None,
+    *,
+    model_config: LLMModelConfig | None = None,
+    model_name: str | None = None,
 ) -> Agent[FileReviewAgentDeps, AuditFormResult]:
     active_settings = active_settings or settings
+    model_config = model_config or active_settings.audit_llm_config(model_name=model_name)
     agent = Agent(
-        build_llm_model(active_settings.audit_llm_config()),
+        build_llm_model(model_config),
         output_type=AuditFormResult,
         deps_type=FileReviewAgentDeps,
         validation_context=lambda ctx: ctx.deps,
@@ -259,10 +264,11 @@ async def run_file_review_agent(
     base_instructions: str | None = None,
     include_form_instructions: bool = True,
     active_settings: Settings | None = None,
+    model_name: str | None = None,
 ) -> AuditResult:
     active_settings = active_settings or settings
-    model_config = active_settings.audit_llm_config()
-    agent = build_file_review_agent(active_settings)
+    model_config = active_settings.audit_llm_config(model_name=model_name)
+    agent = build_file_review_agent(active_settings, model_config=model_config)
     deps = FileReviewAgentDeps(
         path_to_questionnaire=path_to_questionnaire,
         claim_number=claim_number,
@@ -289,6 +295,8 @@ async def run_file_review_agent(
                 result = await agent.run(user_prompt=prompt, deps=deps, output_type=output_type)
         else:
             result = await agent.run(user_prompt=prompt, deps=deps, output_type=output_type)
+        deps.cost_tracker.add_usage(result.usage(), model_config, source="file_review_agent")
+        result.output.cost = deps.cost_tracker.total_cost
     except Exception as exc:
         logger.exception(
             "File review agent failed for %s@%s",
@@ -309,10 +317,11 @@ async def run_synthetic_review_agent(
     user_prompt: str = "",
     knowledge_docs: list[str] | None = None,
     active_settings: Settings | None = None,
+    model_name: str | None = None,
 ) -> AuditResult:
     active_settings = active_settings or settings
-    model_config = active_settings.audit_llm_config()
-    agent = build_file_review_agent(active_settings)
+    model_config = active_settings.audit_llm_config(model_name=model_name)
+    agent = build_file_review_agent(active_settings, model_config=model_config)
     deps = FileReviewAgentDeps(
         path_to_questionnaire=path_to_questionnaire,
         claim_number=claim_number,
@@ -340,6 +349,8 @@ async def run_synthetic_review_agent(
             builtin_tools=(),
         ):
             result = await agent.run(user_prompt=prompt, deps=deps, output_type=output_type)
+        deps.cost_tracker.add_usage(result.usage(), model_config, source="synthetic_review_agent")
+        result.output.cost = deps.cost_tracker.total_cost
     except Exception as exc:
         logger.exception(
             "Synthetic review agent failed for %s@%s",
@@ -360,10 +371,11 @@ async def run_completed_intake_agent(
     instructions: str = "",
     knowledge_docs: list[str] | None = None,
     active_settings: Settings | None = None,
+    model_name: str | None = None,
 ) -> CompletedAuditIntakeResult | CompletedFinancialAuditIntakeResult | AuditIntakeFailure:
     active_settings = active_settings or settings
-    model_config = active_settings.audit_llm_config()
-    agent = build_file_review_agent(active_settings)
+    model_config = active_settings.audit_llm_config(model_name=model_name)
+    agent = build_file_review_agent(active_settings, model_config=model_config)
     deps = FileReviewAgentDeps(
         path_to_questionnaire=path_to_questionnaire,
         instructions=instructions,
@@ -397,6 +409,9 @@ async def run_completed_intake_agent(
                 deps=deps,
                 output_type=output_type,
             )
+        deps.cost_tracker.add_usage(result.usage(), model_config, source="completed_intake_agent")
+        if not isinstance(result.output, AuditIntakeFailure):
+            result.output.result.cost = deps.cost_tracker.total_cost
     except Exception as exc:
         logger.exception(
             "Completed intake agent failed for %s@%s",

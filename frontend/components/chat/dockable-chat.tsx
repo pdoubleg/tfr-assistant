@@ -17,6 +17,7 @@ import {
   MessageSquareText,
   Minimize2,
   Send,
+  Settings2,
   Sparkles,
   Wrench,
   X,
@@ -130,12 +131,16 @@ export function DockableChat({
   const [promptHistoryIndex, setPromptHistoryIndex] = useState<number | null>(null);
   const {
     agent,
+    chatModelOptions,
+    chatModelSelection,
     homeTableContext,
     isRunning,
     runChatMessage,
+    setChatModelSelection,
     state: sharedState,
   } = useTfrAgent();
   const [expandedToolMessages, setExpandedToolMessages] = useState<Set<string>>(new Set());
+  const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const liveToolMessagesRef = useRef<Set<string>>(new Set());
   const shouldStickToBottomRef = useRef(true);
   const [panelRect, setPanelRect] = useState({
@@ -212,6 +217,18 @@ export function DockableChat({
     [transcriptItems],
   );
   const chatGutter = useMemo(() => getChatGutter(panelRect.width, mode), [mode, panelRect.width]);
+  const selectedChatModel = useMemo(
+    () => chatModelOptions.find((model) => model.name === chatModelSelection.modelName) ?? null,
+    [chatModelOptions, chatModelSelection.modelName],
+  );
+  const reasoningEfforts = selectedChatModel?.reasoning_efforts ?? [];
+  const contextWindow = selectedChatModel?.context_window ?? sharedState.chat_context_window;
+  const contextRemainingPercent =
+    typeof sharedState.chat_context_remaining_percent === "number"
+      ? sharedState.chat_context_remaining_percent
+      : contextWindow
+        ? 100
+        : null;
 
   useEffect(() => {
     const syncTheme = () => setIsDarkTheme(document.documentElement.classList.contains("dark"));
@@ -361,7 +378,7 @@ export function DockableChat({
 
   const beginDrag = (event: React.PointerEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
-    if (target.closest("button, textarea, a, input")) return;
+    if (target.closest("button, textarea, a, input, select, [data-chat-model-menu]")) return;
 
     event.preventDefault();
     const startX = event.clientX;
@@ -500,6 +517,7 @@ export function DockableChat({
     if (!content || isRunning) return;
 
     shouldStickToBottomRef.current = true;
+    setModelMenuOpen(false);
     rememberPrompt(content);
     setInput("");
     try {
@@ -534,18 +552,105 @@ export function DockableChat({
       <ResizeHandles onResizeStart={beginResize} />
 
       <div
-        className="flex h-14 min-h-14 cursor-move select-none items-center justify-between border-b px-3 py-2"
+        className="flex min-h-[76px] cursor-move select-none items-start justify-between gap-2 border-b px-3 py-2"
         onPointerDown={beginDrag}
       >
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-start gap-2">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/12 text-primary">
             <Sparkles className="h-4 w-4" />
           </div>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">TFR Assistant</p>
+          <div className="min-w-0 flex-1 space-y-1">
+            <div className="flex min-w-0 items-center gap-2">
+              <p className="shrink-0 text-sm font-semibold">TFR Assistant</p>
+              <div className="relative min-w-0">
+                <button
+                  type="button"
+                  className="inline-flex h-7 max-w-[210px] items-center gap-1.5 rounded-md border bg-secondary/35 px-2 text-xs font-medium text-foreground transition-colors hover:bg-secondary"
+                  onClick={() => setModelMenuOpen((current) => !current)}
+                  aria-expanded={modelMenuOpen}
+                  aria-label="Select chat model"
+                  title="Select chat model"
+                >
+                  <Settings2 className="h-3.5 w-3.5 shrink-0 text-primary" />
+                  <span className="truncate">
+                    {selectedChatModel?.label ?? chatModelSelection.modelName}
+                  </span>
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                </button>
+                {modelMenuOpen ? (
+                  <div
+                    className="absolute left-0 top-12 z-40 mt-1 w-[min(360px,calc(100vw-3rem))] rounded-lg border bg-card p-3 text-xs shadow-xl"
+                    data-chat-model-menu
+                  >
+                    <div className="grid gap-2">
+                      <label className="grid gap-1">
+                        <span className="font-medium text-muted-foreground">Model</span>
+                        <select
+                          value={chatModelSelection.modelName}
+                          onChange={(event) => {
+                            const nextModel = chatModelOptions.find(
+                              (model) => model.name === event.target.value,
+                            );
+                            setChatModelSelection({
+                              modelName: event.target.value,
+                              reasoningEffort:
+                                nextModel?.default_reasoning_effort ??
+                                nextModel?.reasoning_efforts?.[0] ??
+                                null,
+                            });
+                          }}
+                          className="h-9 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          {(chatModelOptions.length
+                            ? chatModelOptions
+                            : [{ name: chatModelSelection.modelName, label: chatModelSelection.modelName }]
+                          ).map((model) => (
+                            <option key={model.name} value={model.name}>
+                              {model.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="grid gap-1">
+                        <span className="font-medium text-muted-foreground">Reasoning</span>
+                        <select
+                          value={chatModelSelection.reasoningEffort ?? ""}
+                          disabled={!reasoningEfforts.length}
+                          onChange={(event) =>
+                            setChatModelSelection({
+                              modelName: chatModelSelection.modelName,
+                              reasoningEffort: event.target.value
+                                ? (event.target.value as typeof chatModelSelection.reasoningEffort)
+                                : null,
+                            })
+                          }
+                          className="h-9 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                        >
+                          {reasoningEfforts.length ? null : <option value="">Default</option>}
+                          {reasoningEfforts.map((effort) => (
+                            <option key={effort} value={effort}>
+                              {effort}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-4 text-muted-foreground">
+              <span>{formatContextWindow(contextWindow)} context</span>
+              {contextRemainingPercent !== null ? (
+                <span>{formatPercent(contextRemainingPercent)} left</span>
+              ) : null}
+              <span title={sharedState.chat_run_cost ? `Last run ${formatChatCost(sharedState.chat_run_cost)}` : undefined}>
+                {formatChatCost(sharedState.chat_total_cost)} total
+              </span>
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1">
           <Button
             variant="ghost"
             size="icon"
@@ -615,7 +720,7 @@ export function DockableChat({
             onKeyDown={handleInputKeyDown}
           />
           <div className="flex items-center justify-between gap-2 px-1 pb-1">
-            <span className="text-xs text-muted-foreground">
+            <span className="min-w-0 truncate text-xs text-muted-foreground">
               {homeTableContext.selected_rows.length
                 ? `${homeTableContext.selected_rows.length} selected in home table`
                 : "Enter to send · Shift Enter for a new line"}
@@ -860,6 +965,30 @@ function formatWorkDuration(milliseconds: number) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}m ${seconds}s`;
+}
+
+function formatContextWindow(value: number | null | undefined) {
+  if (!value) return "Unknown";
+  if (value >= 1_000_000) {
+    const millions = value / 1_000_000;
+    return `${Number.isInteger(millions) ? millions.toFixed(0) : millions.toFixed(2)}M`;
+  }
+  if (value >= 1_000) {
+    const thousands = value / 1_000;
+    return `${Number.isInteger(thousands) ? thousands.toFixed(0) : thousands.toFixed(1)}K`;
+  }
+  return value.toLocaleString();
+}
+
+function formatPercent(value: number) {
+  return `${Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1)}%`;
+}
+
+function formatChatCost(value: number | null | undefined) {
+  const cost = Math.max(0, value ?? 0);
+  if (cost === 0) return "$0.00";
+  if (cost < 0.01) return `$${cost.toFixed(4)}`;
+  return `$${cost.toFixed(2)}`;
 }
 
 function findLastIndex<T>(items: T[], predicate: (item: T, index: number) => boolean) {

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
 from typing import Annotated, Any, Literal, Self, TypeAlias
 
@@ -342,7 +342,7 @@ class AuditFormWithFinancialsResult(BaseModel):
         return "\n".join(output)
 
 
-AuditResult: TypeAlias = Annotated[
+AuditResult: TypeAlias = Annotated[  # noqa: UP040
     AuditFormResult | AuditFormWithFinancialsResult,
     Field(discriminator="form_kind"),
 ]

@@ -93,6 +93,13 @@ class TFRChatState(BaseModel):
     current_step: str = ""
     activity_log: list[ActivityLogEntry] = Field(default_factory=list)
     error_message: str | None = None
+    chat_model_name: str = ""
+    chat_context_window: int | None = None
+    chat_context_used_tokens: int = 0
+    chat_context_remaining_percent: float | None = None
+    chat_run_cost: float = 0.0
+    chat_total_cost: float = 0.0
+    chat_last_usage: dict[str, int] = Field(default_factory=dict)
 
 
 def log_activity(
