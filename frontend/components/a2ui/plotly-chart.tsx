@@ -4,19 +4,7 @@ import { BarChart3, ChevronDown, ChevronRight, Maximize2, X } from "lucide-react
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-
-const VIRIDIS_CONTROL_COLORS = [
-  "#fde725",
-  "#b5de2b",
-  "#6ece58",
-  "#35b779",
-  "#1f9e89",
-  "#26828e",
-  "#31688e",
-  "#3e4989",
-  "#482878",
-  "#440154",
-] as const;
+import { buildViridisColorway, cloneJson, plotlyTheme } from "@/lib/plotly-theme";
 
 export interface PlotlyChartProps {
   data: unknown[];
@@ -26,6 +14,8 @@ export interface PlotlyChartProps {
   sourceHandle?: string;
   collapsible?: boolean;
   defaultCollapsed?: boolean;
+  showHeader?: boolean;
+  surfaceClassName?: string;
 }
 
 export function PlotlyChart({
@@ -36,6 +26,8 @@ export function PlotlyChart({
   sourceHandle,
   collapsible = true,
   defaultCollapsed = false,
+  showHeader = true,
+  surfaceClassName = "h-[380px] min-h-[320px]",
 }: PlotlyChartProps) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const [poppedOut, setPoppedOut] = useState(false);
@@ -118,55 +110,57 @@ export function PlotlyChart({
 
   return (
     <figure className="overflow-hidden rounded-md border bg-background text-sm">
-      <div className="flex items-center gap-2 border-b bg-secondary/45 px-3 py-2">
-        <BarChart3 className="h-4 w-4 shrink-0 text-primary" />
-        <div className="min-w-0 flex-1">
-          {caption ? <figcaption className="truncate font-semibold">{caption}</figcaption> : null}
-          {sourceHandle ? (
-            <p className="truncate font-mono text-xs text-muted-foreground">{sourceHandle}</p>
-          ) : null}
-          {!caption && !sourceHandle ? (
-            <figcaption className="truncate font-semibold">Plotly chart</figcaption>
-          ) : null}
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => setPoppedOut(true)}
-            aria-label="Pop out chart"
-            title="Pop out chart"
-          >
-            <Maximize2 className="h-4 w-4" />
-          </Button>
-          {collapsible ? (
+      {showHeader ? (
+        <div className="flex items-center gap-2 border-b bg-secondary/45 px-3 py-2">
+          <BarChart3 className="h-4 w-4 shrink-0 text-primary" />
+          <div className="min-w-0 flex-1">
+            {caption ? <figcaption className="truncate font-semibold">{caption}</figcaption> : null}
+            {sourceHandle ? (
+              <p className="truncate font-mono text-xs text-muted-foreground">{sourceHandle}</p>
+            ) : null}
+            {!caption && !sourceHandle ? (
+              <figcaption className="truncate font-semibold">Plotly chart</figcaption>
+            ) : null}
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
             <Button
               type="button"
               variant="ghost"
               size="icon"
               className="h-8 w-8"
-              onClick={() => setCollapsed((current) => !current)}
-              aria-label={collapsed ? "Expand chart" : "Collapse chart"}
-              title={collapsed ? "Expand chart" : "Collapse chart"}
+              onClick={() => setPoppedOut(true)}
+              aria-label="Pop out chart"
+              title="Pop out chart"
             >
-              {collapsed ? (
-                <ChevronRight className="h-4 w-4" />
-              ) : (
-                <ChevronDown className="h-4 w-4" />
-              )}
+              <Maximize2 className="h-4 w-4" />
             </Button>
-          ) : null}
+            {collapsible ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setCollapsed((current) => !current)}
+                aria-label={collapsed ? "Expand chart" : "Collapse chart"}
+                title={collapsed ? "Expand chart" : "Collapse chart"}
+              >
+                {collapsed ? (
+                  <ChevronRight className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </Button>
+            ) : null}
+          </div>
         </div>
-      </div>
+      ) : null}
 
       {!collapsed ? (
         <PlotlySurface
           data={resolvedData}
           layout={resolvedLayout}
           config={resolvedConfig}
-          className="h-[380px] min-h-[320px]"
+          className={surfaceClassName}
         />
       ) : null}
 
@@ -272,107 +266,4 @@ function PlotlySurface({
       ) : null}
     </div>
   );
-}
-
-function plotlyTheme(isDarkTheme: boolean) {
-  if (typeof document === "undefined") {
-    return {
-      paper: isDarkTheme ? "#111827" : "#ffffff",
-      plot: isDarkTheme ? "#1f2937" : "#ffffff",
-      text: isDarkTheme ? "#f9fafb" : "#111827",
-      grid: isDarkTheme ? "rgba(255,255,255,0.12)" : "rgba(15,23,42,0.12)",
-      zeroLine: isDarkTheme ? "rgba(255,255,255,0.24)" : "rgba(15,23,42,0.22)",
-      axis: isDarkTheme ? "#374151" : "#d1d5db",
-      hover: isDarkTheme ? "#1f2937" : "#ffffff",
-    };
-  }
-  const rootStyles = getComputedStyle(document.documentElement);
-  const color = (name: string, fallback: string) => {
-    const raw = rootStyles.getPropertyValue(name).trim();
-    return raw ? `hsl(${raw})` : fallback;
-  };
-
-  return {
-    paper: color("--background", isDarkTheme ? "#111827" : "#ffffff"),
-    plot: color("--card", isDarkTheme ? "#1f2937" : "#ffffff"),
-    text: color("--foreground", isDarkTheme ? "#f9fafb" : "#111827"),
-    grid: isDarkTheme ? "rgba(255,255,255,0.12)" : "rgba(15,23,42,0.12)",
-    zeroLine: isDarkTheme ? "rgba(255,255,255,0.24)" : "rgba(15,23,42,0.22)",
-    axis: color("--border", isDarkTheme ? "#374151" : "#d1d5db"),
-    hover: color("--card", isDarkTheme ? "#1f2937" : "#ffffff"),
-  };
-}
-
-/**
- * Builds a Viridis-based categorical Plotly colorway for the current trace count.
- *
- * Plotly cycles `layout.colorway` when there are more traces than colors. Sampling
- * the Viridis control colors lets larger charts keep distinct colors instead of
- * wrapping back to the first series color.
- *
- * Args:
- *   traceCount: The number of Plotly traces that may need automatic colors.
- *
- * Returns:
- *   A green-first Viridis colorway sized for the supplied trace count.
- *
- * Example:
- *   buildViridisColorway(12);
- */
-function buildViridisColorway(traceCount: number): string[] {
-  const colorCount = Math.max(traceCount, VIRIDIS_CONTROL_COLORS.length);
-
-  if (colorCount === VIRIDIS_CONTROL_COLORS.length) {
-    return [...VIRIDIS_CONTROL_COLORS];
-  }
-
-  return Array.from({ length: colorCount }, (_, index) => (
-    interpolateViridisColor(index / (colorCount - 1))
-  ));
-}
-
-/**
- * Samples the green-first Viridis control colors at a normalized position.
- *
- * Args:
- *   position: A value between 0 and 1, where 0 is green/yellow and 1 is purple.
- *
- * Returns:
- *   A hex color interpolated between the nearest Viridis control colors.
- */
-function interpolateViridisColor(position: number): string {
-  const clampedPosition = Math.min(Math.max(position, 0), 1);
-  const scaledPosition = clampedPosition * (VIRIDIS_CONTROL_COLORS.length - 1);
-  const lowerIndex = Math.floor(scaledPosition);
-  const upperIndex = Math.ceil(scaledPosition);
-  const blendAmount = scaledPosition - lowerIndex;
-
-  return mixHexColors(
-    VIRIDIS_CONTROL_COLORS[lowerIndex],
-    VIRIDIS_CONTROL_COLORS[upperIndex],
-    blendAmount,
-  );
-}
-
-function mixHexColors(startHex: string, endHex: string, amount: number): string {
-  const startRgb = hexToRgb(startHex);
-  const endRgb = hexToRgb(endHex);
-  const mixedRgb = startRgb.map((channel, index) => (
-    Math.round(channel + (endRgb[index] - channel) * amount)
-  ));
-
-  return rgbToHex(mixedRgb);
-}
-
-function hexToRgb(hex: string): [number, number, number] {
-  const value = Number.parseInt(hex.slice(1), 16);
-  return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
-}
-
-function rgbToHex(rgb: number[]): string {
-  return `#${rgb.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
-}
-
-function cloneJson<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
 }
