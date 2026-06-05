@@ -195,3 +195,27 @@ Traceback (most recent call last):
   File "C:\Users\pdoub\my-projects\tfr-assistant\backend\.venv\Lib\site-packages\pydantic\main.py", line 1042, in __getattr__
     raise AttributeError(f'{type(self).__name__!r} object has no attribute {item!r}')
 AttributeError: 'FinancialQuestionResult' object has no attribute 'sub_questions'
+WARNING:  WatchFiles detected changes in 'app\core\config.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [9844]
+INFO:     Started server process [20392]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app\api\routers\chat.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [20392]
+WARNING:  WatchFiles detected changes in 'tests\test_chat_ag_ui_endpoint.py', 'app\api\routers\chat.py'. Reloading...
+INFO:     Started server process [15008]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [15008]
+INFO:     Started server process [7644]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.

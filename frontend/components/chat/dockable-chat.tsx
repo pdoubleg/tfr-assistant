@@ -221,7 +221,9 @@ export function DockableChat({
     () => chatModelOptions.find((model) => model.name === chatModelSelection.modelName) ?? null,
     [chatModelOptions, chatModelSelection.modelName],
   );
-  const reasoningEfforts = selectedChatModel?.reasoning_efforts ?? [];
+  const reasoningEfforts =
+    selectedChatModel?.api === "responses" ? (selectedChatModel.reasoning_efforts ?? []) : [];
+  const showReasoningEffortSelector = reasoningEfforts.length > 0;
   const contextWindow = selectedChatModel?.context_window ?? sharedState.chat_context_window;
   const contextRemainingPercent =
     typeof sharedState.chat_context_remaining_percent === "number"
@@ -594,9 +596,11 @@ export function DockableChat({
                             setChatModelSelection({
                               modelName: event.target.value,
                               reasoningEffort:
-                                nextModel?.default_reasoning_effort ??
-                                nextModel?.reasoning_efforts?.[0] ??
-                                null,
+                                nextModel?.api === "responses"
+                                  ? (nextModel.default_reasoning_effort ??
+                                    nextModel.reasoning_efforts?.[0] ??
+                                    null)
+                                  : null,
                             });
                           }}
                           className="h-9 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -611,29 +615,29 @@ export function DockableChat({
                           ))}
                         </select>
                       </label>
-                      <label className="grid gap-1">
-                        <span className="font-medium text-muted-foreground">Reasoning</span>
-                        <select
-                          value={chatModelSelection.reasoningEffort ?? ""}
-                          disabled={!reasoningEfforts.length}
-                          onChange={(event) =>
-                            setChatModelSelection({
-                              modelName: chatModelSelection.modelName,
-                              reasoningEffort: event.target.value
-                                ? (event.target.value as typeof chatModelSelection.reasoningEffort)
-                                : null,
-                            })
-                          }
-                          className="h-9 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-                        >
-                          {reasoningEfforts.length ? null : <option value="">Default</option>}
-                          {reasoningEfforts.map((effort) => (
-                            <option key={effort} value={effort}>
-                              {effort}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                      {showReasoningEffortSelector ? (
+                        <label className="grid gap-1">
+                          <span className="font-medium text-muted-foreground">Reasoning</span>
+                          <select
+                            value={chatModelSelection.reasoningEffort ?? ""}
+                            onChange={(event) =>
+                              setChatModelSelection({
+                                modelName: chatModelSelection.modelName,
+                                reasoningEffort: event.target.value
+                                  ? (event.target.value as typeof chatModelSelection.reasoningEffort)
+                                  : null,
+                              })
+                            }
+                            className="h-9 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            {reasoningEfforts.map((effort) => (
+                              <option key={effort} value={effort}>
+                                {effort}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : null}
                     </div>
                   </div>
                 ) : null}

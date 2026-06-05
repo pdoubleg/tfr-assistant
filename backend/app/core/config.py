@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     llm_deployments: dict[str, str] = Field(default_factory=dict)
     chat_model: str = DEFAULT_CHAT_MODEL_NAME
     chat_model_base_name: str = ""
-    chat_model_api: LLMModelAPI = LLMModelAPI.CHAT
+    chat_model_api: LLMModelAPI = LLMModelAPI.RESPONSES
     chat_model_reasoning_effort: ReasoningEffort | None = "low"
     chat_model_reasoning_summary: ReasoningSummary | None = "auto"
     chat_model_timeout_seconds: float = 90.0

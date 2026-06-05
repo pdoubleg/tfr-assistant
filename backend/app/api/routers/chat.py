@@ -13,6 +13,7 @@ from app.agents.chat_agent import chat_agent
 from app.capabilities.deps import TFRChatDeps
 from app.core.config import Settings, get_settings
 from app.core.llm import (
+    LLMModelAPI,
     LLMModelConfig,
     ReasoningEffort,
     available_llm_models,
@@ -53,6 +54,7 @@ def list_chat_models(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> ChatModelCatalogResponse:
     default_config = settings.chat_llm_config()
+    show_reasoning_effort = default_config.api == LLMModelAPI.RESPONSES
     return ChatModelCatalogResponse(
         models=[
             ChatModelOption(
@@ -61,16 +63,18 @@ def list_chat_models(
                 base_name=model.base_name,
                 deployment_name=model.deployment_name,
                 context_window=model.context_window,
-                api=model.api,
-                reasoning_efforts=model.reasoning_efforts,
-                default_reasoning_effort=model.default_reasoning_effort,
+                api=default_config.api,
+                reasoning_efforts=model.reasoning_efforts if show_reasoning_effort else [],
+                default_reasoning_effort=(
+                    model.default_reasoning_effort if show_reasoning_effort else None
+                ),
                 default_for_chat=model.default_for_chat,
                 default_for_audit=model.default_for_audit,
             )
             for model in available_llm_models(deployment_overrides=settings.llm_deployments)
         ],
         default_model_name=default_config.pricing_lookup_name,
-        default_reasoning_effort=default_config.reasoning_effort,
+        default_reasoning_effort=default_config.reasoning_effort if show_reasoning_effort else None,
     )
 
 
