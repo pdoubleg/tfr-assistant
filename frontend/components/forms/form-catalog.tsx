@@ -40,6 +40,7 @@ import {
   getFormDefinition,
   listFormCatalog,
   listChatModels,
+  listReviews,
   listPromptFamilies,
   registerForm,
   setPromptActivation,
@@ -55,6 +56,7 @@ import type {
   OverallOutcome,
   PromptFamilyRecord,
   PromptVersionRecord,
+  ReviewRecord,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -172,6 +174,36 @@ function formatDate(value?: string | null): string {
     hour: "numeric",
     minute: "2-digit",
   }).format(date);
+}
+
+function formatAverageCost(value: number | null): string {
+  if (value === null) return "No cost data";
+  if (value === 0) return "$0.00";
+  if (value < 0.01) return `$${value.toFixed(4)}`;
+  return `$${value.toFixed(2)}`;
+}
+
+function formatAverageLatency(value: number | null): string {
+  if (value === null) return "No latency data";
+  if (value < 1) return `${Math.round(value * 1000)} ms`;
+  if (value < 10) return `${value.toFixed(1)}s`;
+  return `${Math.round(value)}s`;
+}
+
+function averageGeneratedReviewMetric(
+  form: FormCatalogEntry | null,
+  reviews: ReviewRecord[],
+  metric: "cost" | "latency",
+): number | null {
+  if (!form) return null;
+  const values = reviews
+    .filter((review) => review.form_id === form.id && review.form_version === form.version)
+    .map((review) => review.original?.[metric])
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+
+  if (!values.length) return null;
+  const total = values.reduce((sum, value) => sum + value, 0);
+  return total / values.length;
 }
 
 function titleFromId(id: string): string {
@@ -1411,6 +1443,7 @@ function FormPreviewPanel({
 
 export function FormCatalog() {
   const [forms, setForms] = useState<FormCatalogEntry[]>([]);
+  const [reviews, setReviews] = useState<ReviewRecord[]>([]);
   const [modelOptions, setModelOptions] = useState<ChatModelOption[]>([]);
   const [query, setQuery] = useState("");
   const [usageFilter, setUsageFilter] = useState<UsageFilter>("all");
@@ -1430,12 +1463,14 @@ export function FormCatalog() {
     setLoading(true);
     setError("");
     try {
-      const [nextForms, nextModels] = await Promise.all([
+      const [nextForms, nextModels, nextReviews] = await Promise.all([
         listFormCatalog(),
         listChatModels().catch(() => null),
+        listReviews().catch(() => []),
       ]);
       setForms(nextForms);
       if (nextModels) setModelOptions(nextModels.models);
+      setReviews(nextReviews);
       setSelectedKey((current) => {
         if (current && nextForms.some((form) => formKey(form) === current)) return current;
         return "";
@@ -1528,6 +1563,14 @@ export function FormCatalog() {
   const selectedForm = useMemo(
     () => forms.find((form) => formKey(form) === selectedKey) ?? null,
     [forms, selectedKey],
+  );
+  const selectedAverageCost = useMemo(
+    () => averageGeneratedReviewMetric(selectedForm, reviews, "cost"),
+    [reviews, selectedForm],
+  );
+  const selectedAverageLatency = useMemo(
+    () => averageGeneratedReviewMetric(selectedForm, reviews, "latency"),
+    [reviews, selectedForm],
   );
   const selectedActivePrompt = useMemo(
     () => getActivePromptVersion(promptFamilies[0], selectedDefinition?.version ?? ""),
@@ -1793,10 +1836,11 @@ export function FormCatalog() {
                 </div>
 
                 <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-4">
-                  <MetadataPill label="Questions" value={selectedForm.questionCount} />
-                  {selectedForm.formKind === "standard" ? (
-                    <MetadataPill label="Sub-Questions" value={selectedForm.subQuestionCount} />
-                  ) : null}
+                  <MetadataPill label="Avg Cost" value={formatAverageCost(selectedAverageCost)} />
+                  <MetadataPill
+                    label="Avg Latency"
+                    value={formatAverageLatency(selectedAverageLatency)}
+                  />
                   <MetadataPill label="Reviews" value={selectedForm.reviewCount} />
                   <MetadataPill label="Model" value={selectedForm.modelName} />
                   <MetadataPill label="Completed" value={selectedForm.completedCount} />
@@ -1828,18 +1872,7 @@ export function FormCatalog() {
                       </div>
                     ) : null}
                   </div>
-                ) : (
-                  <div className="flex justify-end">
-                    <Badge
-                      variant="outline"
-                      className="gap-1 text-[10px] text-muted-foreground"
-                      title="No tools or knowledge documents are stored for this form."
-                    >
-                      <Info className="h-3 w-3" />
-                      No runtime metadata
-                    </Badge>
-                  </div>
-                )}
+                ) : null}
 
                 <PromptRegistryPanel
                   families={promptFamilies}

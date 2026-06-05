@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -253,6 +254,20 @@ def _agent_failure_message(
     return "\n".join(lines)
 
 
+def _populate_runtime_metadata(
+    output: AuditResult,
+    *,
+    deps: FileReviewAgentDeps,
+    usage: Any,
+    model_config: LLMModelConfig,
+    source: str,
+    started_at: float,
+) -> None:
+    deps.cost_tracker.add_usage(usage, model_config, source=source)
+    output.cost = deps.cost_tracker.total_cost
+    output.latency = round(max(time.perf_counter() - started_at, 0.0), 4)
+
+
 async def run_file_review_agent(
     claim_number: str,
     effective_date: str,
@@ -290,13 +305,20 @@ async def run_file_review_agent(
             if deps.canonical.form_kind == "financial"
             else AuditFormResult
         )
+        started_at = time.perf_counter()
         if base_instructions:
             with agent.override(instructions=_mode_instructions(agent, base_instructions)):
                 result = await agent.run(user_prompt=prompt, deps=deps, output_type=output_type)
         else:
             result = await agent.run(user_prompt=prompt, deps=deps, output_type=output_type)
-        deps.cost_tracker.add_usage(result.usage(), model_config, source="file_review_agent")
-        result.output.cost = deps.cost_tracker.total_cost
+        _populate_runtime_metadata(
+            result.output,
+            deps=deps,
+            usage=result.usage(),
+            model_config=model_config,
+            source="file_review_agent",
+            started_at=started_at,
+        )
     except Exception as exc:
         logger.exception(
             "File review agent failed for %s@%s",
@@ -342,6 +364,7 @@ async def run_synthetic_review_agent(
             if deps.canonical.form_kind == "financial"
             else AuditFormResult
         )
+        started_at = time.perf_counter()
         with agent.override(
             instructions=_mode_instructions(agent, SYNTHETIC_REVIEW_INSTRUCTIONS),
             tools=(),
@@ -349,8 +372,14 @@ async def run_synthetic_review_agent(
             builtin_tools=(),
         ):
             result = await agent.run(user_prompt=prompt, deps=deps, output_type=output_type)
-        deps.cost_tracker.add_usage(result.usage(), model_config, source="synthetic_review_agent")
-        result.output.cost = deps.cost_tracker.total_cost
+        _populate_runtime_metadata(
+            result.output,
+            deps=deps,
+            usage=result.usage(),
+            model_config=model_config,
+            source="synthetic_review_agent",
+            started_at=started_at,
+        )
     except Exception as exc:
         logger.exception(
             "Synthetic review agent failed for %s@%s",
@@ -398,6 +427,7 @@ async def run_completed_intake_agent(
             if deps.canonical.form_kind == "financial"
             else CompletedAuditIntakeResult | AuditIntakeFailure
         )
+        started_at = time.perf_counter()
         with agent.override(
             instructions=_mode_instructions(agent, COMPLETED_INTAKE_INSTRUCTIONS),
             tools=(),
@@ -409,9 +439,21 @@ async def run_completed_intake_agent(
                 deps=deps,
                 output_type=output_type,
             )
-        deps.cost_tracker.add_usage(result.usage(), model_config, source="completed_intake_agent")
         if not isinstance(result.output, AuditIntakeFailure):
-            result.output.result.cost = deps.cost_tracker.total_cost
+            _populate_runtime_metadata(
+                result.output.result,
+                deps=deps,
+                usage=result.usage(),
+                model_config=model_config,
+                source="completed_intake_agent",
+                started_at=started_at,
+            )
+        else:
+            deps.cost_tracker.add_usage(
+                result.usage(),
+                model_config,
+                source="completed_intake_agent",
+            )
     except Exception as exc:
         logger.exception(
             "Completed intake agent failed for %s@%s",
