@@ -62,7 +62,7 @@ def test_build_llm_model_uses_chat_model_for_chat_api() -> None:
 
     assert isinstance(model, OpenAIChatModel)
     assert model.model_name == "gpt-5.4-mini"
-    assert model.settings == {"timeout": 30, "openai_reasoning_effort": "high"}
+    assert model.settings == {"timeout": 30}
 
 
 def test_build_llm_model_rejects_legacy_openai_prefixes() -> None:

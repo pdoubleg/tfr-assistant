@@ -400,10 +400,9 @@ def _model_settings(config: LLMModelConfig) -> ModelSettings | None:
     if config.timeout_seconds is not None:
         model_settings["timeout"] = config.timeout_seconds
 
-    if config.reasoning_effort:
-        model_settings["openai_reasoning_effort"] = config.reasoning_effort
-
     if config.api == LLMModelAPI.RESPONSES:
+        if config.reasoning_effort:
+            model_settings["openai_reasoning_effort"] = config.reasoning_effort
         if config.send_reasoning_ids is not None:
             model_settings["openai_send_reasoning_ids"] = config.send_reasoning_ids
         if config.reasoning_summary:
