@@ -56,6 +56,7 @@ import type {
   OverallOutcome,
   PromptFamilyRecord,
   PromptVersionRecord,
+  ReviewAgentToolName,
   ReviewRecord,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -65,7 +66,38 @@ type UsageFilter = "all" | "used" | "unused";
 type PreviewMode = "form" | "json" | "string";
 type PromptViewerMode = "prompt" | "diff";
 
-const FORM_TOOL_OPTIONS = ["Claim Summary", "Notes", "Documents", "Images"] as const;
+type FormToolOption = {
+  id: string;
+  label: string;
+  tools: ReviewAgentToolName[];
+};
+
+const FORM_TOOL_OPTIONS: FormToolOption[] = [
+  { id: "claim-summary", label: "Claim Summary", tools: ["get_claim_summary"] },
+  { id: "claim-notes", label: "Notes", tools: ["get_claim_notes"] },
+  {
+    id: "claim-docs",
+    label: "Claim Docs",
+    tools: ["get_claim_documents_metadata", "get_claim_document_content"],
+  },
+  {
+    id: "policy-docs",
+    label: "Policy Docs",
+    tools: ["get_policy_documents_metadata", "get_policy_document_content"],
+  },
+  { id: "images", label: "Images", tools: ["get_image_analysis"] },
+];
+const FORM_TOOL_NAMES = FORM_TOOL_OPTIONS.flatMap((option) => option.tools);
+const LEGACY_TOOL_LABELS: Record<string, ReviewAgentToolName[]> = {
+  "Claim Summary": ["get_claim_summary"],
+  Notes: ["get_claim_notes"],
+  Documents: ["get_claim_documents_metadata", "get_claim_document_content"],
+  "Claim Docs": ["get_claim_documents_metadata", "get_claim_document_content"],
+  "Claim Documents": ["get_claim_documents_metadata", "get_claim_document_content"],
+  "Policy Docs": ["get_policy_documents_metadata", "get_policy_document_content"],
+  "Policy Documents": ["get_policy_documents_metadata", "get_policy_document_content"],
+  Images: ["get_image_analysis"],
+};
 const CANONICAL_PLACEHOLDER = "Canonical template placeholder.";
 const DEFAULT_AUDIT_MODEL_NAME = "gpt-5.4-nano";
 
@@ -77,9 +109,10 @@ interface FormEditorState {
   modelName: string;
   description: string;
   instructions: string;
-  tools: string[];
+  tools: ReviewAgentToolName[];
   knowledgeDocs: string[];
   knowledgeDocDraft: string;
+  includeStateCompliance: boolean;
   questions: FormQuestion[];
   overallOutcome: OverallOutcome;
   outcomeJustification: string;
@@ -244,6 +277,42 @@ function normalizeList(values: string[]): string[] | null {
   return unique.length ? unique : null;
 }
 
+function normalizeToolList(values?: Array<string | ReviewAgentToolName> | null): ReviewAgentToolName[] {
+  const selected = new Set<ReviewAgentToolName>();
+  for (const value of values ?? []) {
+    const mapped = LEGACY_TOOL_LABELS[value] ?? (FORM_TOOL_NAMES.includes(value as ReviewAgentToolName) ? [value as ReviewAgentToolName] : []);
+    for (const tool of mapped) selected.add(tool);
+  }
+  return FORM_TOOL_NAMES.filter((tool) => selected.has(tool));
+}
+
+function normalizeToolOutput(values: ReviewAgentToolName[]): ReviewAgentToolName[] | null {
+  const unique = normalizeToolList(values);
+  return unique.length ? unique : null;
+}
+
+function isToolOptionSelected(option: FormToolOption, selectedTools: ReviewAgentToolName[]): boolean {
+  return option.tools.every((tool) => selectedTools.includes(tool));
+}
+
+function toolOptionLabels(selectedTools: ReviewAgentToolName[]): string[] {
+  return selectedToolBadges(selectedTools).map((badge) => badge.label);
+}
+
+function selectedToolBadges(selectedTools: ReviewAgentToolName[]): FormToolOption[] {
+  const badges: FormToolOption[] = [];
+  const groupedTools = new Set<ReviewAgentToolName>();
+  for (const option of FORM_TOOL_OPTIONS) {
+    if (!isToolOptionSelected(option, selectedTools)) continue;
+    badges.push(option);
+    for (const tool of option.tools) groupedTools.add(tool);
+  }
+  for (const tool of selectedTools) {
+    if (!groupedTools.has(tool)) badges.push({ id: tool, label: tool, tools: [tool] });
+  }
+  return badges;
+}
+
 function getActivePromptVersion(
   family: PromptFamilyRecord | null | undefined,
   formVersion: string,
@@ -314,8 +383,9 @@ function buildDefinition(state: FormEditorState): AuditFormDefinition {
     model_name: state.modelName || DEFAULT_AUDIT_MODEL_NAME,
     description: canonical.description,
     instructions: normalizeOptionalText(state.instructions),
-    tools: normalizeList(state.tools),
+    tools: normalizeToolOutput(state.tools),
     knowledge_docs: normalizeList(state.knowledgeDocs),
+    include_state_compliance: state.includeStateCompliance,
     canonical,
   };
 }
@@ -398,9 +468,10 @@ function definitionToState(
     modelName,
     description,
     instructions: mode === "edit" ? registryInstructions || definition?.instructions || "" : definition?.instructions ?? "",
-    tools: definition?.tools ?? [],
+    tools: normalizeToolList(definition?.tools),
     knowledgeDocs: definition?.knowledge_docs ?? [],
     knowledgeDocDraft: "",
+    includeStateCompliance: definition?.include_state_compliance ?? false,
     questions,
     overallOutcome: canonical?.overall_outcome ?? "Does Not Meet",
     outcomeJustification: canonical?.outcome_justification ?? "Canonical template draft.",
@@ -1549,6 +1620,7 @@ export function FormCatalog() {
           form.modelName,
           form.tools.join(" "),
           form.knowledgeDocs.join(" "),
+          form.includeStateCompliance ? "state compliance" : "",
         ]
           .join(" ")
           .toLowerCase()
@@ -1849,13 +1921,15 @@ export function FormCatalog() {
                   <MetadataPill label="Last Review" value={formatDate(selectedForm.lastReviewedAt)} />
                 </div>
 
-                {selectedDefinition.tools?.length || selectedDefinition.knowledge_docs?.length ? (
+                {selectedDefinition.tools?.length ||
+                selectedDefinition.knowledge_docs?.length ||
+                selectedDefinition.include_state_compliance ? (
                   <div className="grid gap-3 lg:grid-cols-2">
                     {selectedDefinition.tools?.length ? (
                       <div className="rounded-lg border bg-background p-4">
                         <p className="text-[11px] font-semibold uppercase text-muted-foreground">Tools</p>
                         <div className="mt-2 flex flex-wrap gap-1.5">
-                          {selectedDefinition.tools.map((tool) => (
+                          {toolOptionLabels(normalizeToolList(selectedDefinition.tools)).map((tool) => (
                             <Badge key={tool} variant="outline">{tool}</Badge>
                           ))}
                         </div>
@@ -1868,6 +1942,14 @@ export function FormCatalog() {
                           {selectedDefinition.knowledge_docs.map((doc) => (
                             <Badge key={doc} variant="secondary">{doc}</Badge>
                           ))}
+                        </div>
+                      </div>
+                    ) : null}
+                    {selectedDefinition.include_state_compliance ? (
+                      <div className="rounded-lg border bg-background p-4">
+                        <p className="text-[11px] font-semibold uppercase text-muted-foreground">Compliance</p>
+                        <div className="mt-2">
+                          <Badge variant="secondary">State Compliance</Badge>
                         </div>
                       </div>
                     ) : null}
@@ -1958,7 +2040,8 @@ function FormRegistrationDialog({
     (form) => form.id === state.id.trim() && form.version === state.version.trim(),
   );
   const runtimeMetadataMissing =
-    state.tools.length === 0 && state.knowledgeDocs.length === 0;
+    state.tools.length === 0 && state.knowledgeDocs.length === 0 && !state.includeStateCompliance;
+  const selectedToolBadgesForState = selectedToolBadges(state.tools);
   const baseGenerationModelOptions = modelOptions.length
     ? modelOptions
     : [
@@ -2095,12 +2178,12 @@ function FormRegistrationDialog({
     }));
   };
 
-  const toggleTool = (tool: string) => {
+  const toggleToolOption = (option: FormToolOption) => {
     setState((current) => ({
       ...current,
-      tools: current.tools.includes(tool)
-        ? current.tools.filter((item) => item !== tool)
-        : [...current.tools, tool],
+      tools: isToolOptionSelected(option, current.tools)
+        ? current.tools.filter((item) => !option.tools.includes(item))
+        : normalizeToolList([...current.tools, ...option.tools]),
     }));
   };
 
@@ -2384,8 +2467,8 @@ function FormRegistrationDialog({
                         className="flex h-10 cursor-pointer list-none items-center justify-between rounded-md border border-input bg-background px-3 text-sm"
                       >
                         <span className="truncate">
-                          {state.tools.length
-                            ? `${state.tools.length} selected`
+                          {selectedToolBadgesForState.length
+                            ? `${selectedToolBadgesForState.length} selected`
                             : "No tools selected"}
                         </span>
                         <ChevronDown className="h-4 w-4 text-muted-foreground group-open:rotate-180" />
@@ -2398,7 +2481,7 @@ function FormRegistrationDialog({
                             size="sm"
                             className="h-8 flex-1"
                             onClick={() =>
-                              setState((current) => ({ ...current, tools: [...FORM_TOOL_OPTIONS] }))
+                              setState((current) => ({ ...current, tools: [...FORM_TOOL_NAMES] }))
                             }
                             disabled={saving}
                           >
@@ -2416,34 +2499,34 @@ function FormRegistrationDialog({
                           </Button>
                         </div>
                         <div className="grid gap-1">
-                          {FORM_TOOL_OPTIONS.map((tool) => (
+                          {FORM_TOOL_OPTIONS.map((option) => (
                             <label
-                              key={tool}
+                              key={option.id}
                               className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-secondary"
                             >
                               <input
                                 type="checkbox"
-                                checked={state.tools.includes(tool)}
-                                onChange={() => toggleTool(tool)}
+                                checked={isToolOptionSelected(option, state.tools)}
+                                onChange={() => toggleToolOption(option)}
                                 disabled={saving}
                               />
-                              {tool}
+                              {option.label}
                             </label>
                           ))}
                         </div>
                       </div>
                     </details>
                     <div className="flex min-h-8 flex-wrap gap-1.5">
-                      {state.tools.length ? (
-                        state.tools.map((tool) => (
-                          <Badge key={tool} variant="outline" className="gap-1">
-                            <span className="max-w-[220px] truncate">{tool}</span>
+                      {selectedToolBadgesForState.length ? (
+                        selectedToolBadgesForState.map((option) => (
+                          <Badge key={option.id} variant="outline" className="gap-1">
+                            <span className="max-w-[220px] truncate">{option.label}</span>
                             <button
                               type="button"
-                              onClick={() => toggleTool(tool)}
+                              onClick={() => toggleToolOption(option)}
                               disabled={saving}
-                              aria-label={`Remove ${tool}`}
-                              title={`Remove ${tool}`}
+                              aria-label={`Remove ${option.label}`}
+                              title={`Remove ${option.label}`}
                             >
                               <X className="h-3 w-3" />
                             </button>
@@ -2454,6 +2537,24 @@ function FormRegistrationDialog({
                       )}
                     </div>
                   </div>
+
+                  <label
+                    className="flex cursor-pointer items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm"
+                    title="Include state compliance documents in the audit agent context."
+                  >
+                    <input
+                      type="checkbox"
+                      checked={state.includeStateCompliance}
+                      onChange={(event) =>
+                        setState((current) => ({
+                          ...current,
+                          includeStateCompliance: event.target.checked,
+                        }))
+                      }
+                      disabled={saving}
+                    />
+                    <span className="font-medium">State Compliance</span>
+                  </label>
 
                   <div className="grid gap-2">
                     <FieldLabel

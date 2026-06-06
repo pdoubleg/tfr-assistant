@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent, RunContext, ToolDefinition
+from pydantic_ai.capabilities import PrepareTools
 
 from app.core.config import Settings, get_settings
 from app.core.llm import LLMModelConfig, LLMRunCostTracker, build_llm_model
@@ -16,7 +17,12 @@ from app.models.audit import (
     AuditResult,
     parse_audit_result,
 )
-from app.schemas.forms import AuditFormDefinition
+from app.schemas.forms import (
+    ALL_REVIEW_AGENT_TOOLS,
+    AuditFormDefinition,
+    ReviewAgentToolName,
+    normalize_review_agent_tool_names,
+)
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -90,8 +96,9 @@ class FileReviewAgentDeps:
     claim_number: str = ""
     effective_date: str = ""
     instructions: str = ""
-    tools: list[str] | None = None
+    tools: list[str | ReviewAgentToolName] | None = None
     knowledge_docs: list[str] | None = None
+    include_state_compliance: bool | None = None
     include_form_instructions: bool = True
     cost_tracker: LLMRunCostTracker = field(default_factory=LLMRunCostTracker)
     form_path: Path = field(init=False)
@@ -104,8 +111,34 @@ class FileReviewAgentDeps:
         self.canonical = self.form_definition.canonical
         if self.tools is None:
             self.tools = list(self.form_definition.tools or [])
+        else:
+            self.tools = list(normalize_review_agent_tool_names(self.tools) or [])
         if self.knowledge_docs is None:
             self.knowledge_docs = list(self.form_definition.knowledge_docs or [])
+        if self.include_state_compliance is None:
+            self.include_state_compliance = self.form_definition.include_state_compliance
+
+
+_ALL_REVIEW_AGENT_TOOL_NAMES = {tool.value for tool in ALL_REVIEW_AGENT_TOOLS}
+
+
+def _enabled_review_tool_names(tools: list[str | ReviewAgentToolName] | None) -> set[str]:
+    normalized = normalize_review_agent_tool_names(tools or []) or []
+    return {
+        tool.value if isinstance(tool, ReviewAgentToolName) else str(tool) for tool in normalized
+    }
+
+
+async def _prepare_review_agent_tools(
+    ctx: RunContext[FileReviewAgentDeps],
+    tool_defs: list[ToolDefinition],
+) -> list[ToolDefinition] | None:
+    enabled_tool_names = _enabled_review_tool_names(ctx.deps.tools)
+    return [
+        tool_def
+        for tool_def in tool_defs
+        if tool_def.name not in _ALL_REVIEW_AGENT_TOOL_NAMES or tool_def.name in enabled_tool_names
+    ]
 
 
 def load_canonical_form(path: str | Path) -> AuditResult:
@@ -150,10 +183,12 @@ def build_file_review_agent(
         retries=3,
         output_retries=3,
         instructions=DEFAULT_REVIEW_INSTRUCTIONS,
+        capabilities=[PrepareTools(_prepare_review_agent_tools)],
     )
 
     @agent.instructions
     def add_tfr_template(ctx: RunContext[FileReviewAgentDeps]) -> str:
+        """Add the TFR template to the instructions."""
         definition = ctx.deps.form_definition
         sections = [
             "Registered Audit Form:",
@@ -174,22 +209,66 @@ def build_file_review_agent(
         if ctx.deps.instructions:
             sections.extend(["", "Additional Runtime Instructions:", ctx.deps.instructions])
         if ctx.deps.tools:
+            selected_tool_names = [
+                tool.value if isinstance(tool, ReviewAgentToolName) else str(tool)
+                for tool in ctx.deps.tools
+            ]
             sections.extend(
                 [
                     "",
                     "Selected Agent Tools:",
-                    ", ".join(ctx.deps.tools),
-                ]
-            )
-        if ctx.deps.knowledge_docs:
-            sections.extend(
-                [
-                    "",
-                    "Knowledge Documents:",
-                    "\n".join(f"- {doc}" for doc in ctx.deps.knowledge_docs),
+                    ", ".join(selected_tool_names),
                 ]
             )
         return "\n".join(sections)
+
+    @agent.instructions
+    def add_knowledge_documents(ctx: RunContext[FileReviewAgentDeps]) -> str:
+        """Add the knowledge documents to the instructions."""
+        parts: list[str] = []
+        doc_ids = ctx.deps.knowledge_docs
+        if doc_ids:
+            parts.append("Knowledge Documents:\n" + "\n".join(f"- {doc}" for doc in doc_ids))
+
+        if ctx.deps.include_state_compliance:
+            parts.append("State Compliance Documents: [State Compliance Documents]")
+
+        return "\n\n".join(parts)
+
+    @agent.tool
+    async def get_claim_summary(ctx: RunContext[FileReviewAgentDeps]) -> str:
+        """Placeholder tool to get a summary of the claim."""
+        return "Claim summary"
+
+    @agent.tool
+    async def get_claim_notes(ctx: RunContext[FileReviewAgentDeps]) -> str:
+        """Placeholder tool to get the notes for the claim."""
+        return "Claim notes"
+
+    @agent.tool
+    async def get_claim_documents_metadata(ctx: RunContext[FileReviewAgentDeps]) -> str:
+        """Placeholder tool to get the metadata for the documents for the claim."""
+        return "Claim documents metadata"
+
+    @agent.tool
+    async def get_claim_document_content(ctx: RunContext[FileReviewAgentDeps]) -> str:
+        """Placeholder tool to get the documents for the claim."""
+        return "Claim document content"
+
+    @agent.tool
+    async def get_policy_documents_metadata(ctx: RunContext[FileReviewAgentDeps]) -> str:
+        """Placeholder tool to get the metadata for the documents for the policy."""
+        return "Policy documents metadata"
+
+    @agent.tool
+    async def get_policy_document_content(ctx: RunContext[FileReviewAgentDeps]) -> str:
+        """Placeholder tool to get the documents for the policy."""
+        return "Policy document content"
+
+    @agent.tool
+    async def get_image_analysis(ctx: RunContext[FileReviewAgentDeps]) -> str:
+        """Placeholder tool to get the analysis of the images for the claim."""
+        return "Image analysis"
 
     return agent
 

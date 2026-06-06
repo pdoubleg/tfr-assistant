@@ -21,6 +21,7 @@ class FormCatalog:
                 instructions=form.instructions,
                 tools=form.tools,
                 knowledge_docs=form.knowledge_docs,
+                include_state_compliance=form.include_state_compliance,
                 question_count=len(form.canonical.questions),
                 sub_question_count=sum(
                     len(getattr(question, "sub_questions", None) or [])

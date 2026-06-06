@@ -2,6 +2,14 @@ export type QuestionAnswer = "Yes" | "No";
 export type OverallOutcome = "Meets" | "Does Not Meet";
 export type FormKind = "standard" | "financial";
 export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+export type ReviewAgentToolName =
+  | "get_claim_summary"
+  | "get_claim_notes"
+  | "get_claim_documents_metadata"
+  | "get_claim_document_content"
+  | "get_policy_documents_metadata"
+  | "get_policy_document_content"
+  | "get_image_analysis";
 
 export interface ChatModelOption {
   name: string;
@@ -69,8 +77,9 @@ export interface AuditFormDefinition {
   model_name?: string;
   description?: string | null;
   instructions?: string | null;
-  tools?: string[] | null;
+  tools?: ReviewAgentToolName[] | null;
   knowledge_docs?: string[] | null;
+  include_state_compliance?: boolean;
   canonical: AuditFormResult;
   created_at?: string;
 }
@@ -794,8 +803,9 @@ export interface FormCatalogEntry {
   modelName: string;
   description: string;
   instructions: string;
-  tools: string[];
+  tools: ReviewAgentToolName[];
   knowledgeDocs: string[];
+  includeStateCompliance: boolean;
   questionCount: number;
   subQuestionCount: number;
   status: "active" | "draft";

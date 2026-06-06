@@ -131,8 +131,9 @@ export async function listFormCatalog(): Promise<FormCatalogEntry[]> {
       model_name?: string;
       description?: string | null;
       instructions?: string | null;
-      tools?: string[] | null;
+      tools?: FormCatalogEntry["tools"] | null;
       knowledge_docs?: string[] | null;
+      include_state_compliance?: boolean | null;
       question_count: number;
       sub_question_count?: number;
       review_count?: number;
@@ -152,6 +153,7 @@ export async function listFormCatalog(): Promise<FormCatalogEntry[]> {
     instructions: form.instructions ?? "",
     tools: form.tools ?? [],
     knowledgeDocs: form.knowledge_docs ?? [],
+    includeStateCompliance: form.include_state_compliance ?? false,
     questionCount: form.question_count,
     subQuestionCount: form.sub_question_count ?? 0,
     status: "active",
@@ -193,6 +195,7 @@ export async function registerForm(
       instructions: definition.instructions ?? null,
       tools: definition.tools ?? null,
       knowledge_docs: definition.knowledge_docs ?? null,
+      include_state_compliance: definition.include_state_compliance ?? false,
       canonical: {
         ...definition.canonical,
         form_kind: definition.canonical.form_kind ?? definition.form_kind ?? "standard",
