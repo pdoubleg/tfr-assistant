@@ -1,10 +1,12 @@
+from types import SimpleNamespace
+
 import pytest
 from openai import AsyncOpenAI
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
 
-from app.agents.chat_agent import build_chat_model, chat_agent
+from app.agents.chat_agent import build_chat_model, chat_agent, get_registered_forms_listing
 from app.core.config import Settings
 from app.core.llm import (
     LLMModelAPI,
@@ -27,11 +29,27 @@ def test_build_chat_model_uses_test_model_for_local_mode() -> None:
 
 
 def test_generate_audit_form_review_tool_schema_omits_runtime_prompt() -> None:
+    assert "get_registered_forms_listing" in chat_agent._function_toolset.tools
     tool = chat_agent._function_toolset.tools["generate_audit_form_review"]
     schema = tool.function_schema.json_schema
 
     assert "prompt" not in schema["properties"]
     assert schema["required"] == ["claim_number", "form_id"]
+
+
+@pytest.mark.anyio
+async def test_registered_forms_listing_returns_compact_catalog_metadata() -> None:
+    ctx = SimpleNamespace(deps=SimpleNamespace(settings=Settings()))
+
+    listing = await get_registered_forms_listing(ctx)
+
+    assert "Registered audit forms:" in listing
+    assert "canonical_form_id=tfr_default" in listing
+    assert "form_kind=standard" in listing
+    assert "form_id=tfr_default" in listing
+    assert "form_version=v0.1" in listing
+    assert "title=" in listing
+    assert "description=" in listing
 
 
 def test_audit_review_card_component_opens_generated_result() -> None:

@@ -11,6 +11,7 @@ from app.db.session import AsyncSessionLocal
 from app.presenters.a2ui import generate_audit_review_card
 from app.schemas.reviews import ReviewGenerateRequest
 from app.services.audit_generation import ChatReviewGenerationService
+from app.services.catalog import FormCatalog
 from app.services.status_reporter import ChatStateStatusReporter
 
 CHAT_TEST_OUTPUT = (
@@ -63,6 +64,7 @@ def build_chat_agent(settings: Settings | None = None) -> Agent[TFRChatDeps, str
             "folder; inspect directories before reading unknown paths, and treat Mermaid "
             "diagrams as text that the frontend can render and download. "
             "When the user asks you to create or generate a one-off audit form review, call "
+            "get_registered_forms_listing first when you need valid form IDs, then call "
             "generate_audit_form_review so the result is persisted and rendered for review. "
             "For synthetic data, smoke-style data, or completed audit intake, direct the user "
             "to Batch Audits instead of generating it from chat."
@@ -75,6 +77,41 @@ chat_agent = build_chat_agent()
 
 
 @chat_agent.tool
+async def get_registered_forms_listing(ctx: RunContext[TFRChatDeps]) -> str:
+    """Get valid audit form IDs before calling generate_audit_form_review.
+
+    Call this tool to get valid form IDs and versions prior to running
+    generate_audit_form_review so that the generation args are valid.
+
+    Returns:
+        Compact registered form metadata from the form catalog.
+    """
+
+    catalog = FormCatalog(ctx.deps.settings.form_catalog_dir)
+    definitions = [
+        catalog.get_form(summary.id, summary.version) for summary in catalog.list_forms()
+    ]
+    if not definitions:
+        return "No registered audit forms found."
+    lines = ["Registered audit forms:"]
+    for definition in definitions:
+        description = " ".join((definition.description or "").split()) or "None"
+        lines.append(
+            "; ".join(
+                [
+                    f"canonical_form_id={definition.canonical.form_id}",
+                    f"form_kind={definition.form_kind}",
+                    f"form_id={definition.id}",
+                    f"form_version={definition.version}",
+                    f"title={definition.title}",
+                    f"description={description}",
+                ]
+            )
+        )
+    return "\n".join(lines)
+
+
+@chat_agent.tool
 async def generate_audit_form_review(
     ctx: RunContext[TFRChatDeps],
     claim_number: str,
@@ -82,7 +119,17 @@ async def generate_audit_form_review(
     effective_date: str = "",
     form_version: str = "v0.1",
 ) -> ToolReturn:
-    """Spawn a sub-agent to generate one AuditFormResult review."""
+    """Spawn a sub-agent to generate one AuditFormResult review.
+
+    Args:
+        claim_number: The claim number to generate a review for.
+        form_id: The form ID to generate a review for.
+        effective_date: The effective date to generate a review for.
+        form_version: The form version to generate a review for.
+
+    Returns:
+        A tool return with the form result and generated component.
+    """
 
     state = ctx.deps.state
     reporter = ChatStateStatusReporter(state)
