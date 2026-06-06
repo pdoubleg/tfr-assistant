@@ -14,6 +14,8 @@ class ActivityLogEntry(BaseModel):
     message: str
     timestamp: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
     status: Literal["in_progress", "completed", "error"] = "in_progress"
+    code: dict[str, Any] | None = None
+    error: dict[str, Any] | None = None
 
 
 class ChatHandleMetadata(BaseModel):

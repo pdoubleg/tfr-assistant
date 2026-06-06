@@ -3,6 +3,7 @@
 from typing import Any
 
 from app.models.a2ui import A2UIComponent
+from app.schemas.reviews import ReviewRecord
 
 
 def generate_data_table(
@@ -109,6 +110,38 @@ def generate_artifact_bundle_card(
             "files": files or [],
             "warnings": warnings or [],
             "createdAt": createdAt,
+        },
+        layout={"width": "full"},
+        zone="chat",
+    )
+
+
+def generate_audit_review_card(review: ReviewRecord) -> A2UIComponent | None:
+    """Build a chat card that opens a persisted audit review in the output editor."""
+
+    form = review.user_version or review.original
+    if form is None:
+        return None
+    input_json = review.input_json or {}
+    claim_number = input_json.get("claim_number")
+    batch_run_name = input_json.get("batch_run_name")
+    return A2UIComponent(
+        id=f"audit-review-card-{review.id}",
+        type="a2ui.AuditReviewCard",
+        props={
+            "reviewId": review.id,
+            "formId": review.form_id,
+            "formVersion": review.form_version,
+            "title": form.title,
+            "description": form.description,
+            "claimNumber": claim_number if isinstance(claim_number, str) else "",
+            "runName": batch_run_name if isinstance(batch_run_name, str) else "",
+            "source": review.source,
+            "status": review.status,
+            "outcome": form.overall_outcome,
+            "createdAt": review.created_at.isoformat(),
+            "updatedAt": review.updated_at.isoformat(),
+            "form": form.model_dump(mode="json"),
         },
         layout={"width": "full"},
         zone="chat",

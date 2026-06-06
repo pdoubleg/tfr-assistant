@@ -35,7 +35,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  bootstrapPromptFamily,
   createPromptVersion,
   getFormDefinition,
   listFormCatalog,
@@ -43,6 +42,7 @@ import {
   listReviews,
   listPromptFamilies,
   registerForm,
+  setPromptAlias,
   setPromptActivation,
 } from "@/lib/api";
 import type {
@@ -108,7 +108,7 @@ interface FormEditorState {
   formKind: FormKind;
   modelName: string;
   description: string;
-  instructions: string;
+  initialPrompt: string;
   tools: ReviewAgentToolName[];
   knowledgeDocs: string[];
   knowledgeDocDraft: string;
@@ -382,7 +382,6 @@ function buildDefinition(state: FormEditorState): AuditFormDefinition {
     form_kind: canonical.form_kind ?? state.formKind,
     model_name: state.modelName || DEFAULT_AUDIT_MODEL_NAME,
     description: canonical.description,
-    instructions: normalizeOptionalText(state.instructions),
     tools: normalizeToolOutput(state.tools),
     knowledge_docs: normalizeList(state.knowledgeDocs),
     include_state_compliance: state.includeStateCompliance,
@@ -467,7 +466,7 @@ function definitionToState(
     formKind,
     modelName,
     description,
-    instructions: mode === "edit" ? registryInstructions || definition?.instructions || "" : definition?.instructions ?? "",
+    initialPrompt: mode === "edit" ? registryInstructions : "",
     tools: normalizeToolList(definition?.tools),
     knowledgeDocs: definition?.knowledge_docs ?? [],
     knowledgeDocDraft: "",
@@ -694,9 +693,7 @@ function PromptRegistryPanel({
   promptError,
   formId,
   formVersion,
-  registeredInstructions,
   onRefresh,
-  onInitialize,
   onRegisterPrompt,
   onSetActive,
 }: {
@@ -706,9 +703,7 @@ function PromptRegistryPanel({
   promptError: string;
   formId: string;
   formVersion: string;
-  registeredInstructions: string;
   onRefresh: () => void;
-  onInitialize: () => Promise<void>;
   onRegisterPrompt: (familyId: string | null, text: string, commitMessage: string) => Promise<void>;
   onSetActive: (familyId: string, versionId: string) => Promise<void>;
 }) {
@@ -794,7 +789,6 @@ function PromptRegistryPanel({
             className="gap-1.5"
             onClick={() => {
               setRegisterOpen((current) => !current);
-              setNewPromptText((current) => current || registeredInstructions || "");
             }}
           >
             <Plus className="h-3.5 w-3.5" />
@@ -851,35 +845,14 @@ function PromptRegistryPanel({
             </div>
           ) : null}
           <div className="rounded-md border bg-card p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-semibold">Registered Instructions</p>
-                  <Badge variant="outline" className="font-mono text-[10px]">
-                    {formId}@{formVersion}
-                  </Badge>
-                  <Badge variant="secondary">not yet persisted</Badge>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Initialize the registry from the instructions stored on this registered form.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                <CopyButton text={registeredInstructions} label="Copy" />
-                <Button
-                  type="button"
-                  size="sm"
-                  className="gap-1.5"
-                  disabled={saving || !registeredInstructions.trim()}
-                  onClick={() => void onInitialize()}
-                >
-                  {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                  Initialize
-                </Button>
-              </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-semibold">No Prompt Registered</p>
+              <Badge variant="outline" className="font-mono text-[10px]">
+                {formId}@{formVersion}
+              </Badge>
             </div>
-            <p className="mt-3 max-h-48 overflow-y-auto whitespace-pre-wrap rounded-md border bg-secondary/20 p-3 text-sm leading-relaxed">
-              {registeredInstructions || "This form does not define custom instructions."}
+            <p className="mt-1 text-xs text-muted-foreground">
+              Register and activate an instruction prompt before running audit reviews for this form version.
             </p>
           </div>
         </div>
@@ -1616,7 +1589,6 @@ export function FormCatalog() {
           form.version,
           form.title,
           form.description,
-          form.instructions,
           form.modelName,
           form.tools.join(" "),
           form.knowledgeDocs.join(" "),
@@ -1672,14 +1644,29 @@ export function FormCatalog() {
     setDialogOpen(true);
   };
 
-  const saveDefinition = async (definition: AuditFormDefinition) => {
+  const saveDefinition = async (definition: AuditFormDefinition, initialPrompt: string) => {
     setSaving(true);
     setError("");
     try {
       const saved = await registerForm(definition);
-      if (definition.instructions?.trim()) {
-        await bootstrapPromptFamily(saved.id, saved.version);
-      }
+      const promptText = initialPrompt.trim();
+      const promptVersion = await createPromptVersion({
+        form_id: saved.id,
+        form_version: saved.version,
+        text: promptText,
+        source_kind: "handcrafted",
+        commit_message: `Registered initial prompt for ${saved.id}@${saved.version}.`,
+        applicable_form_versions: [saved.version],
+        alias: "production",
+      });
+      await setPromptAlias(promptVersion.family_id, "baseline", promptVersion.id);
+      await setPromptActivation({
+        family_id: promptVersion.family_id,
+        version_id: promptVersion.id,
+        form_version: saved.version,
+        scope: "form_version",
+        notes: `Activated initial prompt for ${saved.id}@${saved.version}.`,
+      });
       setDialogOpen(false);
       await refresh();
       setSelectedKey(`${saved.id}@${saved.version}`);
@@ -1736,20 +1723,6 @@ export function FormCatalog() {
     }
   };
 
-  const initializePromptRegistry = async () => {
-    if (!selectedDefinition) return;
-    setSaving(true);
-    setPromptError("");
-    try {
-      await bootstrapPromptFamily(selectedDefinition.id, selectedDefinition.version);
-      await refreshPrompts(selectedDefinition);
-    } catch (err) {
-      setPromptError(err instanceof Error ? err.message : "Failed to initialize prompt registry.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
   return (
     <>
       <div className={cn("grid gap-4", hasSelection && "xl:grid-cols-[600px_minmax(0,1fr)]")}>
@@ -1794,7 +1767,7 @@ export function FormCatalog() {
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   className="pl-9"
-                  placeholder="Search title, ID, instructions, tools, docs..."
+                  placeholder="Search title, ID, tools, docs..."
                 />
               </label>
               <select
@@ -1963,9 +1936,7 @@ export function FormCatalog() {
                   promptError={promptError}
                   formId={selectedDefinition.id}
                   formVersion={selectedDefinition.version}
-                  registeredInstructions={selectedDefinition.instructions ?? ""}
                   onRefresh={() => void refreshPrompts(selectedDefinition)}
-                  onInitialize={initializePromptRegistry}
                   onRegisterPrompt={registerPromptVersion}
                   onSetActive={setActivePrompt}
                 />
@@ -2023,7 +1994,7 @@ function FormRegistrationDialog({
   registryInstructions?: string;
   saving: boolean;
   onClose: () => void;
-  onSave: (definition: AuditFormDefinition) => Promise<void>;
+  onSave: (definition: AuditFormDefinition, initialPrompt: string) => Promise<void>;
 }) {
   const [state, setState] = useState<FormEditorState>(() =>
     definitionToState(sourceDefinition, mode, forms, registryInstructions),
@@ -2231,8 +2202,12 @@ function FormRegistrationDialog({
         setFormError("That form ID and version already exist. Edit as a new version before saving.");
         return;
       }
+      if (!state.initialPrompt.trim()) {
+        setFormError("Register an initial prompt for this form version.");
+        return;
+      }
       setFormError("");
-      await onSave(definition);
+      await onSave(definition, state.initialPrompt);
     } catch (err) {
       setFormError(zodMessage(err));
     }
@@ -2428,7 +2403,7 @@ function FormRegistrationDialog({
                             This form version editor only changes catalog details, tools, knowledge docs, and questions.
                             Prompt changes happen in the Prompt Registry after the version is saved.
                           </p>
-                          {state.instructions.trim() ? (
+                          {state.initialPrompt.trim() ? (
                             <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
                               The new version will seed its registry prompt from the currently active prompt.
                             </p>
@@ -2441,18 +2416,17 @@ function FormRegistrationDialog({
                       <FieldLabel
                         htmlFor="form-instructions"
                         label="Initial Prompt Instructions"
-                        optional
-                        tooltip="Used once to seed the prompt registry for this new form version."
+                        tooltip="Saved as the first active prompt registry version for this form version."
                       />
                       <Textarea
                         id="form-instructions"
-                        value={state.instructions}
+                        value={state.initialPrompt}
                         onChange={(event) =>
-                          setState((current) => ({ ...current, instructions: event.target.value }))
+                          setState((current) => ({ ...current, initialPrompt: event.target.value }))
                         }
                         disabled={saving}
                         className="min-h-[220px]"
-                        placeholder="Form-specific review focus, evidence boundaries, citation expectations..."
+                        placeholder="System prompt for audit reviews using this form..."
                       />
                     </div>
                   )}

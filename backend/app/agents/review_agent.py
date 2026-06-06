@@ -1,13 +1,14 @@
 import json
 import logging
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext, ToolDefinition
-from pydantic_ai.capabilities import PrepareTools
+from pydantic_ai.capabilities import AgentCapability, PrepareTools
 
 from app.core.config import Settings, get_settings
 from app.core.llm import LLMModelConfig, LLMRunCostTracker, build_llm_model
@@ -40,6 +41,8 @@ DEFAULT_REVIEW_INSTRUCTIONS = (
     "total_amount_reviewed_dollars plus question-level overwrite_dollars and "
     "underwrite_dollars."
 )
+
+REVIEW_USER_PROMPT = "Please run a TFR review"
 
 SYNTHETIC_REVIEW_INSTRUCTIONS = (
     "You are generating synthetic completed audit form data for development, testing, "
@@ -95,11 +98,10 @@ class FileReviewAgentDeps:
     path_to_questionnaire: str = ""
     claim_number: str = ""
     effective_date: str = ""
-    instructions: str = ""
+    runtime_context: str = ""
     tools: list[str | ReviewAgentToolName] | None = None
     knowledge_docs: list[str] | None = None
     include_state_compliance: bool | None = None
-    include_form_instructions: bool = True
     cost_tracker: LLMRunCostTracker = field(default_factory=LLMRunCostTracker)
     form_path: Path = field(init=False)
     form_definition: AuditFormDefinition = field(init=False)
@@ -189,37 +191,22 @@ def build_file_review_agent(
     @agent.instructions
     def add_tfr_template(ctx: RunContext[FileReviewAgentDeps]) -> str:
         """Add the TFR template to the instructions."""
-        definition = ctx.deps.form_definition
-        sections = [
-            "Registered Audit Form:",
-            definition.canonical.as_questionnaire_string(),
-        ]
+        return ctx.deps.form_definition.canonical.as_questionnaire_string()
+
+    @agent.instructions
+    def add_runtime_context(ctx: RunContext[FileReviewAgentDeps]) -> str:
+        """Add per-run claim/review context."""
+        sections: list[str] = []
         if ctx.deps.claim_number:
-            sections.extend(["", f"Claim Number: {ctx.deps.claim_number}"])
+            sections.extend(["Claim Number:", ctx.deps.claim_number])
         if ctx.deps.effective_date:
-            sections.extend(["", f"Effective Date: {ctx.deps.effective_date}"])
-        if ctx.deps.include_form_instructions and definition.instructions:
-            sections.extend(
-                [
-                    "",
-                    "Form Instructions:",
-                    definition.instructions,
-                ]
-            )
-        if ctx.deps.instructions:
-            sections.extend(["", "Additional Runtime Instructions:", ctx.deps.instructions])
-        if ctx.deps.tools:
-            selected_tool_names = [
-                tool.value if isinstance(tool, ReviewAgentToolName) else str(tool)
-                for tool in ctx.deps.tools
-            ]
-            sections.extend(
-                [
-                    "",
-                    "Selected Agent Tools:",
-                    ", ".join(selected_tool_names),
-                ]
-            )
+            if sections:
+                sections.append("")
+            sections.extend(["Effective Date:", ctx.deps.effective_date])
+        if ctx.deps.runtime_context:
+            if sections:
+                sections.append("")
+            sections.extend(["Review Input:", ctx.deps.runtime_context])
         return "\n".join(sections)
 
     @agent.instructions
@@ -350,13 +337,12 @@ def _populate_runtime_metadata(
 async def run_file_review_agent(
     claim_number: str,
     effective_date: str,
-    instructions: str,
     path_to_questionnaire: str = "",
-    user_prompt: str = "",
+    runtime_context: str = "",
     tools: list[str] | None = None,
     knowledge_docs: list[str] | None = None,
-    base_instructions: str | None = None,
-    include_form_instructions: bool = True,
+    system_prompt: str | None = None,
+    capabilities: Sequence[AgentCapability[FileReviewAgentDeps]] | None = None,
     active_settings: Settings | None = None,
     model_name: str | None = None,
 ) -> AuditResult:
@@ -367,17 +353,11 @@ async def run_file_review_agent(
         path_to_questionnaire=path_to_questionnaire,
         claim_number=claim_number,
         effective_date=effective_date,
-        instructions=instructions,
+        runtime_context=runtime_context.strip(),
         tools=list(tools) if tools is not None else None,
         knowledge_docs=list(knowledge_docs) if knowledge_docs is not None else None,
-        include_form_instructions=include_form_instructions,
     )
-    prompt = _prompt_with_context(
-        user_prompt or "Please run a TFR audit.",
-        claim_number=claim_number,
-        effective_date=effective_date,
-        instructions=instructions,
-    )
+    prompt = REVIEW_USER_PROMPT
     try:
         output_type = (
             AuditFormWithFinancialsResult
@@ -385,11 +365,15 @@ async def run_file_review_agent(
             else AuditFormResult
         )
         started_at = time.perf_counter()
-        if base_instructions:
-            with agent.override(instructions=_mode_instructions(agent, base_instructions)):
-                result = await agent.run(user_prompt=prompt, deps=deps, output_type=output_type)
-        else:
-            result = await agent.run(user_prompt=prompt, deps=deps, output_type=output_type)
+        with agent.override(
+            instructions=_mode_instructions(agent, system_prompt or DEFAULT_REVIEW_INSTRUCTIONS)
+        ):
+            result = await agent.run(
+                user_prompt=prompt,
+                deps=deps,
+                output_type=output_type,
+                capabilities=capabilities,
+            )
         _populate_runtime_metadata(
             result.output,
             deps=deps,
@@ -416,7 +400,6 @@ async def run_synthetic_review_agent(
     instructions: str,
     path_to_questionnaire: str = "",
     user_prompt: str = "",
-    knowledge_docs: list[str] | None = None,
     active_settings: Settings | None = None,
     model_name: str | None = None,
 ) -> AuditResult:
@@ -427,16 +410,12 @@ async def run_synthetic_review_agent(
         path_to_questionnaire=path_to_questionnaire,
         claim_number=claim_number,
         effective_date=effective_date,
-        instructions=instructions,
+        runtime_context=build_runtime_context(user_prompt, instructions),
         tools=[],
-        knowledge_docs=list(knowledge_docs) if knowledge_docs is not None else None,
+        knowledge_docs=[],
+        include_state_compliance=False,
     )
-    prompt = _prompt_with_context(
-        user_prompt or instructions or "Generate one synthetic completed audit.",
-        claim_number=claim_number,
-        effective_date=effective_date,
-        instructions=instructions,
-    )
+    prompt = REVIEW_USER_PROMPT
     try:
         output_type = (
             AuditFormWithFinancialsResult
@@ -477,20 +456,13 @@ async def run_completed_intake_agent(
     document_name: str,
     path_to_questionnaire: str,
     instructions: str = "",
-    knowledge_docs: list[str] | None = None,
     active_settings: Settings | None = None,
     model_name: str | None = None,
 ) -> CompletedAuditIntakeResult | CompletedFinancialAuditIntakeResult | AuditIntakeFailure:
     active_settings = active_settings or settings
     model_config = active_settings.audit_llm_config(model_name=model_name)
     agent = build_file_review_agent(active_settings, model_config=model_config)
-    deps = FileReviewAgentDeps(
-        path_to_questionnaire=path_to_questionnaire,
-        instructions=instructions,
-        tools=[],
-        knowledge_docs=list(knowledge_docs) if knowledge_docs is not None else None,
-    )
-    prompt = "\n\n".join(
+    runtime_context = "\n\n".join(
         part
         for part in [
             f"Document Name: {document_name}",
@@ -500,6 +472,14 @@ async def run_completed_intake_agent(
         ]
         if part
     )
+    deps = FileReviewAgentDeps(
+        path_to_questionnaire=path_to_questionnaire,
+        runtime_context=runtime_context,
+        tools=[],
+        knowledge_docs=[],
+        include_state_compliance=False,
+    )
+    prompt = REVIEW_USER_PROMPT
     try:
         output_type = (
             CompletedFinancialAuditIntakeResult | AuditIntakeFailure
@@ -545,17 +525,13 @@ async def run_completed_intake_agent(
     return result.output
 
 
-def _prompt_with_context(
-    prompt: str,
-    *,
-    claim_number: str = "",
-    effective_date: str = "",
-    instructions: str = "",
-) -> str:
-    if claim_number:
-        prompt += f"\n\nClaim Number: {claim_number}"
-    if effective_date:
-        prompt += f"\n\nEffective Date: {effective_date}"
-    if instructions:
-        prompt += f"\n\nAdditional Instructions: {instructions}"
-    return prompt
+def build_runtime_context(*parts: str) -> str:
+    seen: set[str] = set()
+    context_parts: list[str] = []
+    for part in parts:
+        normalized = part.strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        context_parts.append(normalized)
+    return "\n\n".join(context_parts)

@@ -160,7 +160,7 @@ class OptimizationRunService:
         elif request.seed_instruction_source == "prompt_registry" and request.resolved_seed_prompt:
             seed_instructions = request.resolved_seed_prompt.text
         else:
-            seed_instructions = definition.instructions or DEFAULT_REVIEW_INSTRUCTIONS
+            seed_instructions = DEFAULT_REVIEW_INSTRUCTIONS
         seed_candidate = seed_candidate_from_instructions(seed_instructions)
 
         instances = asyncio.run(self._load_instances(request, definition, str(form_path)))

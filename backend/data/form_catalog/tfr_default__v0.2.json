@@ -3,8 +3,6 @@
   "version": "v0.2",
   "title": "Default TFR Questionnaire",
   "description": "Starter canonical form used while the audit system is still evolving.",
-  "audit_scope": "",
-  "tool_instructions": "",
   "canonical": {
     "form_id": "tfr_default",
     "form_version": "v0.2",

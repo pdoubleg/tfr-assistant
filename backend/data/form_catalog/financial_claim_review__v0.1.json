@@ -4,7 +4,6 @@
   "title": "Financial Claim Review",
   "form_kind": "financial",
   "description": "Flat financial audit form for overwrite and underwrite exception review.",
-  "instructions": "Review the file for financial exceptions. Capture the total amount reviewed and any overwrite or underwrite dollars by question.",
   "tools": [],
   "knowledge_docs": [],
   "canonical": {

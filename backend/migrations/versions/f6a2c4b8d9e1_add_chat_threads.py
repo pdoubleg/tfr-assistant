@@ -19,7 +19,13 @@ depends_on: str | Sequence[str] | None = None
 portable_json = sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql")
 
 
+def _table_names() -> set[str]:
+    return set(sa.inspect(op.get_bind()).get_table_names())
+
+
 def upgrade() -> None:
+    if "chat_threads" in _table_names():
+        return
     op.create_table(
         "chat_threads",
         sa.Column("id", sa.String(length=36), nullable=False),
@@ -50,6 +56,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    if "chat_threads" not in _table_names():
+        return
     with op.batch_alter_table("chat_threads", schema=None) as batch_op:
         batch_op.drop_index(batch_op.f("ix_chat_threads_updated_at"))
         batch_op.drop_index(batch_op.f("ix_chat_threads_title"))

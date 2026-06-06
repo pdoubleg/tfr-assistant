@@ -13,3 +13,84 @@ INFO:     Finished server process [5016]
 INFO:     Started server process [16048]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app\schemas\forms.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [16048]
+WARNING:  WatchFiles detected changes in 'app\services\audit_generation.py', 'app\services\optimization\adapter.py', 'app\services\optimization\demo.py', 'app\services\optimization\runner.py', 'app\services\prompt_registry.py', 'app\services\optimization\repository.py', 'app\services\catalog.py', 'app\agents\review_agent.py', 'app\agents\chat_agent.py'. Reloading...
+INFO:     Started server process [15504]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [15504]
+INFO:     Started server process [15200]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'tests\test_prompt_registry.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [15200]
+WARNING:  WatchFiles detected changes in 'migrations\versions\e3b7a9c2d4f5_add_prompt_registry_tables.py'. Reloading...
+INFO:     Started server process [16532]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [16532]
+INFO:     Started server process [11180]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app\agents\review_agent.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [11180]
+WARNING:  WatchFiles detected changes in 'app\agents\review_agent.py', 'migrations\versions\d4e8f1a2b3c4_add_dataset_curation.py', 'migrations\versions\f6a2c4b8d9e1_add_chat_threads.py'. Reloading...
+INFO:     Started server process [14524]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [14524]
+INFO:     Started server process [12056]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app\services\optimization\demo.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [12056]
+WARNING:  WatchFiles detected changes in 'app\schemas\forms.py', 'migrations\versions\d4e8f1a2b3c4_add_dataset_curation.py'. Reloading...
+INFO:     Started server process [19012]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [19012]
+INFO:     Started server process [14912]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app\agents\review_agent.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [14912]
+WARNING:  WatchFiles detected changes in 'app\services\optimization\adapter.py', 'app\agents\review_agent.py'. Reloading...
+INFO:     Started server process [200]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [200]
+INFO:     Started server process [9512]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app\models\chat_state.py'. Reloading...

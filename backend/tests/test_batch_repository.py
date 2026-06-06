@@ -125,6 +125,33 @@ async def test_synthetic_batch_creates_synth_claims_and_source(session):
 
 
 @pytest.mark.anyio
+async def test_normal_batch_keeps_generation_prompt_out_of_runtime_context(session):
+    service = BatchReviewGenerationService(session)
+    batch = await service.create_batch(
+        BatchCreateRequest(
+            name="Normal pilot",
+            form_id="tfr_default",
+            form_version="v0.1",
+            generation_prompt="Legacy batch prompt.",
+            items=[
+                BatchReviewInput(
+                    claim_number="CLAIM-001",
+                    instructions="Legacy row instructions.",
+                    prompt="Legacy row prompt.",
+                    generation_prompt="Legacy row generation prompt.",
+                )
+            ],
+        )
+    )
+    reviews = await ReviewRepository(session).list_reviews(batch_id=batch.id)
+    input_json = reviews[0].input_json or {}
+
+    assert input_json["prompt"] == ""
+    assert input_json["instructions"] == ""
+    assert input_json["generation_prompt"] == "Legacy row generation prompt."
+
+
+@pytest.mark.anyio
 async def test_manual_entry_batch_queues_manual_results_and_completes_without_agent(session):
     service = BatchReviewGenerationService(session)
     canonical = (

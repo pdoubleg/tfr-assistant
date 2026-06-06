@@ -5,6 +5,7 @@ import json
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from app.agents.review_agent import DEFAULT_REVIEW_INSTRUCTIONS
 from app.core.config import get_settings
 from app.db.models import Base, OptimizationCandidateORM, OptimizationRunORM
 from app.schemas.prompts import (
@@ -37,6 +38,14 @@ async def test_prompt_registry_bootstraps_versions_aliases_and_resolution(sessio
     catalog = FormCatalog(get_settings().form_catalog_dir)
     repository = PromptRegistryRepository(session, catalog)
 
+    families = await repository.list_form_families("tfr_default", form_version="v0.1")
+    assert families == []
+
+    fallback = await repository.resolve_active(form_id="tfr_default", form_version="v0.1")
+    assert fallback.text == DEFAULT_REVIEW_INSTRUCTIONS
+    assert fallback.version_id is None
+
+    await repository.bootstrap_form_prompt("tfr_default", "v0.1")
     families = await repository.list_form_families("tfr_default", form_version="v0.1")
 
     assert len(families) == 1

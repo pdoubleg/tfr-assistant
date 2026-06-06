@@ -4,7 +4,6 @@
   "title": "Default TFR Questionnaire",
   "form_kind": "standard",
   "description": "Starter canonical form used while the audit system is still evolving.",
-  "instructions": null,
   "tools": [
     "Notes"
   ],

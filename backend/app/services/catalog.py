@@ -18,7 +18,6 @@ class FormCatalog:
                 form_kind=form.form_kind,
                 model_name=form.model_name,
                 description=form.description,
-                instructions=form.instructions,
                 tools=form.tools,
                 knowledge_docs=form.knowledge_docs,
                 include_state_compliance=form.include_state_compliance,

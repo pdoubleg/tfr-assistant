@@ -1,11 +1,15 @@
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Any, Protocol
 from uuid import uuid4
 
+from pydantic_ai.capabilities import AgentCapability, Hooks
+from pydantic_ai.messages import ToolCallPart
+from pydantic_ai.tools import RunContext, ToolDefinition
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.review_agent import (
     AuditIntakeFailure,
+    FileReviewAgentDeps,
     run_completed_intake_agent,
     run_file_review_agent,
     run_synthetic_review_agent,
@@ -13,6 +17,7 @@ from app.agents.review_agent import (
 from app.core.config import Settings, get_settings
 from app.db.session import AsyncSessionLocal
 from app.models.audit import AuditResult, merge_with_canonical
+from app.models.chat_state import TFRChatState
 from app.schemas.forms import AuditFormDefinition
 from app.schemas.reviews import (
     BatchCreateRequest,
@@ -25,7 +30,11 @@ from app.services.catalog import FormCatalog
 from app.services.intake_documents import IntakeDocumentStore
 from app.services.prompt_registry import PromptRegistryRepository
 from app.services.review_repository import ReviewRepository
-from app.services.status_reporter import NullStatusReporter, StatusReporter
+from app.services.status_reporter import (
+    NullStatusReporter,
+    StatusReporter,
+    record_tool_call_started,
+)
 
 
 @dataclass(slots=True)
@@ -63,11 +72,45 @@ class AuditResultValidator:
         )
 
 
+REVIEW_AGENT_TOOL_STATUS_SOURCE = "review_agent_tool"
+
+
+def _review_tool_status_capabilities(
+    reporter: StatusReporter | None,
+) -> tuple[AgentCapability[FileReviewAgentDeps], ...]:
+    state = getattr(reporter, "state", None)
+    if not isinstance(state, TFRChatState):
+        return ()
+
+    hooks = Hooks[FileReviewAgentDeps]()
+
+    @hooks.on.before_tool_execute
+    async def report_review_tool_call(
+        ctx: RunContext[FileReviewAgentDeps],
+        *,
+        call: ToolCallPart,
+        tool_def: ToolDefinition,
+        args: dict[str, Any],
+    ) -> dict[str, Any]:
+        del ctx, tool_def
+        record_tool_call_started(
+            state,
+            source_name=REVIEW_AGENT_TOOL_STATUS_SOURCE,
+            tool_name=call.tool_name,
+            args=args,
+            tool_call_id=call.tool_call_id,
+        )
+        return args
+
+    return (hooks,)
+
+
 @dataclass(slots=True)
 class AgentAuditFormGenerator:
     catalog: FormCatalog
     settings: Settings
     mode: str = "review"
+    review_tool_status_reporter: StatusReporter | None = None
 
     async def generate(
         self,
@@ -83,29 +126,18 @@ class AgentAuditFormGenerator:
                 instructions=request.instructions or request.generation_prompt,
                 path_to_questionnaire=str(form_path),
                 user_prompt=request.prompt or request.generation_prompt,
-                knowledge_docs=canonical.knowledge_docs,
                 active_settings=self.settings,
                 model_name=model_name,
             )
         else:
-            base_prompt = (
-                request.resolved_prompt.text
-                if (
-                    request.resolved_prompt
-                    and request.resolved_prompt.ref.ref_type != "form_default"
-                )
-                else None
-            )
             result = await run_file_review_agent(
                 claim_number=request.claim_number,
                 effective_date=request.effective_date,
-                instructions=request.instructions,
                 path_to_questionnaire=str(form_path),
-                user_prompt=request.prompt,
                 tools=canonical.tools,
                 knowledge_docs=canonical.knowledge_docs,
-                base_instructions=base_prompt,
-                include_form_instructions=base_prompt is None,
+                system_prompt=(request.resolved_prompt.text if request.resolved_prompt else None),
+                capabilities=_review_tool_status_capabilities(self.review_tool_status_reporter),
                 active_settings=self.settings,
                 model_name=model_name,
             )
@@ -146,7 +178,6 @@ class CompletedIntakeAuditFormGenerator:
             document_name=document_path.name,
             path_to_questionnaire=str(form_path),
             instructions=request.instructions,
-            knowledge_docs=canonical.knowledge_docs,
             active_settings=self.settings,
             model_name=model_name,
         )
@@ -200,6 +231,7 @@ class AuditGenerationService:
         *,
         source: str,
         reporter: StatusReporter | None = None,
+        review_tool_status_reporter: StatusReporter | None = None,
     ) -> ReviewRecord:
         reporter = reporter or NullStatusReporter()
         request = await self._with_resolved_prompt(request)
@@ -215,6 +247,7 @@ class AuditGenerationService:
             review.id,
             request,
             reporter=reporter,
+            review_tool_status_reporter=review_tool_status_reporter,
         )
 
     async def generate_for_review(
@@ -223,6 +256,7 @@ class AuditGenerationService:
         request: ReviewGenerateRequest,
         *,
         reporter: StatusReporter | None = None,
+        review_tool_status_reporter: StatusReporter | None = None,
     ) -> ReviewRecord:
         reporter = reporter or NullStatusReporter()
         try:
@@ -236,7 +270,10 @@ class AuditGenerationService:
             await self.repository.mark_review_running(review_id)
 
             reporter.in_progress("Running audit form generator...", progress=45)
-            generator = self._generator_for(request)
+            generator = self._generator_for(
+                request,
+                review_tool_status_reporter=review_tool_status_reporter,
+            )
             generated = await generator.generate(request, canonical)
             if generated.input_json_updates:
                 await self.repository.merge_review_input_json(
@@ -270,6 +307,8 @@ class AuditGenerationService:
             return await self.repository.mark_review_failed(review_id, str(exc))
 
     async def _with_resolved_prompt(self, request: ReviewGenerateRequest) -> ReviewGenerateRequest:
+        if not self._requires_review_prompt(request):
+            return request
         if request.resolved_prompt is not None:
             return request
         repository = PromptRegistryRepository(self.session, self.catalog)
@@ -286,14 +325,28 @@ class AuditGenerationService:
             )
         return request.model_copy(update={"resolved_prompt": resolved})
 
-    def _generator_for(self, request: ReviewGenerateRequest) -> AuditFormGenerator:
+    def _requires_review_prompt(self, request: ReviewGenerateRequest) -> bool:
+        if request.input_mode in {"manual_entry", "completed_intake", "synthetic"}:
+            return False
+        return not request.synthetic
+
+    def _generator_for(
+        self,
+        request: ReviewGenerateRequest,
+        *,
+        review_tool_status_reporter: StatusReporter | None = None,
+    ) -> AuditFormGenerator:
         if request.input_mode == "manual_entry":
             return ManualEntryAuditFormGenerator()
         if request.input_mode == "completed_intake":
             return CompletedIntakeAuditFormGenerator(self.catalog, self.settings)
         if request.synthetic or request.input_mode == "synthetic":
             return AgentAuditFormGenerator(self.catalog, self.settings, mode="synthetic")
-        return AgentAuditFormGenerator(self.catalog, self.settings)
+        return AgentAuditFormGenerator(
+            self.catalog,
+            self.settings,
+            review_tool_status_reporter=review_tool_status_reporter,
+        )
 
 
 @dataclass(slots=True)
@@ -312,6 +365,7 @@ class ChatReviewGenerationService:
             request,
             source="chat_tool",
             reporter=reporter,
+            review_tool_status_reporter=reporter,
         )
 
 
@@ -419,25 +473,33 @@ class BatchReviewGenerationService:
         item: BatchReviewInput,
         batch_request: BatchCreateRequest,
     ) -> ReviewGenerateRequest:
+        generation_prompt = item.generation_prompt or batch_request.generation_prompt
+        synthetic = (
+            batch_request.synthetic or batch_request.input_mode == "synthetic"
+            if item.synthetic is None
+            else item.synthetic
+        )
+        prompt = ""
+        instructions = ""
+        if synthetic:
+            prompt = item.prompt or generation_prompt
+            instructions = item.instructions or generation_prompt
+        elif batch_request.input_mode == "completed_intake":
+            instructions = item.instructions or generation_prompt
+
         return ReviewGenerateRequest(
-            prompt=item.prompt or item.generation_prompt or batch_request.generation_prompt,
+            prompt=prompt,
             claim_number=item.claim_number,
             effective_date=item.effective_date,
-            instructions=(
-                item.instructions or item.generation_prompt or batch_request.generation_prompt
-            ),
+            instructions=instructions,
             form_id=batch_request.form_id,
             form_version=batch_request.form_version,
             prompt_ref=batch_request.prompt_ref,
             source_file_ids=item.source_file_ids,
             manual_result=item.manual_result,
-            synthetic=(
-                batch_request.synthetic or batch_request.input_mode == "synthetic"
-                if item.synthetic is None
-                else item.synthetic
-            ),
+            synthetic=synthetic,
             input_mode=batch_request.input_mode,
-            generation_prompt=item.generation_prompt or batch_request.generation_prompt,
+            generation_prompt=generation_prompt,
         )
 
     def _items_for_request(self, request: BatchCreateRequest) -> list[BatchReviewInput]:

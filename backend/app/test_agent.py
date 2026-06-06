@@ -162,9 +162,8 @@ async def run_prompts(args: ReviewAgentTestArgs) -> int:
             result = await run_file_review_agent(
                 claim_number=args.claim_number,
                 effective_date=args.effective_date,
-                instructions=args.instructions,
                 path_to_questionnaire=args.questionnaire_path,
-                user_prompt=prompt,
+                runtime_context="\n\n".join(part for part in [prompt, args.instructions] if part),
                 tools=args.tools,
                 knowledge_docs=args.knowledge_docs,
             )

@@ -122,6 +122,7 @@ const LARGE_PANEL_WIDTH_RATIO = 0.66;
 const LARGE_PANEL_MAX_WIDTH = 1280;
 const PROMPT_HISTORY_LIMIT = 30;
 const PROMPT_HISTORY_STORAGE_KEY = "tfr-assistant.prompt-history.v1";
+const REVIEW_AGENT_TOOL_STATUS_PREFIX = "review_agent_tool-";
 const promptSuggestions = [
   "What tools do you have access to?",
   "Fetch some data and generate a few example plots",
@@ -185,11 +186,18 @@ export function DockableChat({
     () => [
       ...starterMessages,
       ...agent.messages
-        .map((message) => agentMessageToChatMessage(message, agent.messages, agent.isRunning))
+        .map((message) =>
+          agentMessageToChatMessage(
+            message,
+            agent.messages,
+            agent.isRunning,
+            sharedState.activity_log,
+          ),
+        )
         .flat()
         .filter((message): message is ChatMessage => Boolean(message)),
     ],
-    [agent.isRunning, agent.messages],
+    [agent.isRunning, agent.messages, sharedState.activity_log],
   );
   const chatComponents = useMemo(
     () => sharedState.components.filter(isChatComponent),
@@ -1034,6 +1042,7 @@ function agentMessageToChatMessage(
   message: Message,
   allMessages: Message[],
   isRunning: boolean,
+  activityLog: ToolStep[] = [],
 ): ChatMessage[] {
   if (message.role === "reasoning") {
     const content = messageContentToString(message.content);
@@ -1057,7 +1066,7 @@ function agentMessageToChatMessage(
         .filter((toolCallId): toolCallId is string => Boolean(toolCallId)),
     );
     const toolResultContentById = getToolResultContentById(allMessages);
-    const steps = toolCalls.map((toolCall) => {
+    const directSteps = toolCalls.map((toolCall) => {
       const completed = completedToolCallIds.has(toolCall.id) || responseStarted;
       const toolResultContent = toolResultContentById.get(toolCall.id);
       const failed = isToolResultError(toolResultContent);
@@ -1086,11 +1095,17 @@ function agentMessageToChatMessage(
           : undefined,
       } satisfies ToolStep;
     });
+    const nestedReviewSteps = toolCalls.some(
+      (toolCall) => toolCall.function.name === "generate_audit_form_review",
+    )
+      ? reviewAgentToolSteps(activityLog, isRunning)
+      : [];
+    const steps = [...directSteps, ...nestedReviewSteps];
     return [
       {
         id: `tools-${message.id}`,
         role: "tool_status",
-        isLive: steps.some((step) => step.status === "in_progress"),
+        isLive: isRunning && steps.some((step) => step.status === "in_progress"),
         steps,
       },
     ];
@@ -1112,6 +1127,15 @@ function agentMessageToChatMessage(
     content,
     streaming: false,
   }];
+}
+
+function reviewAgentToolSteps(activityLog: ToolStep[], isRunning: boolean): ToolStep[] {
+  return activityLog
+    .filter((step) => step.id.startsWith(REVIEW_AGENT_TOOL_STATUS_PREFIX))
+    .map((step) => ({
+      ...step,
+      status: isRunning ? step.status : step.status === "in_progress" ? "completed" : step.status,
+    }));
 }
 
 function hasAssistantTextAfter(message: Message, allMessages: Message[]) {

@@ -98,7 +98,6 @@ export interface AuditFormDefinition {
   form_kind?: FormKind;
   model_name?: string;
   description?: string | null;
-  instructions?: string | null;
   tools?: ReviewAgentToolName[] | null;
   knowledge_docs?: string[] | null;
   include_state_compliance?: boolean;
@@ -824,7 +823,6 @@ export interface FormCatalogEntry {
   formKind: FormKind;
   modelName: string;
   description: string;
-  instructions: string;
   tools: ReviewAgentToolName[];
   knowledgeDocs: string[];
   includeStateCompliance: boolean;

@@ -8,7 +8,10 @@ from gepa.core.adapter import EvaluationBatch
 from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage
 
-from app.agents.review_agent import FileReviewAgentDeps
+from app.agents.review_agent import (
+    REVIEW_USER_PROMPT,
+    FileReviewAgentDeps,
+)
 from app.core.llm import LLMModelConfig, build_llm_model
 from app.models.audit import AuditFormResult, AuditFormWithFinancialsResult, AuditResult
 from app.schemas.optimizations import OptimizationRunCreate, OptimizationTraceConfig
@@ -85,7 +88,7 @@ class TFRGepaAdapter:
                 path_to_questionnaire=instance.form_path,
                 claim_number=instance.claim_number,
                 effective_date=instance.effective_date or "",
-                instructions=instance.instructions,
+                runtime_context="",
                 tools=list(instance.tools),
                 knowledge_docs=list(instance.knowledge_docs),
             )
@@ -95,7 +98,7 @@ class TFRGepaAdapter:
                 else AuditFormResult
             )
             result = self.agent.run_sync(
-                user_prompt=instance.user_prompt,
+                user_prompt=REVIEW_USER_PROMPT,
                 deps=deps,
                 output_type=output_type,
             )
@@ -127,7 +130,7 @@ class TFRGepaAdapter:
         reflection_trace = {
             "case_id": instance.case_id,
             "claim_number": instance.claim_number,
-            "prompt": instance.user_prompt,
+            "prompt": REVIEW_USER_PROMPT,
             "candidate_hash": json_hash(candidate),
             "generated_output": final_output,
             "error": error_message,

@@ -107,8 +107,8 @@ export function PromptSelector({
     });
     const formDefault: PromptOption = {
       key: "form_default",
-      label: "Form default",
-      description: "Current instructions stored on the selected form version",
+      label: "Active registry",
+      description: "Use the active prompt for this form version; fallback only if none exists",
       ref: null,
     };
     return includeFormDefault ? [formDefault, ...registryOptions] : registryOptions;

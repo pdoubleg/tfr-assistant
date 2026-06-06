@@ -3,7 +3,6 @@
   "version": "v0.1",
   "title": "Receipt Reimbursement Policy Audit",
   "description": "Demo form for GEPA prompt optimization using short receipt notes.",
-  "instructions": "Complete the receipt reimbursement audit from the note. Apply policy carefully.",
   "tools": null,
   "knowledge_docs": null,
   "canonical": {

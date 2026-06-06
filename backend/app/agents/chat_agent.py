@@ -8,6 +8,7 @@ from app.capabilities.sql import SQLDatabaseCapability
 from app.core.config import Settings, get_settings
 from app.core.llm import build_llm_model
 from app.db.session import AsyncSessionLocal
+from app.presenters.a2ui import generate_audit_review_card
 from app.schemas.reviews import ReviewGenerateRequest
 from app.services.audit_generation import ChatReviewGenerationService
 from app.services.status_reporter import ChatStateStatusReporter
@@ -76,10 +77,9 @@ chat_agent = build_chat_agent()
 @chat_agent.tool
 async def generate_audit_form_review(
     ctx: RunContext[TFRChatDeps],
-    prompt: str,
-    claim_number: str = "",
+    claim_number: str,
+    form_id: str,
     effective_date: str = "",
-    form_id: str = "tfr_default",
     form_version: str = "v0.1",
 ) -> ToolReturn:
     """Spawn a sub-agent to generate one AuditFormResult review."""
@@ -89,10 +89,8 @@ async def generate_audit_form_review(
     reporter.in_progress("Starting audit form generation tool...", progress=10)
 
     request = ReviewGenerateRequest(
-        prompt=prompt,
         claim_number=claim_number,
         effective_date=effective_date,
-        instructions=prompt,
         form_id=form_id,
         form_version=form_version,
         synthetic=False,
@@ -105,6 +103,12 @@ async def generate_audit_form_review(
 
     state.active_review_id = review.id
     if review.status == "completed":
+        component = generate_audit_review_card(review)
+        if component is not None:
+            state.components = [
+                existing for existing in state.components if existing.id != component.id
+            ]
+            state.components.append(component)
         state.status = "complete"
         state.current_step = f"Audit review {review.id} is ready."
     else:

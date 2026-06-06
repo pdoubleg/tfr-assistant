@@ -4,7 +4,7 @@ from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
 
-from app.agents.chat_agent import build_chat_model
+from app.agents.chat_agent import build_chat_model, chat_agent
 from app.core.config import Settings
 from app.core.llm import (
     LLMModelAPI,
@@ -15,12 +15,53 @@ from app.core.llm import (
     context_window_for_model,
     llm_model_config_for,
 )
+from app.models.audit import AuditFormResult
+from app.presenters.a2ui import generate_audit_review_card
+from app.schemas.reviews import ReviewRecord
 
 
 def test_build_chat_model_uses_test_model_for_local_mode() -> None:
     model = build_chat_model(Settings(chat_model_api=LLMModelAPI.TEST))
 
     assert isinstance(model, TestModel)
+
+
+def test_generate_audit_form_review_tool_schema_omits_runtime_prompt() -> None:
+    tool = chat_agent._function_toolset.tools["generate_audit_form_review"]
+    schema = tool.function_schema.json_schema
+
+    assert "prompt" not in schema["properties"]
+    assert schema["required"] == ["claim_number", "form_id"]
+
+
+def test_audit_review_card_component_opens_generated_result() -> None:
+    form = AuditFormResult(
+        form_id="tfr_default",
+        form_version="v0.1",
+        title="Generated review",
+        description="Generated form description.",
+        questions=[],
+        overall_outcome="Meets",
+        outcome_justification="Evidence supports the result.",
+    )
+    review = ReviewRecord(
+        id="review-1",
+        form_id="tfr_default",
+        form_version="v0.1",
+        source="chat_tool",
+        input_json={"claim_number": "CLAIM-123"},
+        original=form,
+        user_version=form,
+    )
+
+    component = generate_audit_review_card(review)
+
+    assert component is not None
+    assert component.type == "a2ui.AuditReviewCard"
+    assert component.zone == "chat"
+    assert component.props["reviewId"] == "review-1"
+    assert component.props["claimNumber"] == "CLAIM-123"
+    assert component.props["form"] == form.model_dump(mode="json")
 
 
 def test_build_chat_model_uses_responses_model_for_responses_api(

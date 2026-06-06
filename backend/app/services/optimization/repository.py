@@ -35,8 +35,11 @@ def prompt_from_case(case: EvalCaseORM) -> str:
     prompt = ""
     if isinstance(case.input_json, dict):
         prompt = str(case.input_json.get("prompt") or "").strip()
+    instructions = case.instructions.strip()
     if not prompt:
-        prompt = case.instructions
+        return instructions
+    if instructions and instructions != prompt:
+        prompt = f"{prompt}\n\nAdditional Instructions: {instructions}"
     return prompt
 
 

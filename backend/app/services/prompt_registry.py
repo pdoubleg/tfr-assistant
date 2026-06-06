@@ -71,7 +71,7 @@ class PromptRegistryRepository:
         form_id: str,
         *,
         form_version: str | None = None,
-        bootstrap: bool = True,
+        bootstrap: bool = False,
     ) -> list[PromptFamilyRecord]:
         if bootstrap and form_version:
             await self.bootstrap_form_prompt(form_id, form_version)
@@ -88,10 +88,12 @@ class PromptRegistryRepository:
         self,
         form_id: str,
         form_version: str,
+        *,
+        initial_text: str | None = None,
     ) -> PromptFamilyRecord:
-        definition = self.catalog.get_form(form_id, form_version)
+        self.catalog.get_form(form_id, form_version)
         family = await self.ensure_family(form_id)
-        text = definition.instructions or DEFAULT_REVIEW_INSTRUCTIONS
+        text = (initial_text or "").strip() or DEFAULT_REVIEW_INSTRUCTIONS
         text_hash = prompt_text_hash(text)
         existing_count = await self.session.scalar(
             select(func.count(PromptVersionORM.id)).where(PromptVersionORM.family_id == family.id)
@@ -110,7 +112,7 @@ class PromptRegistryRepository:
                     form_version=form_version,
                     text=text,
                     source_kind="form_default",
-                    commit_message=f"Imported default instructions from {form_id}@{form_version}.",
+                    commit_message=f"Initialized review prompt for {form_id}@{form_version}.",
                     created_by="system",
                     applicable_form_versions=[form_version],
                 ),
@@ -265,7 +267,7 @@ class PromptRegistryRepository:
                 scope=scope,
                 form_version=form_version if scope == "form_version" else None,
                 activated_by="system",
-                notes="Initialized from registered form instructions.",
+                notes="Initialized from the active review prompt registry.",
             )
             self.session.add(record)
             await self.session.flush()
@@ -463,15 +465,9 @@ class PromptRegistryRepository:
                 source_kind="manual",
             )
         if ref.ref_type == "form_default":
-            definition = self.catalog.get_form(form_id, form_version)
-            text = definition.instructions or DEFAULT_REVIEW_INSTRUCTIONS
-            return ResolvedPrompt(
-                ref=ref,
-                text=text,
-                text_hash=prompt_text_hash(text),
-                form_id=form_id,
-                source_kind="form_default",
-            )
+            self.catalog.get_form(form_id, form_version)
+            fallback = self._fallback_prompt(form_id)
+            return fallback.model_copy(update={"ref": ref})
         version: PromptVersionORM | None = None
         alias: str | None = None
         if ref.ref_type == "version":
@@ -508,20 +504,13 @@ class PromptRegistryRepository:
         form_id: str,
         form_version: str,
     ) -> ResolvedPrompt:
-        await self.bootstrap_form_prompt(form_id, form_version)
-        family = await self.ensure_family(form_id)
+        self.catalog.get_form(form_id, form_version)
+        family = await self._family_for_form(form_id)
+        if family is None:
+            return self._fallback_prompt(form_id)
         activation = await self._activation_for_family(family.id, form_version)
         if activation is None:
-            definition = self.catalog.get_form(form_id, form_version)
-            text = definition.instructions or DEFAULT_REVIEW_INSTRUCTIONS
-            return ResolvedPrompt(
-                ref=PromptReference(ref_type="form_default", form_id=form_id),
-                text=text,
-                text_hash=prompt_text_hash(text),
-                form_id=form_id,
-                source_kind="form_default",
-                activation_scope=form_version,
-            )
+            return self._fallback_prompt(form_id)
         version = await self.session.get(PromptVersionORM, activation.version_id)
         if version is None:
             raise KeyError("Active prompt version could not be resolved.")
@@ -541,6 +530,24 @@ class PromptRegistryRepository:
             source_kind=version.source_kind,
             activation_scope=activation.scope_key,
             external_prompt_uri=version.external_prompt_uri,
+        )
+
+    async def _family_for_form(self, form_id: str) -> PromptFamilyORM | None:
+        return await self.session.scalar(
+            select(PromptFamilyORM).where(
+                PromptFamilyORM.form_id == form_id,
+                PromptFamilyORM.task == "audit_review",
+                PromptFamilyORM.prompt_kind == "instructions",
+            )
+        )
+
+    def _fallback_prompt(self, form_id: str) -> ResolvedPrompt:
+        return ResolvedPrompt(
+            ref=PromptReference(ref_type="form_default", form_id=form_id),
+            text=DEFAULT_REVIEW_INSTRUCTIONS,
+            text_hash=prompt_text_hash(DEFAULT_REVIEW_INSTRUCTIONS),
+            form_id=form_id,
+            source_kind="form_default",
         )
 
     async def _activation_for_family(

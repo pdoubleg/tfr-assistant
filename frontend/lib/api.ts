@@ -156,7 +156,6 @@ export async function listFormCatalog(): Promise<FormCatalogEntry[]> {
       form_kind?: "standard" | "financial";
       model_name?: string;
       description?: string | null;
-      instructions?: string | null;
       tools?: FormCatalogEntry["tools"] | null;
       knowledge_docs?: string[] | null;
       include_state_compliance?: boolean | null;
@@ -176,7 +175,6 @@ export async function listFormCatalog(): Promise<FormCatalogEntry[]> {
     formKind: form.form_kind ?? "standard",
     modelName: form.model_name ?? "gpt-5.4-nano",
     description: form.description ?? "",
-    instructions: form.instructions ?? "",
     tools: form.tools ?? [],
     knowledgeDocs: form.knowledge_docs ?? [],
     includeStateCompliance: form.include_state_compliance ?? false,
@@ -218,7 +216,6 @@ export async function registerForm(
       form_kind: definition.form_kind ?? definition.canonical.form_kind ?? "standard",
       model_name: definition.model_name ?? "gpt-5.4-nano",
       description: definition.description ?? "",
-      instructions: definition.instructions ?? null,
       tools: definition.tools ?? null,
       knowledge_docs: definition.knowledge_docs ?? null,
       include_state_compliance: definition.include_state_compliance ?? false,

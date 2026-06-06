@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -8,7 +8,7 @@ from app.core.llm import DEFAULT_AUDIT_MODEL_NAME
 from app.models.audit import AuditResult, FormKind
 
 
-class ReviewAgentToolName(str, Enum):
+class ReviewAgentToolName(StrEnum):
     GET_CLAIM_SUMMARY = "get_claim_summary"
     GET_CLAIM_NOTES = "get_claim_notes"
     GET_CLAIM_DOCUMENTS_METADATA = "get_claim_documents_metadata"
@@ -80,24 +80,7 @@ def normalize_review_agent_tool_names(value: Any) -> Any:
     return normalized
 
 
-def _legacy_instructions(data: Any) -> Any:
-    if not isinstance(data, dict) or data.get("instructions"):
-        return data
-    sections = []
-    audit_scope = (data.get("audit_scope") or "").strip()
-    tool_instructions = (data.get("tool_instructions") or "").strip()
-    if audit_scope:
-        sections.append(f"Audit Scope:\n{audit_scope}")
-    if tool_instructions:
-        sections.append(f"Tool Instructions:\n{tool_instructions}")
-    if sections:
-        data = dict(data)
-        data["instructions"] = "\n\n".join(sections)
-    return data
-
-
 def _normalize_form_kind(data: Any) -> Any:
-    data = _legacy_instructions(data)
     if not isinstance(data, dict):
         return data
     canonical = data.get("canonical")
@@ -118,7 +101,6 @@ class AuditFormDefinition(BaseModel):
     form_kind: FormKind = "standard"
     model_name: str = DEFAULT_AUDIT_MODEL_NAME
     description: str | None = None
-    instructions: str | None = None
     tools: list[ReviewAgentToolName] | None = None
     knowledge_docs: list[str] | None = None
     include_state_compliance: bool = False
@@ -153,7 +135,6 @@ class AuditFormRegistration(BaseModel):
     form_kind: FormKind = "standard"
     model_name: str = DEFAULT_AUDIT_MODEL_NAME
     description: str | None = None
-    instructions: str | None = None
     tools: list[ReviewAgentToolName] | None = None
     knowledge_docs: list[str] | None = None
     include_state_compliance: bool = False
@@ -183,7 +164,6 @@ class AuditFormSummary(BaseModel):
     form_kind: FormKind = "standard"
     model_name: str = DEFAULT_AUDIT_MODEL_NAME
     description: str | None = None
-    instructions: str | None = None
     tools: list[ReviewAgentToolName] | None = None
     knowledge_docs: list[str] | None = None
     include_state_compliance: bool = False

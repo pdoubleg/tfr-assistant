@@ -9,11 +9,14 @@ from app.models.audit import AuditFormResult
 from app.schemas.evaluations import EvalCaseCreate, EvalDatasetCreate
 from app.schemas.forms import AuditFormRegistration
 from app.schemas.optimizations import OptimizationDemoFixtureRecord
+from app.schemas.prompts import PromptActivationUpdate, PromptVersionCreate
 from app.services.catalog import FormCatalog
 from app.services.evaluation_service import EvaluationRepository
+from app.services.prompt_registry import PromptRegistryRepository
 
 DEMO_FORM_ID = "demo_receipt_policy"
 DEMO_FORM_VERSION = "v0.1"
+DEMO_PROMPT = "Complete the receipt reimbursement audit from the note. Apply policy carefully."
 
 
 async def ensure_demo_fixture(settings: Settings | None = None) -> OptimizationDemoFixtureRecord:
@@ -24,6 +27,7 @@ async def ensure_demo_fixture(settings: Settings | None = None) -> OptimizationD
     except KeyError:
         definition = catalog.register_form(_demo_form_registration())
     async with AsyncSessionLocal() as session:
+        await _ensure_demo_prompt(session, catalog)
         existing = (
             await session.scalars(
                 select(EvalDatasetORM).where(
@@ -76,9 +80,6 @@ def _demo_form_registration() -> AuditFormRegistration:
         "version": DEMO_FORM_VERSION,
         "title": "Receipt Reimbursement Policy Audit",
         "description": "Demo form for GEPA prompt optimization using short receipt notes.",
-        "instructions": (
-            "Complete the receipt reimbursement audit from the note. Apply policy carefully."
-        ),
         "canonical": {
             "form_id": DEMO_FORM_ID,
             "form_version": DEMO_FORM_VERSION,
@@ -144,6 +145,37 @@ def _demo_form_registration() -> AuditFormRegistration:
         },
     }
     return AuditFormRegistration.model_validate(payload)
+
+
+async def _ensure_demo_prompt(session, catalog: FormCatalog) -> None:
+    repository = PromptRegistryRepository(session, catalog)
+    active = await repository.resolve_active(
+        form_id=DEMO_FORM_ID,
+        form_version=DEMO_FORM_VERSION,
+    )
+    if active.version_id:
+        return
+    version = await repository.create_version(
+        PromptVersionCreate(
+            form_id=DEMO_FORM_ID,
+            form_version=DEMO_FORM_VERSION,
+            text=DEMO_PROMPT,
+            source_kind="handcrafted",
+            commit_message="Registered demo receipt policy prompt.",
+            created_by="system",
+            applicable_form_versions=[DEMO_FORM_VERSION],
+            alias="production",
+        )
+    )
+    await repository.set_activation(
+        PromptActivationUpdate(
+            family_id=version.family_id,
+            version_id=version.id,
+            form_version=DEMO_FORM_VERSION,
+            activated_by="system",
+            notes="Activated demo receipt policy prompt.",
+        )
+    )
 
 
 def _demo_cases(canonical: AuditFormResult) -> list[EvalCaseCreate]:
