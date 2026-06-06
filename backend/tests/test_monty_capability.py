@@ -32,6 +32,11 @@ def test_monty_help_lists_registered_collections(tmp_path) -> None:
     assert "dataframe_operations" in help_text
     assert "rlm" in help_text
     assert "visualizations" in help_text
+    assert "report_bundles" in help_text
+    assert "deck_bundles" in help_text
+    assert "Use `report_bundles` for reports" in help_text
+    assert "Use `deck_bundles` for slides" in help_text
+    assert "Both paths save a data workbook" in help_text
     assert 'help("<collection-name>")' in help_text
     assert 'help("<tool-name>")' in help_text
     assert "wall-clock/timing primitives are unavailable" in help_text
@@ -46,6 +51,8 @@ def test_monty_help_lists_registered_collections(tmp_path) -> None:
     assert "Python variables cannot be referenced" in help_text
     assert "preview_rows" in help_text
     assert "stack_metric_columns" in help_text
+    assert "create_report_bundle" in help_text
+    assert "create_deck_bundle" in help_text
 
 
 def test_monty_default_resource_limits_do_not_cap_duration() -> None:
@@ -224,6 +231,26 @@ def test_monty_registered_tools_include_usage_examples(tmp_path) -> None:
     ]
 
     assert missing == []
+
+
+def test_monty_output_bundle_collection_help_is_separable(tmp_path) -> None:
+    settings = Settings(
+        data_dir=tmp_path / "data",
+        chat_artifacts_dir=tmp_path / "data" / "chat_artifacts",
+    )
+    runtime = MontyPythonRuntime(TFRChatState(), settings)
+
+    report_help = runtime.help("report_bundles")
+    deck_help = runtime.help("deck_bundles")
+
+    assert "Collection: report_bundles" in report_help
+    assert "create_report_bundle" in report_help
+    assert "render_report_bundle" in report_help
+    assert "create_deck_bundle" not in report_help
+    assert "Collection: deck_bundles" in deck_help
+    assert "create_deck_bundle" in deck_help
+    assert "render_deck_bundle" in deck_help
+    assert "create_report_bundle" not in deck_help
 
 
 def test_monty_usage_examples_emit_balanced_markdown_fences(tmp_path) -> None:

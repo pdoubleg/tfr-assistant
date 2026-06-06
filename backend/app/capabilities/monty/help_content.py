@@ -15,7 +15,7 @@ def render_python_repl_guidance(help_name: str = "help") -> str:
     return dedent(
         f"""\
         A Monty Python repl is available for dataframe handle operations, Plotly
-        visualizations, and sub-LLM text analysis.
+        visualizations, sub-LLM text analysis, and output bundle generation.
 
         **Discovery flow**
         - Call `{help_name}()` to see all collections.
@@ -50,6 +50,14 @@ def render_python_repl_guidance(help_name: str = "help") -> str:
         directly, and use `restart=True` to reset repl state when prior variables or
         imports are no longer useful. Sub-LLM calls share a session budget, so use
         Python for grouping, filtering, and aggregation before spending that budget.
+
+        **Output generation routing**
+        - Use `report_bundles` for reports, findings memos, printable/browser HTML,
+          analysis packets, and evidence-heavy audit summaries.
+        - Use `deck_bundles` for slides, PowerPoint, PPTX, presentations, executive
+          briefings, board decks, and meeting-ready materials.
+        - Both paths save a data workbook for referenced datasets. Load only the chosen
+          collection help unless the user asks for both a report and a deck.
         """
     ).strip()
 

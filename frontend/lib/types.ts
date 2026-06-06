@@ -847,7 +847,7 @@ export interface ToolStep {
 
 export interface ChatHandleMetadata {
   handle: string;
-  kind: "dataset" | "plotly_chart";
+  kind: "dataset" | "plotly_chart" | "report_bundle" | "deck_bundle";
   label?: string;
   row_count?: number | null;
   column_count?: number | null;

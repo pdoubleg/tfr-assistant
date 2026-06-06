@@ -3,7 +3,8 @@ from collections.abc import AsyncIterator
 from typing import Annotated
 
 from ag_ui.core import BaseEvent, EventType, StateSnapshotEvent
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 from pydantic_ai.usage import RunUsage
 from starlette.requests import Request
@@ -30,6 +31,7 @@ from app.schemas.chat import (
     ChatRequest,
     ChatResponse,
 )
+from app.services.chat_artifacts import ArtifactNotFoundError, ChatArtifactStore
 
 router = APIRouter()
 
@@ -75,6 +77,30 @@ def list_chat_models(
         ],
         default_model_name=default_config.pricing_lookup_name,
         default_reasoning_effort=default_config.reasoning_effort if show_reasoning_effort else None,
+    )
+
+
+@router.get("/artifacts/{session_id}/{handle}/files/{role}")
+def get_chat_artifact_file(
+    session_id: str,
+    handle: str,
+    role: str,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> FileResponse:
+    try:
+        path, file_record = ChatArtifactStore(settings).resolve_output_bundle_file(
+            session_id=session_id,
+            handle=handle,
+            role=role,
+        )
+    except (ArtifactNotFoundError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return FileResponse(
+        path,
+        media_type=file_record.media_type,
+        filename=file_record.filename,
+        content_disposition_type="inline" if file_record.inline else "attachment",
     )
 
 

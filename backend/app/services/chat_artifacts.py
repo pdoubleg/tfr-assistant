@@ -16,7 +16,9 @@ from pydantic import BaseModel, Field
 from app.core.config import Settings, get_settings
 from app.models.chat_state import ChatHandleMetadata, TFRChatState
 
-ArtifactKind = Literal["dataset", "plotly_chart"]
+ArtifactKind = Literal["dataset", "plotly_chart", "report_bundle", "deck_bundle"]
+OutputBundleKind = Literal["report_bundle", "deck_bundle"]
+OutputBundleStatus = Literal["draft", "rendered"]
 
 _SAFE_HANDLE_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
@@ -53,6 +55,33 @@ class PlotlyChartArtifact(BaseModel):
     label: str = ""
     source: str = ""
     created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
+
+
+class OutputBundleFile(BaseModel):
+    role: str
+    path: str
+    media_type: str
+    filename: str
+    label: str = ""
+    inline: bool = False
+
+
+class OutputBundleArtifact(BaseModel):
+    handle: str
+    kind: OutputBundleKind
+    status: OutputBundleStatus = "draft"
+    title: str
+    subtitle: str = ""
+    audience: str = ""
+    theme: str = "liberty_professional"
+    layout: str = ""
+    blocks: list[dict[str, Any]] = Field(default_factory=list)
+    slides: list[dict[str, Any]] = Field(default_factory=list)
+    source_handles: list[str] = Field(default_factory=list)
+    files: list[OutputBundleFile] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
+    updated_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
 class ChatArtifactStore:
@@ -152,6 +181,54 @@ class ChatArtifactStore:
             raise TypeError(f"Handle {handle!r} is not a Plotly chart artifact.")
         return PlotlyChartArtifact.model_validate(payload)
 
+    def save_output_bundle(
+        self,
+        state: TFRChatState,
+        *,
+        kind: OutputBundleKind,
+        title: str,
+        subtitle: str = "",
+        audience: str = "",
+        theme: str = "liberty_professional",
+        layout: str = "",
+    ) -> OutputBundleArtifact:
+        artifact = OutputBundleArtifact(
+            handle=self._new_handle(state, "report" if kind == "report_bundle" else "deck"),
+            kind=kind,
+            title=title,
+            subtitle=subtitle,
+            audience=audience,
+            theme=theme,
+            layout=layout,
+        )
+        self.write_output_bundle(state, artifact)
+        return artifact
+
+    def write_output_bundle(
+        self,
+        state: TFRChatState,
+        artifact: OutputBundleArtifact,
+    ) -> OutputBundleArtifact:
+        artifact.updated_at = datetime.now(UTC).isoformat()
+        self._write_artifact(state, artifact.handle, artifact.model_dump())
+        self._upsert_handle(
+            state,
+            ChatHandleMetadata(
+                handle=artifact.handle,
+                kind=artifact.kind,
+                label=artifact.title,
+                source="monty.output_bundles",
+                created_at=artifact.created_at,
+            ),
+        )
+        return artifact
+
+    def load_output_bundle(self, state: TFRChatState, handle: str) -> OutputBundleArtifact:
+        payload = self._read_artifact(state, handle)
+        if payload.get("kind") not in {"report_bundle", "deck_bundle"}:
+            raise TypeError(f"Handle {handle!r} is not an output bundle artifact.")
+        return OutputBundleArtifact.model_validate(payload)
+
     def inspect_handle(self, state: TFRChatState, handle: str) -> dict[str, Any]:
         metadata = next((item for item in state.handles if item.handle == handle), None)
         if metadata is None:
@@ -159,14 +236,56 @@ class ChatArtifactStore:
             return {"handle": handle}
         return metadata.model_dump()
 
+    def output_bundle_dir(self, state: TFRChatState, handle: str) -> Path:
+        if not _SAFE_HANDLE_RE.match(handle):
+            raise ValueError(f"Invalid artifact handle: {handle!r}")
+        path = (self._session_dir(state) / handle).resolve()
+        path.relative_to(self._session_dir(state))
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def load_output_bundle_for_session(
+        self,
+        session_id: str,
+        handle: str,
+    ) -> OutputBundleArtifact:
+        payload = self._read_artifact_for_session(session_id, handle)
+        if payload.get("kind") not in {"report_bundle", "deck_bundle"}:
+            raise TypeError(f"Handle {handle!r} is not an output bundle artifact.")
+        return OutputBundleArtifact.model_validate(payload)
+
+    def resolve_output_bundle_file(
+        self,
+        *,
+        session_id: str,
+        handle: str,
+        role: str,
+    ) -> tuple[Path, OutputBundleFile]:
+        bundle = self.load_output_bundle_for_session(session_id, handle)
+        file_record = next((item for item in bundle.files if item.role == role), None)
+        if file_record is None:
+            raise ArtifactNotFoundError(f"Unknown output bundle file role: {role}")
+        session_dir = self._session_dir_for_id(session_id, create=False)
+        bundle_dir = (session_dir / handle).resolve()
+        bundle_dir.relative_to(session_dir)
+        resolved = (bundle_dir / file_record.path).resolve()
+        resolved.relative_to(bundle_dir)
+        if not resolved.exists() or not resolved.is_file():
+            raise ArtifactNotFoundError(f"Output bundle file is missing: {role}")
+        return resolved, file_record
+
     def _session_dir(self, state: TFRChatState) -> Path:
         if not state.artifact_session_id:
             state.artifact_session_id = str(uuid4())
-        if not _SAFE_HANDLE_RE.match(state.artifact_session_id):
+        return self._session_dir_for_id(state.artifact_session_id, create=True)
+
+    def _session_dir_for_id(self, session_id: str, *, create: bool) -> Path:
+        if not _SAFE_HANDLE_RE.match(session_id):
             raise ValueError("Invalid artifact session id.")
-        session_dir = (self.root / state.artifact_session_id).resolve()
+        session_dir = (self.root / session_id).resolve()
         session_dir.relative_to(self.root.resolve())
-        session_dir.mkdir(parents=True, exist_ok=True)
+        if create:
+            session_dir.mkdir(parents=True, exist_ok=True)
         return session_dir
 
     def _artifact_path(self, state: TFRChatState, handle: str) -> Path:
@@ -188,8 +307,27 @@ class ChatArtifactStore:
             raise ArtifactNotFoundError(f"Unknown artifact handle: {handle}")
         return json.loads(path.read_text(encoding="utf-8"))
 
-    def _new_handle(self, state: TFRChatState, kind: Literal["dataset", "chart"]) -> str:
-        prefix = "ds" if kind == "dataset" else "fig"
+    def _read_artifact_for_session(self, session_id: str, handle: str) -> dict[str, Any]:
+        if not _SAFE_HANDLE_RE.match(handle):
+            raise ValueError(f"Invalid artifact handle: {handle!r}")
+        path = (self._session_dir_for_id(session_id, create=False) / f"{handle}.json").resolve()
+        path.relative_to(self._session_dir_for_id(session_id, create=False))
+        if not path.exists():
+            raise ArtifactNotFoundError(f"Unknown artifact handle: {handle}")
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    def _new_handle(
+        self,
+        state: TFRChatState,
+        kind: Literal["dataset", "chart", "report", "deck"],
+    ) -> str:
+        prefix_by_kind = {
+            "dataset": "ds",
+            "chart": "fig",
+            "report": "rpt",
+            "deck": "deck",
+        }
+        prefix = prefix_by_kind[kind]
         pattern = re.compile(rf"^{re.escape(prefix)}_(\d+)$")
         used_indexes: set[int] = set()
 

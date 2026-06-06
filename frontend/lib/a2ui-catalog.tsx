@@ -2,6 +2,7 @@
 
 import type { ComponentProps, ReactElement, ReactNode } from "react";
 
+import { ArtifactBundleCard } from "@/components/a2ui/artifact-bundle-card";
 import { CodeDisclosure } from "@/components/a2ui/code-disclosure";
 import { DataTable } from "@/components/a2ui/data-table";
 import { PlotlyChart } from "@/components/a2ui/plotly-chart";
@@ -13,6 +14,7 @@ export type ComponentRenderer = (
 ) => ReactElement;
 
 const a2uiCatalog: Record<string, ComponentRenderer> = {
+  "a2ui.ArtifactBundleCard": (props) => <ArtifactBundleCard {...(props as unknown as ComponentProps<typeof ArtifactBundleCard>)} />,
   "a2ui.CodeDisclosure": (props) => <CodeDisclosure {...(props as unknown as ComponentProps<typeof CodeDisclosure>)} />,
   "a2ui.DataTable": (props) => <DataTable {...(props as unknown as ComponentProps<typeof DataTable>)} />,
   "a2ui.PlotlyChart": (props) => <PlotlyChart {...(props as unknown as ComponentProps<typeof PlotlyChart>)} />,

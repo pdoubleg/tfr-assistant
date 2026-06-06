@@ -80,3 +80,36 @@ def generate_plotly_chart(
         layout={"width": "full"},
         zone="chat",
     )
+
+
+def generate_artifact_bundle_card(
+    *,
+    component: str,
+    sessionId: str,
+    handle: str,
+    kind: str,
+    title: str,
+    subtitle: str = "",
+    summary: str = "",
+    files: list[dict[str, Any]] | None = None,
+    warnings: list[str] | None = None,
+    createdAt: str = "",
+) -> A2UIComponent:
+    """Build a downloadable artifact-bundle card payload for the chat pane."""
+
+    return A2UIComponent(
+        type=component,
+        props={
+            "sessionId": sessionId,
+            "handle": handle,
+            "kind": kind,
+            "title": title,
+            "subtitle": subtitle,
+            "summary": summary,
+            "files": files or [],
+            "warnings": warnings or [],
+            "createdAt": createdAt,
+        },
+        layout={"width": "full"},
+        zone="chat",
+    )

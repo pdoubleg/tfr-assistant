@@ -842,6 +842,14 @@ export function optimizationArtifactUrl(runId: string, artifactType: string): st
   return `${apiBaseUrl}/api/optimizations/runs/${runId}/artifacts/${artifactType}`;
 }
 
+export function chatArtifactFileUrl(
+  sessionId: string,
+  handle: string,
+  role: string,
+): string {
+  return `${apiBaseUrl}/api/chat/artifacts/${encodeURIComponent(sessionId)}/${encodeURIComponent(handle)}/files/${encodeURIComponent(role)}`;
+}
+
 export function getUserVersion(review: ReviewRecord): AuditFormResult | null {
   return review.user_version ?? review.userVersion ?? review.original ?? null;
 }

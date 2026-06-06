@@ -18,7 +18,7 @@ class ActivityLogEntry(BaseModel):
 
 class ChatHandleMetadata(BaseModel):
     handle: str
-    kind: Literal["dataset", "plotly_chart"]
+    kind: Literal["dataset", "plotly_chart", "report_bundle", "deck_bundle"]
     label: str = ""
     row_count: int | None = None
     column_count: int | None = None

@@ -1,5 +1,6 @@
 {
   "dependencies": {
-    "copilotkit": "^2.0.4"
+    "copilotkit": "^2.0.4",
+    "pptxgenjs": "^4.0.1"
   }
 }
