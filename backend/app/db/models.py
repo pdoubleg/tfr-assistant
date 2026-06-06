@@ -39,6 +39,39 @@ class Base(DeclarativeBase):
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
+class ChatThreadORM(Base):
+    __tablename__ = "chat_threads"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    title: Mapped[str] = mapped_column(String(80), default="New chat", index=True)
+    messages_json: Mapped[list[dict[str, Any]]] = mapped_column(
+        PortableJSON,
+        default=list,
+        nullable=False,
+    )
+    state_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
+    component_anchor_turns_json: Mapped[dict[str, int]] = mapped_column(
+        PortableJSON,
+        default=dict,
+        nullable=False,
+    )
+    model_name: Mapped[str] = mapped_column(String(128), default="", index=True)
+    reasoning_effort: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    artifact_session_id: Mapped[str] = mapped_column(String(64), default="", index=True)
+    token_usage_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
+    context_window: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    context_used_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    context_remaining_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
+    run_cost: Mapped[float] = mapped_column(Float, default=0.0)
+    total_cost: Mapped[float] = mapped_column(Float, default=0.0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+
 class AuditBatchORM(Base):
     __tablename__ = "audit_batches"
 

@@ -6,6 +6,8 @@ import type {
   BatchTemplatePayload,
   BatchTemplateRecord,
   ChatModelCatalog,
+  ChatThreadRecord,
+  ChatThreadSummary,
   DatasetAddCandidatesResponse,
   DatasetCandidateRecord,
   DatasetClusterResult,
@@ -116,6 +118,30 @@ export async function listChatModels(): Promise<ChatModelCatalog> {
     cache: "no-store",
   });
   return parseJsonResponse<ChatModelCatalog>(response);
+}
+
+export async function listChatThreads(): Promise<ChatThreadSummary[]> {
+  const response = await fetch(`${apiBaseUrl}/api/chat/threads`, {
+    cache: "no-store",
+  });
+  return parseJsonResponse<ChatThreadSummary[]>(response);
+}
+
+export async function getChatThread(threadId: string): Promise<ChatThreadRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/chat/threads/${encodeURIComponent(threadId)}`, {
+    cache: "no-store",
+  });
+  return parseJsonResponse<ChatThreadRecord>(response);
+}
+
+export async function deleteChatThread(threadId: string): Promise<void> {
+  const response = await fetch(`${apiBaseUrl}/api/chat/threads/${encodeURIComponent(threadId)}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(formatApiError(response, body));
+  }
 }
 
 export async function listFormCatalog(): Promise<FormCatalogEntry[]> {

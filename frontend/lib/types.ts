@@ -30,6 +30,28 @@ export interface ChatModelCatalog {
   default_reasoning_effort?: ReasoningEffort | null;
 }
 
+export interface ChatThreadSummary {
+  id: string;
+  title: string;
+  model_name: string;
+  reasoning_effort?: ReasoningEffort | null;
+  artifact_session_id: string;
+  token_usage: Record<string, number>;
+  context_window?: number | null;
+  context_used_tokens: number;
+  context_remaining_percent?: number | null;
+  run_cost: number;
+  total_cost: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatThreadRecord extends ChatThreadSummary {
+  messages: Array<Record<string, unknown>>;
+  state: Partial<TFRChatState>;
+  component_anchor_turns: Record<string, number>;
+}
+
 export interface FormSubQuestion {
   id: string;
   text: string;

@@ -34,3 +34,25 @@ class ChatModelCatalogResponse(BaseModel):
     models: list[ChatModelOption]
     default_model_name: str
     default_reasoning_effort: ReasoningEffort | None = None
+
+
+class ChatThreadSummary(BaseModel):
+    id: str
+    title: str
+    model_name: str = ""
+    reasoning_effort: ReasoningEffort | None = None
+    artifact_session_id: str = ""
+    token_usage: dict[str, int] = Field(default_factory=dict)
+    context_window: int | None = None
+    context_used_tokens: int = 0
+    context_remaining_percent: float | None = None
+    run_cost: float = 0.0
+    total_cost: float = 0.0
+    created_at: str
+    updated_at: str
+
+
+class ChatThreadRecord(ChatThreadSummary):
+    messages: list[dict] = Field(default_factory=list)
+    state: dict = Field(default_factory=dict)
+    component_anchor_turns: dict[str, int] = Field(default_factory=dict)

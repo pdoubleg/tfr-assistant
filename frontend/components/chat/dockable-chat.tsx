@@ -13,16 +13,20 @@ import {
   CircleAlert,
   Loader2,
   Download,
+  Lightbulb,
   Maximize2,
   MessageSquareText,
   Minimize2,
+  PanelLeft,
+  Plus,
   Send,
   Settings2,
   Sparkles,
+  Trash2,
   Wrench,
   X,
 } from "lucide-react";
-import type { FormEvent, KeyboardEvent, ReactNode } from "react";
+import type { FormEvent, KeyboardEvent, MouseEvent, ReactNode } from "react";
 import { Children, isValidElement, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
@@ -37,7 +41,7 @@ import { CodeDisclosure } from "@/components/a2ui/code-disclosure";
 import { A2UIRendererList } from "@/components/a2ui/a2ui-renderer";
 import type { ChatPanelMode } from "@/components/app-shell/chat-panel-mode-context";
 import { isChatComponent } from "@/lib/a2ui-catalog";
-import type { A2UIComponent, ToolStep } from "@/lib/types";
+import type { A2UIComponent, ChatThreadSummary, ToolStep } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useTfrAgent } from "@/hooks/use-tfr-agent";
 
@@ -118,6 +122,11 @@ const LARGE_PANEL_WIDTH_RATIO = 0.66;
 const LARGE_PANEL_MAX_WIDTH = 1280;
 const PROMPT_HISTORY_LIMIT = 30;
 const PROMPT_HISTORY_STORAGE_KEY = "tfr-assistant.prompt-history.v1";
+const promptSuggestions = [
+  "What tools do you have access to?",
+  "Fetch some data and generate a few example plots",
+  "Fetch some data and generate an example executive summary report",
+];
 
 export function DockableChat({
   mode,
@@ -130,17 +139,29 @@ export function DockableChat({
   const [promptHistory, setPromptHistory] = useState<string[]>(readPromptHistory);
   const [promptHistoryIndex, setPromptHistoryIndex] = useState<number | null>(null);
   const {
+    activeThreadId,
     agent,
     chatModelOptions,
     chatModelSelection,
+    chatThreads,
+    componentAnchorTurns,
+    deleteSavedChatThread,
     homeTableContext,
     isRunning,
+    loadChatThread,
     runChatMessage,
     setChatModelSelection,
+    startNewChatThread,
     state: sharedState,
+    threadError,
+    threadsLoading,
   } = useTfrAgent();
   const [expandedToolMessages, setExpandedToolMessages] = useState<Set<string>>(new Set());
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [threadSidebarOpen, setThreadSidebarOpen] = useState(false);
+  const [deleteCandidate, setDeleteCandidate] = useState<ChatThreadSummary | null>(null);
+  const [deleteInProgress, setDeleteInProgress] = useState(false);
   const liveToolMessagesRef = useRef<Set<string>>(new Set());
   const shouldStickToBottomRef = useRef(true);
   const [panelRect, setPanelRect] = useState({
@@ -231,6 +252,13 @@ export function DockableChat({
       : contextWindow
         ? 100
         : null;
+
+  useEffect(() => {
+    componentAnchorByIdRef.current = componentAnchorTurnsToMessageIds(
+      agent.messages,
+      componentAnchorTurns,
+    );
+  }, [agent.messages, componentAnchorTurns]);
 
   useEffect(() => {
     const syncTheme = () => setIsDarkTheme(document.documentElement.classList.contains("dark"));
@@ -520,12 +548,44 @@ export function DockableChat({
 
     shouldStickToBottomRef.current = true;
     setModelMenuOpen(false);
+    setSuggestionsOpen(false);
     rememberPrompt(content);
     setInput("");
     try {
       await runChatMessage(content);
     } catch (error) {
       console.error(error);
+    }
+  };
+
+  const applyPromptSuggestion = (suggestion: string) => {
+    setInput((current) => {
+      const trimmed = current.trimEnd();
+      return trimmed ? `${trimmed}\n${suggestion}` : suggestion;
+    });
+    setPromptHistoryIndex(null);
+    promptDraftRef.current = "";
+    setSuggestionsOpen(false);
+    window.requestAnimationFrame(() => textareaRef.current?.focus());
+  };
+
+  const handleDeleteThread = (
+    thread: ChatThreadSummary,
+    event: MouseEvent<HTMLButtonElement>,
+  ) => {
+    event.stopPropagation();
+    if (isRunning) return;
+    setDeleteCandidate(thread);
+  };
+
+  const confirmDeleteThread = async () => {
+    if (!deleteCandidate || deleteInProgress) return;
+    setDeleteInProgress(true);
+    try {
+      await deleteSavedChatThread(deleteCandidate.id);
+      setDeleteCandidate(null);
+    } finally {
+      setDeleteInProgress(false);
     }
   };
 
@@ -544,198 +604,429 @@ export function DockableChat({
   }
 
   return (
-    <aside
-      className={cn(
-        "fixed z-50 flex flex-col overflow-hidden rounded-lg border bg-card text-card-foreground shadow-panel",
-        mode === "large" && "shadow-2xl",
-      )}
-      style={panelRect}
-    >
-      <ResizeHandles onResizeStart={beginResize} />
-
-      <div
-        className="flex min-h-[76px] cursor-move select-none items-start justify-between gap-2 border-b px-3 py-2"
-        onPointerDown={beginDrag}
+    <>
+      <aside
+        className={cn(
+          "fixed z-50 flex flex-col overflow-hidden rounded-lg border bg-card text-card-foreground shadow-panel",
+          mode === "large" && "shadow-2xl",
+        )}
+        style={panelRect}
       >
-        <div className="flex min-w-0 flex-1 items-start gap-2">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/12 text-primary">
-            <Sparkles className="h-4 w-4" />
-          </div>
-          <div className="min-w-0 flex-1 space-y-1">
-            <div className="flex min-w-0 items-center gap-2">
-              <p className="shrink-0 text-sm font-semibold">TFR Assistant</p>
-              <div className="relative min-w-0">
-                <button
-                  type="button"
-                  className="inline-flex h-7 max-w-[210px] items-center gap-1.5 rounded-md border bg-secondary/35 px-2 text-xs font-medium text-foreground transition-colors hover:bg-secondary"
-                  onClick={() => setModelMenuOpen((current) => !current)}
-                  aria-expanded={modelMenuOpen}
-                  aria-label="Select chat model"
-                  title="Select chat model"
-                >
-                  <Settings2 className="h-3.5 w-3.5 shrink-0 text-primary" />
-                  <span className="truncate">
-                    {selectedChatModel?.label ?? chatModelSelection.modelName}
-                  </span>
-                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                </button>
-                {modelMenuOpen ? (
-                  <div
-                    className="absolute left-0 top-12 z-40 mt-1 w-[min(360px,calc(100vw-3rem))] rounded-lg border bg-card p-3 text-xs shadow-xl"
-                    data-chat-model-menu
+        <ResizeHandles onResizeStart={beginResize} />
+
+        <div
+          className="flex min-h-[76px] cursor-move select-none items-start justify-between gap-2 border-b px-3 py-2"
+          onPointerDown={beginDrag}
+        >
+          <div className="flex min-w-0 flex-1 items-start gap-2">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <Sparkles className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="flex min-w-0 items-center gap-2">
+                <p className="shrink-0 text-sm font-semibold">TFR Assistant</p>
+                <div className="relative min-w-0">
+                  <button
+                    type="button"
+                    className="inline-flex h-7 max-w-[210px] items-center gap-1.5 rounded-md border bg-secondary/35 px-2 text-xs font-medium text-foreground transition-colors hover:bg-secondary"
+                    onClick={() => setModelMenuOpen((current) => !current)}
+                    aria-expanded={modelMenuOpen}
+                    aria-label="Select chat model"
+                    title="Select chat model"
                   >
-                    <div className="grid gap-2">
-                      <label className="grid gap-1">
-                        <span className="font-medium text-muted-foreground">Model</span>
-                        <select
-                          value={chatModelSelection.modelName}
-                          onChange={(event) => {
-                            const nextModel = chatModelOptions.find(
-                              (model) => model.name === event.target.value,
-                            );
-                            setChatModelSelection({
-                              modelName: event.target.value,
-                              reasoningEffort:
-                                nextModel?.api === "responses"
-                                  ? (nextModel.default_reasoning_effort ??
-                                    nextModel.reasoning_efforts?.[0] ??
-                                    null)
-                                  : null,
-                            });
-                          }}
-                          className="h-9 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        >
-                          {(chatModelOptions.length
-                            ? chatModelOptions
-                            : [{ name: chatModelSelection.modelName, label: chatModelSelection.modelName }]
-                          ).map((model) => (
-                            <option key={model.name} value={model.name}>
-                              {model.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      {showReasoningEffortSelector ? (
+                    <Settings2 className="h-3.5 w-3.5 shrink-0 text-primary" />
+                    <span className="truncate">
+                      {selectedChatModel?.label ?? chatModelSelection.modelName}
+                    </span>
+                    <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  </button>
+                  {modelMenuOpen ? (
+                    <div
+                      className="absolute left-0 top-12 z-40 mt-1 w-[min(360px,calc(100vw-3rem))] rounded-lg border bg-card p-3 text-xs shadow-xl"
+                      data-chat-model-menu
+                    >
+                      <div className="grid gap-2">
                         <label className="grid gap-1">
-                          <span className="font-medium text-muted-foreground">Reasoning</span>
+                          <span className="font-medium text-muted-foreground">Model</span>
                           <select
-                            value={chatModelSelection.reasoningEffort ?? ""}
-                            onChange={(event) =>
+                            value={chatModelSelection.modelName}
+                            onChange={(event) => {
+                              const nextModel = chatModelOptions.find(
+                                (model) => model.name === event.target.value,
+                              );
                               setChatModelSelection({
-                                modelName: chatModelSelection.modelName,
-                                reasoningEffort: event.target.value
-                                  ? (event.target.value as typeof chatModelSelection.reasoningEffort)
-                                  : null,
-                              })
-                            }
+                                modelName: event.target.value,
+                                reasoningEffort:
+                                  nextModel?.api === "responses"
+                                    ? (nextModel.default_reasoning_effort ??
+                                      nextModel.reasoning_efforts?.[0] ??
+                                      null)
+                                    : null,
+                              });
+                            }}
                             className="h-9 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           >
-                            {reasoningEfforts.map((effort) => (
-                              <option key={effort} value={effort}>
-                                {effort}
+                            {(chatModelOptions.length
+                              ? chatModelOptions
+                              : [{ name: chatModelSelection.modelName, label: chatModelSelection.modelName }]
+                            ).map((model) => (
+                              <option key={model.name} value={model.name}>
+                                {model.label}
                               </option>
                             ))}
                           </select>
                         </label>
-                      ) : null}
+                        {showReasoningEffortSelector ? (
+                          <label className="grid gap-1">
+                            <span className="font-medium text-muted-foreground">Reasoning</span>
+                            <select
+                              value={chatModelSelection.reasoningEffort ?? ""}
+                              onChange={(event) =>
+                                setChatModelSelection({
+                                  modelName: chatModelSelection.modelName,
+                                  reasoningEffort: event.target.value
+                                    ? (event.target.value as typeof chatModelSelection.reasoningEffort)
+                                    : null,
+                                })
+                              }
+                              className="h-9 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            >
+                              {reasoningEfforts.map((effort) => (
+                                <option key={effort} value={effort}>
+                                  {effort}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
+                  ) : null}
+                </div>
+              </div>
+              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-4 text-muted-foreground">
+                <span>{formatContextWindow(contextWindow)} context</span>
+                {contextRemainingPercent !== null ? (
+                  <span>{formatPercent(contextRemainingPercent)} left</span>
                 ) : null}
+                <span title={sharedState.chat_run_cost ? `Last run ${formatChatCost(sharedState.chat_run_cost)}` : undefined}>
+                  {formatChatCost(sharedState.chat_total_cost)} total
+                </span>
               </div>
             </div>
-            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-4 text-muted-foreground">
-              <span>{formatContextWindow(contextWindow)} context</span>
-              {contextRemainingPercent !== null ? (
-                <span>{formatPercent(contextRemainingPercent)} left</span>
-              ) : null}
-              <span title={sharedState.chat_run_cost ? `Last run ${formatChatCost(sharedState.chat_run_cost)}` : undefined}>
-                {formatChatCost(sharedState.chat_total_cost)} total
-              </span>
-            </div>
           </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={togglePanelSize}
-            aria-label={mode === "large" ? "Shrink assistant" : "Expand assistant"}
-            title={mode === "large" ? "Shrink assistant" : "Expand assistant"}
-          >
-            {mode === "large" ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-          </Button>
-          <Button variant="ghost" size="icon" onClick={hidePanel} aria-label="Hide assistant" title="Hide assistant">
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
-      <div
-        ref={scrollRef}
-        className="chat-scrollbar flex-1 overflow-auto py-4"
-        style={{ paddingLeft: chatGutter, paddingRight: chatGutter }}
-        onScroll={handleScroll}
-      >
-        <div className="flex flex-col">
-          {transcriptItems.map((message, index) => (
-            <div
-              key={message.id}
-              className={transcriptItemSpacing(message, transcriptItems[index - 1])}
+          <div className="flex shrink-0 items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setThreadSidebarOpen((current) => !current)}
+              aria-label={threadSidebarOpen ? "Hide saved chats" : "Show saved chats"}
+              title={threadSidebarOpen ? "Hide saved chats" : "Show saved chats"}
             >
-              {message.role === "components" ? (
-                <A2UIRendererList components={message.components} />
-              ) : message.role === "status_group" ? (
-                <StatusGroupView
-                  group={message}
-                  isDarkTheme={isDarkTheme}
-                  expandedToolMessages={expandedToolMessages}
-                  onToggleTool={toggleToolMessage}
-                />
-              ) : message.role === "tool_status" ? (
-                <ToolStatusView
-                  message={message}
-                  collapsed={!expandedToolMessages.has(message.id)}
-                  onToggle={() => toggleToolMessage(message.id)}
-                />
-              ) : (
-                <MessageView message={message} isDarkTheme={isDarkTheme} />
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <form
-        className="border-t py-3"
-        style={{ paddingLeft: chatGutter, paddingRight: chatGutter }}
-        onSubmit={sendMessage}
-      >
-        <div className="rounded-xl border bg-background p-2 focus-within:ring-2 focus-within:ring-ring">
-          <Textarea
-            ref={textareaRef}
-            className="max-h-[180px] min-h-[48px] resize-none border-0 px-2 py-2 shadow-none focus-visible:ring-0"
-            placeholder="Ask about a review, form, eval result, or workflow..."
-            value={input}
-            onChange={(event) => {
-              setInput(event.target.value);
-              setPromptHistoryIndex(null);
-              promptDraftRef.current = "";
-            }}
-            onKeyDown={handleInputKeyDown}
-          />
-          <div className="flex items-center justify-between gap-2 px-1 pb-1">
-            <span className="min-w-0 truncate text-xs text-muted-foreground">
-              {homeTableContext.selected_rows.length
-                ? `${homeTableContext.selected_rows.length} selected in home table`
-                : "Enter to send · Shift Enter for a new line"}
-            </span>
-            <Button size="icon" disabled={!input.trim() || isRunning} aria-label="Send message" title="Send message">
-              {isRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              <PanelLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={togglePanelSize}
+              aria-label={mode === "large" ? "Shrink assistant" : "Expand assistant"}
+              title={mode === "large" ? "Shrink assistant" : "Expand assistant"}
+            >
+              {mode === "large" ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </Button>
+            <Button variant="ghost" size="icon" onClick={hidePanel} aria-label="Hide assistant" title="Hide assistant">
+              <X className="h-4 w-4" />
             </Button>
           </div>
         </div>
-      </form>
-    </aside>
+
+        <div className="flex min-h-0 flex-1">
+          {threadSidebarOpen ? (
+            <ThreadSidebar
+              activeThreadId={activeThreadId}
+              threads={chatThreads}
+              loading={threadsLoading}
+              error={threadError}
+              disabled={isRunning || deleteInProgress}
+              onNewChat={() => {
+                startNewChatThread();
+                setInput("");
+                setSuggestionsOpen(false);
+              }}
+              onSelectThread={(threadId) => {
+                setInput("");
+                setSuggestionsOpen(false);
+                void loadChatThread(threadId);
+              }}
+              onDeleteThread={handleDeleteThread}
+            />
+          ) : null}
+
+          <div className="flex min-w-0 flex-1 flex-col">
+            <div
+              ref={scrollRef}
+              className="chat-scrollbar flex-1 overflow-auto py-4"
+              style={{ paddingLeft: chatGutter, paddingRight: chatGutter }}
+              onScroll={handleScroll}
+            >
+              <div className="flex flex-col">
+                {transcriptItems.map((message, index) => (
+                  <div
+                    key={message.id}
+                    className={transcriptItemSpacing(message, transcriptItems[index - 1])}
+                  >
+                    {message.role === "components" ? (
+                      <A2UIRendererList components={message.components} />
+                    ) : message.role === "status_group" ? (
+                      <StatusGroupView
+                        group={message}
+                        isDarkTheme={isDarkTheme}
+                        expandedToolMessages={expandedToolMessages}
+                        onToggleTool={toggleToolMessage}
+                      />
+                    ) : message.role === "tool_status" ? (
+                      <ToolStatusView
+                        message={message}
+                        collapsed={!expandedToolMessages.has(message.id)}
+                        onToggle={() => toggleToolMessage(message.id)}
+                      />
+                    ) : (
+                      <MessageView message={message} isDarkTheme={isDarkTheme} />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <form
+              className="border-t py-3"
+              style={{ paddingLeft: chatGutter, paddingRight: chatGutter }}
+              onSubmit={sendMessage}
+            >
+              <div className="rounded-xl border bg-background p-2 focus-within:ring-2 focus-within:ring-ring">
+                <Textarea
+                  ref={textareaRef}
+                  className="max-h-[180px] min-h-[48px] resize-none border-0 px-2 py-2 shadow-none focus-visible:ring-0"
+                  placeholder="Ask about a review, form, eval result, or workflow..."
+                  value={input}
+                  onChange={(event) => {
+                    setInput(event.target.value);
+                    setPromptHistoryIndex(null);
+                    promptDraftRef.current = "";
+                  }}
+                  onKeyDown={handleInputKeyDown}
+                />
+                <div className="flex items-center justify-between gap-2 px-1 pb-1">
+                  <span className="min-w-0 truncate text-xs text-muted-foreground">
+                    {homeTableContext.selected_rows.length
+                      ? `${homeTableContext.selected_rows.length} selected in home table`
+                      : "Enter to send · Shift Enter for a new line"}
+                  </span>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <div className="relative">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setSuggestionsOpen((current) => !current)}
+                        aria-expanded={suggestionsOpen}
+                        aria-label="Show prompt suggestions"
+                        title="Prompt suggestions"
+                      >
+                        <Lightbulb className="h-4 w-4" />
+                      </Button>
+                      {suggestionsOpen ? (
+                        <div className="absolute bottom-11 right-0 z-40 w-[min(320px,calc(100vw-3rem))] rounded-lg border bg-card p-2 text-xs shadow-xl">
+                          <div className="mb-1 px-2 py-1 font-semibold text-muted-foreground">
+                            Suggestions
+                          </div>
+                          {promptSuggestions.map((suggestion) => (
+                            <button
+                              key={suggestion}
+                              type="button"
+                              className="block w-full rounded-md px-2 py-2 text-left text-sm leading-snug hover:bg-secondary"
+                              onClick={() => applyPromptSuggestion(suggestion)}
+                            >
+                              {suggestion}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                    <Button size="icon" disabled={!input.trim() || isRunning} aria-label="Send message" title="Send message">
+                      {isRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </aside>
+      <DeleteThreadDialog
+        thread={deleteCandidate}
+        deleting={deleteInProgress}
+        onCancel={() => {
+          if (!deleteInProgress) setDeleteCandidate(null);
+        }}
+        onConfirm={() => void confirmDeleteThread()}
+      />
+    </>
+  );
+}
+
+function DeleteThreadDialog({
+  thread,
+  deleting,
+  onCancel,
+  onConfirm,
+}: {
+  thread: ChatThreadSummary | null;
+  deleting: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  if (!thread) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-background/60 px-4 backdrop-blur-sm"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !deleting) onCancel();
+      }}
+    >
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="delete-chat-title"
+        aria-describedby="delete-chat-description"
+        className="w-full max-w-sm rounded-lg border bg-card p-4 text-card-foreground shadow-2xl"
+      >
+        <div className="flex items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-destructive/10 text-destructive">
+            <Trash2 className="h-4 w-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 id="delete-chat-title" className="text-sm font-semibold">
+              Delete saved chat?
+            </h2>
+            <p id="delete-chat-description" className="mt-1 text-xs leading-5 text-muted-foreground">
+              This removes the saved transcript and any artifacts generated in this thread.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-md border bg-secondary/25 px-3 py-2">
+          <p className="break-words text-sm font-medium">{thread.title || "New chat"}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {formatThreadDate(thread.updated_at)}
+            {thread.total_cost ? ` · ${formatChatCost(thread.total_cost)} total` : ""}
+          </p>
+        </div>
+
+        <div className="mt-4 flex justify-end gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={onCancel} disabled={deleting}>
+            Cancel
+          </Button>
+          <Button type="button" variant="destructive" size="sm" onClick={onConfirm} disabled={deleting}>
+            {deleting ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-2 h-3.5 w-3.5" />}
+            Delete
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ThreadSidebar({
+  activeThreadId,
+  threads,
+  loading,
+  error,
+  disabled,
+  onNewChat,
+  onSelectThread,
+  onDeleteThread,
+}: {
+  activeThreadId: string | null;
+  threads: ChatThreadSummary[];
+  loading: boolean;
+  error: string;
+  disabled: boolean;
+  onNewChat: () => void;
+  onSelectThread: (threadId: string) => void;
+  onDeleteThread: (thread: ChatThreadSummary, event: MouseEvent<HTMLButtonElement>) => void;
+}) {
+  return (
+    <div className="flex w-60 shrink-0 flex-col border-r bg-secondary/20">
+      <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
+        <span className="text-xs font-semibold uppercase text-muted-foreground">Chats</span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={onNewChat}
+          disabled={disabled}
+          aria-label="Start new chat"
+          title="New chat"
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
+      {error ? <div className="border-b px-3 py-2 text-xs text-destructive">{error}</div> : null}
+      <div className="chat-scrollbar min-h-0 flex-1 overflow-y-auto p-2">
+        {loading ? (
+          <div className="flex items-center gap-2 px-2 py-3 text-xs text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Loading chats
+          </div>
+        ) : null}
+        {!loading && !threads.length ? (
+          <div className="px-2 py-3 text-xs text-muted-foreground">No saved chats yet.</div>
+        ) : null}
+        <div className="space-y-1">
+          {threads.map((thread) => {
+            const active = thread.id === activeThreadId;
+            return (
+              <div
+                key={thread.id}
+                className={cn(
+                  "group/thread flex items-center gap-1 rounded-md",
+                  active ? "bg-primary/10 text-primary" : "hover:bg-secondary",
+                )}
+              >
+                <button
+                  type="button"
+                  className="min-w-0 flex-1 rounded-md px-2 py-2 text-left"
+                  onClick={() => onSelectThread(thread.id)}
+                  disabled={disabled}
+                  aria-current={active ? "true" : undefined}
+                >
+                  <div className="truncate text-sm font-medium">{thread.title || "New chat"}</div>
+                  <div className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                    {formatThreadDate(thread.updated_at)}
+                    {thread.total_cost ? ` · ${formatChatCost(thread.total_cost)}` : ""}
+                  </div>
+                </button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="mr-1 h-7 w-7 opacity-70 hover:opacity-100"
+                  onClick={(event) => onDeleteThread(thread, event)}
+                  disabled={disabled}
+                  aria-label={`Delete ${thread.title || "chat"}`}
+                  title="Delete chat"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -829,6 +1120,24 @@ function hasAssistantTextAfter(message: Message, allMessages: Message[]) {
   return allMessages
     .slice(currentIndex + 1)
     .some((candidate) => candidate.role === "assistant" && messageContentToString(candidate.content).trim());
+}
+
+function componentAnchorTurnsToMessageIds(
+  messages: Message[],
+  componentAnchorTurns: Record<string, number>,
+): Map<string, string> {
+  const userMessageIds = messages
+    .filter((message) => message.role === "user")
+    .map((message) => message.id);
+  const fallback = userMessageIds[userMessageIds.length - 1] ?? "welcome";
+  const anchors = new Map<string, string>();
+
+  for (const [componentId, turn] of Object.entries(componentAnchorTurns)) {
+    const index = Math.max(0, Math.min(userMessageIds.length - 1, Math.trunc(turn) - 1));
+    anchors.set(componentId, userMessageIds[index] ?? fallback);
+  }
+
+  return anchors;
 }
 
 function groupComponentsByFirstSeenUser(
@@ -993,6 +1302,17 @@ function formatChatCost(value: number | null | undefined) {
   if (cost === 0) return "$0.00";
   if (cost < 0.01) return `$${cost.toFixed(4)}`;
   return `$${cost.toFixed(2)}`;
+}
+
+function formatThreadDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
 }
 
 function findLastIndex<T>(items: T[], predicate: (item: T, index: number) => boolean) {

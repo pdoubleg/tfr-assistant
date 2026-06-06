@@ -5,6 +5,7 @@ from typing import Annotated
 from ag_ui.core import BaseEvent, EventType, StateSnapshotEvent
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
+from pydantic import ValidationError
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 from pydantic_ai.usage import RunUsage
 from starlette.requests import Request
@@ -23,6 +24,7 @@ from app.core.llm import (
     context_window_for_model,
     run_usage_to_dict,
 )
+from app.db.session import AsyncSessionLocal
 from app.models.chat_state import TFRChatState
 from app.schemas.chat import (
     ChatMessage,
@@ -30,8 +32,18 @@ from app.schemas.chat import (
     ChatModelOption,
     ChatRequest,
     ChatResponse,
+    ChatThreadRecord,
+    ChatThreadSummary,
 )
 from app.services.chat_artifacts import ArtifactNotFoundError, ChatArtifactStore
+from app.services.chat_threads import (
+    ChatThreadNotFoundError,
+    ChatThreadService,
+    deserialize_model_messages,
+    latest_user_message,
+    thread_to_record,
+    thread_to_summary,
+)
 
 router = APIRouter()
 
@@ -80,6 +92,41 @@ def list_chat_models(
     )
 
 
+@router.get("/threads", response_model=list[ChatThreadSummary])
+async def list_chat_threads(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> list[dict]:
+    async with AsyncSessionLocal() as session:
+        threads = await ChatThreadService(session, settings).list_threads()
+        return [thread_to_summary(thread) for thread in threads]
+
+
+@router.get("/threads/{thread_id}", response_model=ChatThreadRecord)
+async def get_chat_thread(
+    thread_id: str,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> dict:
+    async with AsyncSessionLocal() as session:
+        try:
+            thread = await ChatThreadService(session, settings).require_thread(thread_id)
+        except ChatThreadNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="Chat thread not found.") from exc
+        return thread_to_record(thread)
+
+
+@router.delete("/threads/{thread_id}", status_code=204)
+async def delete_chat_thread(
+    thread_id: str,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
+    async with AsyncSessionLocal() as session:
+        try:
+            await ChatThreadService(session, settings).delete_thread(thread_id)
+        except ChatThreadNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="Chat thread not found.") from exc
+    return Response(status_code=204)
+
+
 @router.get("/artifacts/{session_id}/{handle}/files/{role}")
 def get_chat_artifact_file(
     session_id: str,
@@ -120,25 +167,58 @@ async def chat_ag_ui(request: Request) -> Response:
             },
         )
 
+    try:
+        run_input = AGUIAdapter.build_run_input(body)
+    except ValidationError as exc:
+        return Response(
+            content=exc.json(),
+            media_type="application/json",
+            status_code=422,
+        )
+
     settings = get_settings()
     model_name, reasoning_effort = _chat_model_selection(body)
     model_config = settings.chat_llm_config(
         model_name=model_name,
         reasoning_effort=reasoning_effort,
     )
+    thread_id = run_input.thread_id
+    saved_messages = []
+    async with AsyncSessionLocal() as session:
+        thread = await ChatThreadService(session, settings).get_thread(thread_id)
+        if thread is not None:
+            saved_messages = deserialize_model_messages(thread.messages_json)
+            run_input.messages = latest_user_message(list(run_input.messages))
+
     deps = TFRChatDeps(TFRChatState(), settings=settings)
+    adapter = AGUIAdapter(
+        agent=chat_agent,
+        run_input=run_input,
+        accept=request.headers.get("accept"),
+    )
 
     async def on_complete(result: object) -> AsyncIterator[BaseEvent]:
         usage = result.usage() if hasattr(result, "usage") else None
         _populate_chat_usage_state(deps.state, model_config, settings, usage)
+        all_messages = result.all_messages() if hasattr(result, "all_messages") else saved_messages
+        async with AsyncSessionLocal() as session:
+            await ChatThreadService(session, settings).upsert_thread(
+                thread_id=thread_id,
+                messages=list(all_messages),
+                state=deps.state,
+                model_name=model_config.pricing_lookup_name,
+                reasoning_effort=model_config.reasoning_effort,
+            )
         yield StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=deps.state)
 
-    return await AGUIAdapter.dispatch_request(
-        request,
-        agent=chat_agent,
-        model=build_llm_model(model_config),
-        deps=deps,
-        on_complete=on_complete,
+    return adapter.streaming_response(
+        adapter.run_stream(
+            message_history=saved_messages,
+            conversation_id=thread_id,
+            model=build_llm_model(model_config),
+            deps=deps,
+            on_complete=on_complete,
+        ),
     )
 
 

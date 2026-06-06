@@ -13,10 +13,11 @@ import {
   useState,
 } from "react";
 
-import { listChatModels } from "@/lib/api";
+import { deleteChatThread, getChatThread, listChatModels, listChatThreads } from "@/lib/api";
 import type {
   ChatModelOption,
   ChatRunContext,
+  ChatThreadSummary,
   HomeTableContext,
   OutputComponent,
   ReasoningEffort,
@@ -92,6 +93,15 @@ interface TfrAgentContextValue {
   chatModelOptions: ChatModelOption[];
   chatModelSelection: ChatModelSelection;
   setChatModelSelection: (selection: ChatModelSelection) => void;
+  chatThreads: ChatThreadSummary[];
+  activeThreadId: string | null;
+  componentAnchorTurns: Record<string, number>;
+  threadsLoading: boolean;
+  threadError: string;
+  refreshChatThreads: () => Promise<void>;
+  loadChatThread: (threadId: string) => Promise<void>;
+  startNewChatThread: () => void;
+  deleteSavedChatThread: (threadId: string) => Promise<void>;
   outputComponents: OutputComponent[];
   openOutputComponent: (component: OutputComponent) => void;
   closeOutputComponent: (componentId: string) => void;
@@ -113,6 +123,11 @@ export function TfrAgentProvider({ children }: { children: ReactNode }) {
   const [chatModelOptions, setChatModelOptions] = useState<ChatModelOption[]>([]);
   const [chatModelSelection, setChatModelSelectionState] =
     useState<ChatModelSelection>(defaultChatModelSelection);
+  const [chatThreads, setChatThreads] = useState<ChatThreadSummary[]>([]);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [componentAnchorTurns, setComponentAnchorTurns] = useState<Record<string, number>>({});
+  const [threadsLoading, setThreadsLoading] = useState(false);
+  const [threadError, setThreadError] = useState("");
 
   const state = useMemo(
     () => normalizeTfrChatState(agent.state as Partial<TFRChatState>),
@@ -172,6 +187,79 @@ export function TfrAgentProvider({ children }: { children: ReactNode }) {
     [chatModelOptions],
   );
 
+  const refreshChatThreads = useCallback(async () => {
+    setThreadsLoading(true);
+    setThreadError("");
+    try {
+      setChatThreads(await listChatThreads());
+    } catch (error) {
+      setThreadError(error instanceof Error ? error.message : "Failed to load saved chats.");
+    } finally {
+      setThreadsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshChatThreads();
+  }, [refreshChatThreads]);
+
+  const startNewChatThread = useCallback(() => {
+    agent.threadId = crypto.randomUUID();
+    agent.setMessages([]);
+    agent.setState(normalizeTfrChatState(null) as unknown as State);
+    setActiveThreadId(null);
+    setComponentAnchorTurns({});
+    setOutputComponents([]);
+    setThreadError("");
+  }, [agent]);
+
+  const loadChatThread = useCallback(
+    async (threadId: string) => {
+      if (agent.isRunning) return;
+      setThreadError("");
+      try {
+        const thread = await getChatThread(threadId);
+        agent.threadId = thread.id;
+        agent.setMessages(thread.messages as unknown as Message[]);
+        agent.setState(normalizeTfrChatState(thread.state) as unknown as State);
+        setActiveThreadId(thread.id);
+        setComponentAnchorTurns(thread.component_anchor_turns ?? {});
+        setOutputComponents([]);
+        if (thread.model_name) {
+          setChatModelSelectionState((current) =>
+            resolveRestoredChatModelSelection(
+              {
+                modelName: thread.model_name,
+                reasoningEffort: thread.reasoning_effort ?? null,
+              },
+              chatModelOptions,
+              current,
+            ),
+          );
+        }
+      } catch (error) {
+        setThreadError(error instanceof Error ? error.message : "Failed to restore saved chat.");
+      }
+    },
+    [agent, chatModelOptions],
+  );
+
+  const deleteSavedChatThread = useCallback(
+    async (threadId: string) => {
+      setThreadError("");
+      try {
+        await deleteChatThread(threadId);
+        if (activeThreadId === threadId) {
+          startNewChatThread();
+        }
+        await refreshChatThreads();
+      } catch (error) {
+        setThreadError(error instanceof Error ? error.message : "Failed to delete saved chat.");
+      }
+    },
+    [activeThreadId, refreshChatThreads, startNewChatThread],
+  );
+
   const runChatMessage = useCallback(
     async (content: string) => {
       const runContext = buildRunContextSnapshot();
@@ -224,6 +312,8 @@ export function TfrAgentProvider({ children }: { children: ReactNode }) {
             current_step: "Assistant run complete.",
           } as unknown as State);
         }
+        setActiveThreadId(agent.threadId);
+        void refreshChatThreads();
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown chat error.";
         agent.setState({
@@ -235,7 +325,7 @@ export function TfrAgentProvider({ children }: { children: ReactNode }) {
         throw error;
       }
     },
-    [agent, buildRunContextSnapshot, chatModelSelection],
+    [agent, buildRunContextSnapshot, chatModelSelection, refreshChatThreads],
   );
 
   const stop = useCallback(() => {
@@ -282,6 +372,15 @@ export function TfrAgentProvider({ children }: { children: ReactNode }) {
     chatModelOptions,
     chatModelSelection,
     setChatModelSelection,
+    chatThreads,
+    activeThreadId,
+    componentAnchorTurns,
+    threadsLoading,
+    threadError,
+    refreshChatThreads,
+    loadChatThread,
+    startNewChatThread,
+    deleteSavedChatThread,
     outputComponents,
     openOutputComponent,
     closeOutputComponent,
@@ -308,6 +407,16 @@ function normalizeChatModelSelection(
     modelName: model.name,
     reasoningEffort,
   };
+}
+
+function resolveRestoredChatModelSelection(
+  selection: ChatModelSelection,
+  models: ChatModelOption[],
+  fallback: ChatModelSelection,
+): ChatModelSelection {
+  if (!models.length) return selection;
+  const modelExists = models.some((candidate) => candidate.name === selection.modelName);
+  return modelExists ? normalizeChatModelSelection(selection, models) : fallback;
 }
 
 export function useTfrAgent() {
