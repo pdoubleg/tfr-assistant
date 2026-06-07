@@ -85,6 +85,7 @@ class ReviewRecord(BaseModel):
     input_json: dict[str, Any] | None = None
     original: AuditResult | None = None
     user_version: AuditResult | None = None
+    feedback_count: int = 0
     error_message: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

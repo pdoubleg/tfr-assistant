@@ -28,7 +28,12 @@ from app.models.audit import (
     parse_audit_result,
     render_audit_result,
 )
-from app.schemas.evaluations import EvaluationCreate, EvaluationRecord, FeedbackCreate
+from app.schemas.evaluations import (
+    EvaluationCreate,
+    EvaluationRecord,
+    FeedbackCreate,
+    FeedbackRecord,
+)
 from app.schemas.reviews import (
     BatchFormVolume,
     BatchRecord,
@@ -624,18 +629,25 @@ class ReviewRepository:
         await self.session.refresh(batch)
         return self._batch_to_schema(batch, running_count=running, queued_count=queued)
 
-    async def add_feedback(self, feedback: FeedbackCreate) -> FeedbackCreate:
-        await self._get_review_orm(feedback.review_id)
-        self.session.add(
-            FeedbackORM(
-                id=str(uuid4()),
-                review_id=feedback.review_id,
-                rating=feedback.rating,
-                comment=feedback.comment,
-            )
+    async def add_feedback(self, feedback: FeedbackCreate) -> FeedbackRecord:
+        review = await self._get_review_orm(feedback.review_id)
+        record = FeedbackORM(
+            id=str(uuid4()),
+            review_id=feedback.review_id,
+            rating=feedback.score,
+            comment=feedback.comment,
         )
+        self.session.add(record)
+        review.updated_at = _now()
         await self.session.commit()
-        return feedback
+        await self.session.refresh(record)
+        return FeedbackRecord(
+            id=record.id,
+            review_id=record.review_id,
+            score=record.rating,
+            comment=record.comment,
+            created_at=record.created_at,
+        )
 
     async def add_evaluation(self, evaluation: EvaluationCreate) -> EvaluationRecord:
         await self._get_review_orm(evaluation.review_id)
@@ -668,12 +680,12 @@ class ReviewRepository:
     async def edited_review_count(self) -> int:
         original = aliased(AuditResultVersionORM)
         user_version = aliased(AuditResultVersionORM)
-        statement = select(func.count(AuditReviewORM.id)).where(
+        payload_edits = select(AuditReviewORM.id).where(
             AuditReviewORM.original_result_version_id.is_not(None),
             AuditReviewORM.current_user_result_version_id.is_not(None),
         )
-        statement = (
-            statement.join(
+        payload_edits = (
+            payload_edits.join(
                 original,
                 original.id == AuditReviewORM.original_result_version_id,
             )
@@ -683,7 +695,9 @@ class ReviewRepository:
             )
             .where(original.payload_hash != user_version.payload_hash)
         )
-        return await self.session.scalar(statement) or 0
+        feedback_edits = select(FeedbackORM.review_id)
+        edited_ids = payload_edits.union(feedback_edits).subquery()
+        return await self.session.scalar(select(func.count()).select_from(edited_ids)) or 0
 
     async def _save_completed_result(
         self,
@@ -900,6 +914,12 @@ class ReviewRepository:
     async def _review_to_schema(self, record: AuditReviewORM) -> ReviewRecord:
         original = await self._load_result(record.original_result_version_id, record.id)
         user_version = await self._load_result(record.current_user_result_version_id, record.id)
+        feedback_count = (
+            await self.session.scalar(
+                select(func.count(FeedbackORM.id)).where(FeedbackORM.review_id == record.id)
+            )
+            or 0
+        )
         return ReviewRecord(
             id=record.id,
             form_id=record.form_id,
@@ -911,6 +931,7 @@ class ReviewRepository:
             input_json=record.input_json,
             original=original,
             user_version=user_version,
+            feedback_count=feedback_count,
             error_message=record.error_message,
             created_at=record.created_at,
             updated_at=record.updated_at,

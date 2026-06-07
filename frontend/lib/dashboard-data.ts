@@ -83,6 +83,7 @@ export interface DashboardReviewRow {
   updatedAt: string;
   resultVersion: ResultVersionKind;
   edited: boolean;
+  feedbackCount: number;
   form: AuditFormResult;
   originalForm: AuditFormResult | null;
   currentForm: AuditFormResult | null;
@@ -272,6 +273,7 @@ function normalizeComparableForm(form: AuditFormResult | null): string {
 }
 
 export function reviewHasEdits(record: ReviewRecord): boolean {
+  if ((record.feedback_count ?? 0) > 0) return true;
   const original = record.original;
   const current = getCurrentForm(record);
   if (!original || !current) return false;
@@ -362,6 +364,7 @@ export function deriveReviewRows(records: ReviewRecord[], resultVersion: ResultV
         updatedAt: record.updated_at ?? form.updated_at ?? "",
         resultVersion,
         edited: reviewHasEdits(record),
+        feedbackCount: record.feedback_count ?? 0,
         form,
         originalForm,
         currentForm,
@@ -408,6 +411,7 @@ export function derivePublishedDatasetRows(records: PublishedDatasetRow[]): Dash
       updatedAt: record.updated_at ?? record.created_at ?? "",
       resultVersion: "current",
       edited: false,
+      feedbackCount: 0,
       form,
       originalForm: form,
       currentForm: form,

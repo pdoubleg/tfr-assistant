@@ -454,6 +454,8 @@ export default function OptimizationPage() {
   const [scoreKey, setScoreKey] = useState<OptimizationRunPayload["score_key"]>("score");
   const [referencePolicy, setReferencePolicy] = useState<OptimizationRunPayload["reference_policy"]>("prefer_r2");
   const [judgeModel, setJudgeModel] = useState("");
+  const [useFeedbackWhenAvailable, setUseFeedbackWhenAvailable] = useState(false);
+  const [judgeScoreWeight, setJudgeScoreWeight] = useState(0.2);
   const [gepaParams, setGepaParams] = useState<GepaParamsState>(defaultGepaParams);
   const [traceConfig, setTraceConfig] = useState(defaultTraceConfig);
   const [loading, setLoading] = useState(true);
@@ -654,6 +656,8 @@ export default function OptimizationPage() {
     score_key: scoreKey,
     reference_policy: referencePolicy,
     judge_model: metricMode === "comparison_with_judge" ? judgeModel || null : null,
+    use_feedback_when_available: useFeedbackWhenAvailable,
+    judge_score_weight: metricMode === "comparison_with_judge" ? judgeScoreWeight : 0,
     gepa_params: normalizeGepaParams(gepaParams),
     trace_config: traceConfig,
     case_splits: caseSplits,
@@ -701,6 +705,8 @@ export default function OptimizationPage() {
     setScoreKey(payload.score_key);
     setReferencePolicy(payload.reference_policy);
     setJudgeModel(payload.judge_model ?? "");
+    setUseFeedbackWhenAvailable(Boolean(payload.use_feedback_when_available));
+    setJudgeScoreWeight(payload.judge_score_weight ?? 0.2);
     setGepaParams({ ...defaultGepaParams, ...payload.gepa_params });
     setTraceConfig({ ...defaultTraceConfig, ...payload.trace_config });
     setCaseSplits(payload.case_splits);
@@ -904,6 +910,10 @@ export default function OptimizationPage() {
           setReferencePolicy={setReferencePolicy}
           judgeModel={judgeModel}
           setJudgeModel={setJudgeModel}
+          useFeedbackWhenAvailable={useFeedbackWhenAvailable}
+          setUseFeedbackWhenAvailable={setUseFeedbackWhenAvailable}
+          judgeScoreWeight={judgeScoreWeight}
+          setJudgeScoreWeight={setJudgeScoreWeight}
           gepaParams={gepaParams}
           setGepaParams={setGepaParams}
           traceConfig={traceConfig}
@@ -1215,7 +1225,12 @@ function StagedRunsBar({
                       <Badge variant="secondary">{counts.test} test</Badge>
                       <Badge variant="outline">{budgetLabel}</Badge>
                       <Badge variant="outline">{seedSourceLabel(item.payload)}</Badge>
-                      <Badge variant="outline">{item.payload.metric_mode === "comparison_with_judge" ? "judge feedback" : "comparison"}</Badge>
+                      <Badge variant="outline">
+                        {item.payload.metric_mode === "comparison_with_judge"
+                          ? `judge ${Math.round((item.payload.judge_score_weight ?? 0) * 100)}%`
+                          : "comparison"}
+                      </Badge>
+                      {item.payload.use_feedback_when_available ? <Badge variant="secondary">feedback</Badge> : null}
                     </div>
                   </div>
                   <div className="flex flex-wrap justify-end gap-2">
@@ -1263,6 +1278,10 @@ function OptimizationConfigDialog(props: {
   setReferencePolicy: (value: OptimizationRunPayload["reference_policy"]) => void;
   judgeModel: string;
   setJudgeModel: (value: string) => void;
+  useFeedbackWhenAvailable: boolean;
+  setUseFeedbackWhenAvailable: (value: boolean) => void;
+  judgeScoreWeight: number;
+  setJudgeScoreWeight: (value: number) => void;
   gepaParams: GepaParamsState;
   setGepaParams: (value: GepaParamsState) => void;
   traceConfig: typeof defaultTraceConfig;
@@ -1323,6 +1342,10 @@ function OptimizationConfigDialog(props: {
               setReferencePolicy={props.setReferencePolicy}
               judgeModel={props.judgeModel}
               setJudgeModel={props.setJudgeModel}
+              useFeedbackWhenAvailable={props.useFeedbackWhenAvailable}
+              setUseFeedbackWhenAvailable={props.setUseFeedbackWhenAvailable}
+              judgeScoreWeight={props.judgeScoreWeight}
+              setJudgeScoreWeight={props.setJudgeScoreWeight}
               gepaParams={props.gepaParams}
               setGepaParams={props.setGepaParams}
               traceConfig={props.traceConfig}
@@ -1380,6 +1403,10 @@ function RunConfig(props: {
   setReferencePolicy: (value: OptimizationRunPayload["reference_policy"]) => void;
   judgeModel: string;
   setJudgeModel: (value: string) => void;
+  useFeedbackWhenAvailable: boolean;
+  setUseFeedbackWhenAvailable: (value: boolean) => void;
+  judgeScoreWeight: number;
+  setJudgeScoreWeight: (value: number) => void;
   gepaParams: GepaParamsState;
   setGepaParams: (value: GepaParamsState) => void;
   traceConfig: typeof defaultTraceConfig;
@@ -1488,8 +1515,39 @@ function RunConfig(props: {
           </select>
         </label>
         {props.metricMode === "comparison_with_judge" ? (
-          <Input value={props.judgeModel} onChange={(event) => props.setJudgeModel(event.target.value)} placeholder="Judge model, blank uses chat model" />
+          <div className="space-y-2 rounded-lg border bg-secondary/20 p-3">
+            <Input value={props.judgeModel} onChange={(event) => props.setJudgeModel(event.target.value)} placeholder="Judge model, blank uses chat model" />
+            <label className="block text-sm font-medium">
+              Judge Score Weight
+              <Input
+                type="number"
+                min={0}
+                max={1}
+                step={0.05}
+                value={props.judgeScoreWeight}
+                onChange={(event) => props.setJudgeScoreWeight(Math.max(0, Math.min(1, Number(event.target.value) || 0)))}
+                className="mt-1"
+              />
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Blends judge_score with the selected deterministic metric for candidate selection.
+            </p>
+          </div>
         ) : null}
+        <label className="flex items-start gap-2 rounded-lg border bg-secondary/20 p-3 text-sm">
+          <input
+            type="checkbox"
+            checked={props.useFeedbackWhenAvailable}
+            onChange={(event) => props.setUseFeedbackWhenAvailable(event.target.checked)}
+            className="mt-0.5 h-4 w-4 accent-primary"
+          />
+          <span>
+            <span className="block font-medium">Use feedback when available</span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">
+              Passes published case feedback text into metric feedback and the judge prompt when present.
+            </span>
+          </span>
+        </label>
         <div className="space-y-3 rounded-lg border bg-secondary/20 p-3">
           <div>
             <p className="text-xs font-semibold uppercase text-muted-foreground">GEPA Budget</p>

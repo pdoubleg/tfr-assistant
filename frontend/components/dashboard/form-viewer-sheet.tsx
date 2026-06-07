@@ -13,6 +13,10 @@ import {
   X,
 } from "lucide-react";
 
+import {
+  ReviewFeedbackButton,
+  ReviewFeedbackSubmittedCount,
+} from "@/components/feedback/review-feedback-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -63,6 +67,10 @@ function TextBlock({ label, text }: { label: string; text: string }) {
 
 function outcomeLabel(outcome: string): string {
   return outcome === "Does Not Meet" ? "DNM" : outcome;
+}
+
+function canSubmitFeedback(row: DashboardReviewRow): boolean {
+  return row.rowKind !== "dataset_case" && !row.reviewId.startsWith("eval-ground-truth:");
 }
 
 function SubQuestionViewer({ subQuestion }: { subQuestion: FormSubQuestion }) {
@@ -156,10 +164,12 @@ export function FormViewerSheet({
   row,
   open,
   onOpenChange,
+  onFeedbackSubmitted,
 }: {
   row: DashboardReviewRow | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onFeedbackSubmitted?: (reviewId: string) => void | Promise<void>;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -211,9 +221,23 @@ export function FormViewerSheet({
                 {row.createdAt ? <Badge variant="outline">Created {formatDateTime(row.createdAt)}</Badge> : null}
               </div>
             </div>
-            <Button type="button" variant="ghost" size="icon" onClick={() => onOpenChange(false)} title="Close" aria-label="Close">
-              <X className="h-5 w-5" />
-            </Button>
+            <div className="flex shrink-0 items-center gap-1">
+              {canSubmitFeedback(row) ? (
+                <>
+                  <ReviewFeedbackSubmittedCount count={row.feedbackCount} />
+                  <ReviewFeedbackButton
+                    reviewId={row.reviewId}
+                    claimNumber={row.claimNumber}
+                    variant="outline"
+                    size="sm"
+                    onSubmitted={() => onFeedbackSubmitted?.(row.reviewId)}
+                  />
+                </>
+              ) : null}
+              <Button type="button" variant="ghost" size="icon" onClick={() => onOpenChange(false)} title="Close" aria-label="Close">
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
           </div>
         </header>
 

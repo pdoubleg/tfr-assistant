@@ -9,12 +9,14 @@ import type { AuditFormResult, OutputComponent } from "@/lib/types";
 export function OutputRenderer({
   component,
   onSubmitAuditForm,
+  onFeedbackSubmitted,
   onClose,
   onCollapse,
   onExpand,
 }: {
   component: OutputComponent;
   onSubmitAuditForm: (reviewId: string, form: AuditFormResult) => Promise<void>;
+  onFeedbackSubmitted?: (reviewId: string) => void | Promise<void>;
   onClose: (componentId: string) => void;
   onCollapse: (componentId: string) => void;
   onExpand: (componentId: string) => void;
@@ -51,6 +53,7 @@ export function OutputRenderer({
       ) : null}
       {renderOutputComponent(component, {
         onSubmitAuditForm,
+        onFeedbackSubmitted,
         onClose,
       })}
     </div>

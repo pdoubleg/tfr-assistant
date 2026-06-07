@@ -348,6 +348,13 @@ class OptimizationRunService:
                     )
                     for truth in truths
                 ]
+                metadata = dict(case.input_json or {})
+                case_metadata = case.metadata_json or {}
+                if case_metadata:
+                    metadata["case_metadata"] = case_metadata
+                if isinstance(case_metadata, dict) and case_metadata.get("feedback"):
+                    metadata["feedback"] = case_metadata["feedback"]
+
                 instances.append(
                     OptimizationDataInstance(
                         case_id=case.id,
@@ -360,7 +367,7 @@ class OptimizationRunService:
                         knowledge_docs=list(definition.knowledge_docs or []),
                         references=references,
                         split=split_by_case[case.id],
-                        metadata=case.input_json or {},
+                        metadata=metadata,
                     )
                 )
         return instances

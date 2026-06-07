@@ -16,6 +16,7 @@ from app.schemas.datasets import (
     DatasetSourceBrowseRequest,
     DatasetSourceFetchRequest,
 )
+from app.schemas.evaluations import FeedbackCreate
 from app.services.catalog import FormCatalog
 from app.services.datasets import DatasetRepository, _cluster_vectors
 from app.services.review_repository import ReviewRepository
@@ -209,6 +210,16 @@ async def test_app_db_source_converts_completed_reviews(tmp_path) -> None:
                 source="manual_entry",
                 input_json={"claim_number": "CLAIM-123", "effective_date": "2026-05-31"},
             )
+            await ReviewRepository(session).add_feedback(
+                FeedbackCreate(
+                    review_id=review.id,
+                    score=2,
+                    comment="Citations missed the contractor note.",
+                )
+            )
+            reviewed = await ReviewRepository(session).get_review(review.id)
+            assert reviewed.feedback_count == 1
+            assert await ReviewRepository(session).edited_review_count() == 1
             repository = DatasetRepository(session, settings)
             population = await repository.create_population(
                 DatasetPopulationCreate(
@@ -220,20 +231,31 @@ async def test_app_db_source_converts_completed_reviews(tmp_path) -> None:
             rows = await repository.browse_app_db_source(
                 "tfr_default",
                 "v0.1",
-                DatasetAppDbBrowseRequest(search="CLAIM-123"),
+                DatasetAppDbBrowseRequest(
+                    search="CLAIM-123",
+                    include_feedback=True,
+                    feedback_filter="low_score",
+                ),
             )
 
             assert rows[0].review_id == review.id
+            assert rows[0].feedback_count == 1
+            assert rows[0].feedback_min_score == 2
+            assert rows[0].feedback_latest_comment == "Citations missed the contractor note."
 
             added = await repository.add_app_db_source(
                 population.id,
-                DatasetAppDbAddRequest(review_ids=[review.id]),
+                DatasetAppDbAddRequest(review_ids=[review.id], include_feedback=True),
             )
             detail = await repository.get_population(population.id)
 
             assert added.added_count == 1
             assert detail.candidates[0].source_key == "app_db_reviews"
             assert detail.candidates[0].claim_number == "CLAIM-123"
+            assert detail.candidates[0].metrics["feedback_count"] == 1
+            assert detail.candidates[0].metadata["feedback"]["comments"] == [
+                "Citations missed the contractor note."
+            ]
     finally:
         await engine.dispose()
 

@@ -185,34 +185,86 @@ class TFRGepaAdapter:
             )
             scored.append((score, f"Reference {reference_kind}\n{feedback}", comparison))
 
-        score = sum(item[0] for item in scored) / len(scored)
+        deterministic_score = sum(item[0] for item in scored) / len(scored)
         feedback = "\n\n".join(item[1] for item in scored)
+        prior_feedback = self._prior_feedback_text(instance)
+        if prior_feedback:
+            feedback = f"{feedback}\n\nPrior user feedback:\n{prior_feedback}"
         comparison = {
-            "score": score,
+            "score": deterministic_score,
+            "deterministic_score": deterministic_score,
             "references": [item[2] for item in scored],
         }
+        if prior_feedback:
+            comparison["prior_feedback"] = prior_feedback
         if self.config.metric_mode == "comparison_with_judge":
-            judge_feedback = self._judge_feedback(generated, selected_references[0][1], feedback)
+            judge_feedback, judge_score = self._judge_feedback(
+                generated,
+                selected_references[0][1],
+                feedback,
+                prior_feedback=prior_feedback,
+            )
+            final_score = deterministic_score
+            judge_weight = self.config.judge_score_weight
+            if judge_score is not None and judge_weight > 0:
+                final_score = (deterministic_score * (1 - judge_weight)) + (
+                    judge_score * judge_weight
+                )
             feedback = f"{feedback}\n\nLLM judge feedback:\n{judge_feedback}"
+            if judge_score is not None:
+                feedback = (
+                    f"{feedback}\n\nJudge score `{judge_score:.4f}` blended with "
+                    f"deterministic score `{deterministic_score:.4f}` at weight "
+                    f"`{judge_weight:.2f}` => final score `{final_score:.4f}`."
+                )
+            comparison["score"] = final_score
             comparison["judge_feedback"] = judge_feedback
-        return score, feedback, comparison
+            comparison["judge_score"] = judge_score
+            comparison["judge_score_weight"] = judge_weight
+            comparison["final_score"] = final_score
+        return float(comparison["score"]), feedback, comparison
+
+    def _prior_feedback_text(self, instance: OptimizationDataInstance) -> str:
+        if not self.config.use_feedback_when_available:
+            return ""
+        feedback = instance.metadata.get("feedback")
+        if not isinstance(feedback, dict):
+            return ""
+        parts: list[str] = []
+        comments = feedback.get("comments")
+        if isinstance(comments, list):
+            parts.extend(str(comment).strip() for comment in comments if str(comment).strip())
+        latest_comment = feedback.get("latest_comment")
+        if isinstance(latest_comment, str) and latest_comment.strip():
+            latest = latest_comment.strip()
+            if latest not in parts:
+                parts.append(latest)
+        return "\n".join(f"- {part}" for part in parts)
 
     def _judge_feedback(
         self,
         generated: AuditResult,
         reference: AuditResult,
         comparison_feedback: str,
-    ) -> str:
+        *,
+        prior_feedback: str = "",
+    ) -> tuple[str, float | None]:
         if self.judge_model_config is None:
-            return "Judge feedback requested but no judge model was configured."
+            return "Judge feedback requested but no judge model was configured.", None
         try:
             agent = Agent(
                 build_llm_model(self.judge_model_config),
                 output_type=JudgeFeedback,
                 instructions=(
                     "Compare generated and reference audit questionnaire outputs. "
-                    "Return concise prompt-improvement feedback. Do not change the "
-                    "deterministic score."
+                    "Return concise prompt-improvement feedback and an optional "
+                    "judge_score from 0 to 1. If prior user feedback is provided, "
+                    "evaluate whether the generated output respects feedback that "
+                    "is applicable to this case. Include feedback-related findings "
+                    "in the feedback field, and include them in missed_rules or "
+                    "overfit_risks when they apply. Prior feedback may come from an "
+                    "independent earlier generation, so penalize only repeated or "
+                    "contradictory issues that are relevant to this generated result."
                 ),
             )
             prompt = (
@@ -220,6 +272,8 @@ class TFRGepaAdapter:
                 f"{str(generated)}\n\nReference questionnaire:\n{str(reference)}\n\n"
                 f"Deterministic comparison:\n{comparison_feedback}"
             )
+            if prior_feedback:
+                prompt = f"{prompt}\n\nPrior user feedback:\n{prior_feedback}"
             result = agent.run_sync(prompt)
             merge_usage(self.token_usage, result.usage())
             judge = result.output
@@ -230,10 +284,10 @@ class TFRGepaAdapter:
                 parts.append("Overfit risks: " + "; ".join(judge.overfit_risks))
             if judge.judge_score is not None:
                 parts.append(f"Judge score: {judge.judge_score:.4f}")
-            return "\n".join(parts)
+            return "\n".join(parts), judge.judge_score
         except Exception as exc:
             logger.exception("LLM judge failed")
-            return f"LLM judge failed: {exc}"
+            return f"LLM judge failed: {exc}", None
 
     def make_reflective_dataset(
         self,

@@ -85,6 +85,7 @@ function componentFromReview(review: ReviewRecord, collapsed = false): OutputCom
     createdAt: review.created_at,
     updatedAt: review.updated_at,
     claimNumber: getClaimNumber(review),
+    feedbackCount: review.feedback_count ?? 0,
     collapsed,
   };
 }
@@ -195,6 +196,18 @@ export function OutputPane({ runNameFilter = "", runNameFilterNonce = 0 }: Outpu
 
   const submitAuditForm = async (reviewId: string, form: AuditFormResult) => {
     const updated = await updateReviewUserVersion(reviewId, form);
+    const currentComponent = outputComponents.find(
+      (candidate) => "reviewId" in candidate && candidate.reviewId === reviewId,
+    );
+    const component = componentFromReview(updated, Boolean(currentComponent?.collapsed));
+    if (component) {
+      openOutputComponent(component);
+    }
+    void refresh();
+  };
+
+  const handleFeedbackSubmitted = async (reviewId: string) => {
+    const updated = await getReview(reviewId);
     const currentComponent = outputComponents.find(
       (candidate) => "reviewId" in candidate && candidate.reviewId === reviewId,
     );
@@ -386,6 +399,7 @@ export function OutputPane({ runNameFilter = "", runNameFilterNonce = 0 }: Outpu
                 key={component.id}
                 component={component}
                 onSubmitAuditForm={submitAuditForm}
+                onFeedbackSubmitted={handleFeedbackSubmitted}
                 onClose={closeOutputComponent}
                 onCollapse={collapseOutputComponent}
                 onExpand={expandOutputComponent}

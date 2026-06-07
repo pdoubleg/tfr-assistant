@@ -226,12 +226,14 @@ export function AuditDataTable({
   loading,
   onRefresh,
   onSaveForm,
+  onFeedbackSubmitted,
 }: {
   rows: DashboardReviewRow[];
   totalCount: number;
   loading?: boolean;
   onRefresh: () => void;
   onSaveForm: (reviewId: string, form: AuditFormResult) => Promise<void>;
+  onFeedbackSubmitted?: (reviewId: string) => void | Promise<void>;
 }) {
   const { setHomeTableContext, setState: setAgentState } = useTfrAgent();
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -724,6 +726,10 @@ export function AuditDataTable({
     await onSaveForm(editRow.reviewId, form);
   };
 
+  const handleFeedbackSubmitted = async (reviewId: string) => {
+    await onFeedbackSubmitted?.(reviewId);
+  };
+
   const toolbar = (
     <div className="space-y-3 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -943,7 +949,12 @@ export function AuditDataTable({
           </div>
         }
       />
-      <FormViewerSheet row={viewRow} open={Boolean(viewRow)} onOpenChange={(open) => !open && setViewRow(null)} />
+      <FormViewerSheet
+        row={viewRow}
+        open={Boolean(viewRow)}
+        onOpenChange={(open) => !open && setViewRow(null)}
+        onFeedbackSubmitted={handleFeedbackSubmitted}
+      />
       <AuditResultEditSheet
         row={
           editRow
@@ -954,6 +965,8 @@ export function AuditDataTable({
                 edited: editRow.edited,
                 claimNumber: editRow.claimNumber,
                 form: editRow.form,
+                feedbackCount: editRow.feedbackCount,
+                feedbackEnabled: editRow.rowKind !== "dataset_case" && !editRow.reviewId.startsWith("eval-ground-truth:"),
                 createdAt: editRow.createdAt,
                 updatedAt: editRow.updatedAt,
                 source: editRow.source,
@@ -962,6 +975,7 @@ export function AuditDataTable({
         }
         onClose={() => setEditRow(null)}
         onSubmit={submitEditForm}
+        onFeedbackSubmitted={handleFeedbackSubmitted}
       />
     </>
   );

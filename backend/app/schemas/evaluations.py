@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.models.audit import AuditResult, FormKind
 from app.schemas.prompts import PromptReference
@@ -14,8 +14,20 @@ EvalRunItemStatus = Literal["queued", "running", "completed", "failed", "skipped
 
 class FeedbackCreate(BaseModel):
     review_id: str
-    rating: int = Field(..., ge=-1, le=1, description="-1 thumbs down, 0 neutral, 1 thumbs up")
+    score: int = Field(..., ge=0, le=5, description="0-5 star rating")
     comment: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def accept_legacy_rating(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "score" not in data and "rating" in data:
+            return {**data, "score": data["rating"]}
+        return data
+
+
+class FeedbackRecord(FeedbackCreate):
+    id: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class EvaluationSummary(BaseModel):

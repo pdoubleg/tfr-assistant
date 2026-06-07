@@ -108,6 +108,8 @@ class OptimizationRunCreate(BaseModel):
     score_key: OptimizationScoreKey = "score"
     reference_policy: OptimizationReferencePolicy = "prefer_r2"
     judge_model: str | None = None
+    use_feedback_when_available: bool = False
+    judge_score_weight: float = Field(default=0.0, ge=0.0, le=1.0)
     gepa_params: OptimizationGepaParams = Field(default_factory=OptimizationGepaParams)
     trace_config: OptimizationTraceConfig = Field(default_factory=OptimizationTraceConfig)
     case_splits: list[OptimizationCaseSplit] = Field(default_factory=list)

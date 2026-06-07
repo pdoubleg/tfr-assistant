@@ -7,6 +7,7 @@ from app.models.audit import AuditResult, FormKind
 
 DatasetSourceKind = Literal["external_named_query", "app_db_reviews"]
 DatasetPopulationStatus = Literal["draft", "published"]
+DatasetFeedbackFilter = Literal["all", "with_feedback", "without_feedback", "low_score"]
 DatasetSampleMode = Literal[
     "all",
     "random",
@@ -162,6 +163,8 @@ class DatasetAppDbBrowseRequest(BaseModel):
     source: str = "all"
     outcome: str = "all"
     result_version: Literal["current", "original"] = "current"
+    include_feedback: bool = False
+    feedback_filter: DatasetFeedbackFilter = "all"
     limit: int = Field(default=100, ge=1, le=1000)
 
 
@@ -187,6 +190,12 @@ class DatasetSourceRowRecord(BaseModel):
     total_amount_reviewed_dollars: float | None = None
     total_overwrite_dollars: float = 0
     total_underwrite_dollars: float = 0
+    feedback_count: int = 0
+    feedback_average_score: float | None = None
+    feedback_min_score: int | None = None
+    feedback_latest_score: int | None = None
+    feedback_latest_comment: str | None = None
+    feedback_latest_at: datetime | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

@@ -29,6 +29,7 @@ from app.db.models import (
     EvalCaseORM,
     EvalDatasetORM,
     EvalGroundTruthORM,
+    FeedbackORM,
 )
 from app.models.audit import (
     AuditFormWithFinancialsResult,
@@ -122,6 +123,23 @@ def _candidate_metrics(result: AuditResult) -> dict[str, Any]:
         "overwrite_percent": float(totals["overwrite_percent"]),
         "underwrite_percent": float(totals["underwrite_percent"]),
     }
+
+
+def _feedback_metrics(metadata: dict[str, Any] | None) -> dict[str, Any]:
+    feedback = (metadata or {}).get("feedback")
+    if not isinstance(feedback, dict):
+        return {}
+    metrics: dict[str, Any] = {}
+    for source_key, metric_key in (
+        ("count", "feedback_count"),
+        ("average_score", "feedback_average_score"),
+        ("min_score", "feedback_min_score"),
+        ("latest_score", "feedback_latest_score"),
+    ):
+        value = feedback.get(source_key)
+        if isinstance(value, int | float):
+            metrics[metric_key] = value
+    return metrics
 
 
 def _preferred_reference(references: list[dict[str, Any]]) -> DatasetReference:
@@ -555,7 +573,25 @@ class DatasetRepository:
             limit=request.limit,
             review_ids=None,
         )
-        return [self._review_to_source_row(review, request.result_version) for review in reviews]
+        feedback_summaries = await self._feedback_summaries(
+            [review.id for review in reviews],
+            enabled=request.include_feedback or request.feedback_filter != "all",
+        )
+        reviews = self._filter_reviews_by_feedback(
+            reviews,
+            feedback_summaries,
+            request.feedback_filter,
+        )
+        return [
+            self._review_to_source_row(
+                review,
+                request.result_version,
+                feedback_summary=feedback_summaries.get(review.id)
+                if request.include_feedback
+                else None,
+            )
+            for review in reviews
+        ]
 
     async def add_app_db_source(
         self,
@@ -575,8 +611,23 @@ class DatasetRepository:
             limit=request.limit,
             review_ids=review_ids,
         )
+        feedback_summaries = await self._feedback_summaries(
+            [review.id for review in reviews],
+            enabled=request.include_feedback or request.feedback_filter != "all",
+        )
+        reviews = self._filter_reviews_by_feedback(
+            reviews,
+            feedback_summaries,
+            request.feedback_filter,
+        )
         candidates = [
-            self._review_to_candidate(review, request.result_version)
+            self._review_to_candidate(
+                review,
+                request.result_version,
+                feedback_summary=feedback_summaries.get(review.id)
+                if request.include_feedback
+                else None,
+            )
             for review in reviews
             if self._version_for_review(review, request.result_version) is not None
         ]
@@ -692,7 +743,10 @@ class DatasetRepository:
         )
         candidate.references_json = [_reference_payload(reference) for reference in references]
         candidate.dedupe_key = next_dedupe_key
-        candidate.metrics_json = _candidate_metrics(preferred)
+        candidate.metrics_json = {
+            **_candidate_metrics(preferred),
+            **_feedback_metrics(metadata),
+        }
         candidate.metadata_json = metadata
         candidate.sample_reason = candidate.sample_reason or "Edited in dataset draft."
         candidate.updated_at = _now()
@@ -1122,6 +1176,10 @@ class DatasetRepository:
             if existing:
                 skipped += 1
                 continue
+            metrics = {
+                **_candidate_metrics(preferred),
+                **_feedback_metrics(candidate.metadata),
+            }
             record = DatasetCandidateORM(
                 id=str(uuid4()),
                 population_id=population.id,
@@ -1139,7 +1197,7 @@ class DatasetRepository:
                 ],
                 metadata_json=candidate.metadata,
                 tags_json=candidate.tags,
-                metrics_json=_candidate_metrics(preferred),
+                metrics_json=metrics,
                 included=True,
                 sample_reason="Added to candidate pool.",
             )
@@ -1306,6 +1364,67 @@ class DatasetRepository:
             output.append(record)
         return output
 
+    async def _feedback_summaries(
+        self,
+        review_ids: list[str],
+        *,
+        enabled: bool,
+    ) -> dict[str, dict[str, Any]]:
+        if not enabled or not review_ids:
+            return {}
+        records = (
+            await self.session.scalars(
+                select(FeedbackORM)
+                .where(FeedbackORM.review_id.in_(review_ids))
+                .order_by(FeedbackORM.review_id.asc(), FeedbackORM.created_at.asc())
+            )
+        ).all()
+        grouped: dict[str, list[FeedbackORM]] = {}
+        for record in records:
+            grouped.setdefault(record.review_id, []).append(record)
+
+        summaries: dict[str, dict[str, Any]] = {}
+        for review_id, feedback_rows in grouped.items():
+            scores = [row.rating for row in feedback_rows]
+            comments = [
+                str(row.comment).strip()
+                for row in feedback_rows
+                if row.comment and str(row.comment).strip()
+            ]
+            latest = max(feedback_rows, key=lambda row: row.created_at)
+            summaries[review_id] = {
+                "count": len(feedback_rows),
+                "average_score": sum(scores) / len(scores) if scores else None,
+                "min_score": min(scores) if scores else None,
+                "latest_score": latest.rating,
+                "latest_comment": latest.comment,
+                "latest_at": latest.created_at,
+                "comments": comments,
+            }
+        return summaries
+
+    def _filter_reviews_by_feedback(
+        self,
+        reviews: list[AuditReviewORM],
+        feedback_summaries: dict[str, dict[str, Any]],
+        feedback_filter: str,
+    ) -> list[AuditReviewORM]:
+        if feedback_filter == "all":
+            return reviews
+        output: list[AuditReviewORM] = []
+        for review in reviews:
+            summary = feedback_summaries.get(review.id)
+            count = int((summary or {}).get("count") or 0)
+            min_score = (summary or {}).get("min_score")
+            if feedback_filter == "with_feedback" and count > 0:
+                output.append(review)
+            elif feedback_filter == "without_feedback" and count == 0:
+                output.append(review)
+            elif feedback_filter == "low_score" and isinstance(min_score, int | float):
+                if min_score <= 2:
+                    output.append(review)
+        return output
+
     def _version_for_review(
         self,
         review: AuditReviewORM,
@@ -1325,6 +1444,8 @@ class DatasetRepository:
         self,
         review: AuditReviewORM,
         result_version: str,
+        *,
+        feedback_summary: dict[str, Any] | None = None,
     ) -> DatasetSourceRowRecord:
         version = self._version_for_review(review, result_version)
         if version is None:
@@ -1349,6 +1470,18 @@ class DatasetRepository:
             total_amount_reviewed_dollars=metrics["total_amount_reviewed_dollars"],
             total_overwrite_dollars=metrics["total_overwrite_dollars"],
             total_underwrite_dollars=metrics["total_underwrite_dollars"],
+            feedback_count=int((feedback_summary or {}).get("count") or 0),
+            feedback_average_score=feedback_summary.get("average_score")
+            if feedback_summary
+            else None,
+            feedback_min_score=feedback_summary.get("min_score") if feedback_summary else None,
+            feedback_latest_score=feedback_summary.get("latest_score")
+            if feedback_summary
+            else None,
+            feedback_latest_comment=feedback_summary.get("latest_comment")
+            if feedback_summary
+            else None,
+            feedback_latest_at=feedback_summary.get("latest_at") if feedback_summary else None,
             created_at=review.created_at,
             updated_at=review.updated_at,
         )
@@ -1357,6 +1490,8 @@ class DatasetRepository:
         self,
         review: AuditReviewORM,
         result_version: str,
+        *,
+        feedback_summary: dict[str, Any] | None = None,
     ) -> CanonicalDatasetCandidate:
         version = self._version_for_review(review, result_version)
         if version is None:
@@ -1365,6 +1500,36 @@ class DatasetRepository:
         input_json = review.input_json or {}
         claim_number = str(input_json.get("claim_number") or review.id[:8])
         instructions = str(input_json.get("instructions") or input_json.get("prompt") or "")
+        metadata: dict[str, Any] = {
+            "review_id": review.id,
+            "result_version_id": version.id,
+            "result_version": result_version,
+            "source": review.source,
+            "created_at": review.created_at.isoformat() if review.created_at else None,
+            "updated_at": review.updated_at.isoformat() if review.updated_at else None,
+        }
+        if feedback_summary and int(feedback_summary.get("count") or 0) > 0:
+            metadata["feedback"] = {
+                "count": int(feedback_summary.get("count") or 0),
+                "average_score": feedback_summary.get("average_score"),
+                "min_score": feedback_summary.get("min_score"),
+                "latest_score": feedback_summary.get("latest_score"),
+                "latest_comment": feedback_summary.get("latest_comment"),
+                "latest_at": (
+                    feedback_summary["latest_at"].isoformat()
+                    if feedback_summary.get("latest_at")
+                    else None
+                ),
+                "comments": feedback_summary.get("comments") or [],
+                "captured_from_review_id": review.id,
+            }
+        tags = ["app-db", review.source]
+        if metadata.get("feedback"):
+            tags.append("feedback")
+            min_score = (metadata["feedback"] or {}).get("min_score")
+            if isinstance(min_score, int | float) and min_score <= 2:
+                tags.append("low-feedback-score")
+
         return CanonicalDatasetCandidate(
             source_key="app_db_reviews",
             source_kind="app_db_reviews",
@@ -1392,15 +1557,8 @@ class DatasetRepository:
                     },
                 )
             ],
-            metadata={
-                "review_id": review.id,
-                "result_version_id": version.id,
-                "result_version": result_version,
-                "source": review.source,
-                "created_at": review.created_at.isoformat() if review.created_at else None,
-                "updated_at": review.updated_at.isoformat() if review.updated_at else None,
-            },
-            tags=["app-db", review.source],
+            metadata=metadata,
+            tags=tags,
         )
 
     async def _population_to_schema(

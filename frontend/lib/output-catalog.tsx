@@ -9,6 +9,7 @@ export type OutputRenderer = (
   component: OutputComponent,
   controls: {
     onSubmitAuditForm: (reviewId: string, form: AuditFormResult) => Promise<void>;
+    onFeedbackSubmitted?: (reviewId: string) => void | Promise<void>;
     onClose: (componentId: string) => void;
   },
 ) => ReactElement;
@@ -30,7 +31,10 @@ export const outputCatalog: Record<string, OutputRenderer> = {
           updatedAt: component.updatedAt,
           source: component.source,
         }}
+        feedbackCount={component.feedbackCount ?? 0}
         onSubmit={(form) => controls.onSubmitAuditForm(component.reviewId, form)}
+        enableFeedback
+        onFeedbackSubmitted={controls.onFeedbackSubmitted}
         onClose={() => controls.onClose(component.id)}
       />
     );

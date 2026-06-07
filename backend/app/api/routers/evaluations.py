@@ -15,6 +15,7 @@ from app.schemas.evaluations import (
     EvaluationRecord,
     EvaluationSummary,
     FeedbackCreate,
+    FeedbackRecord,
 )
 from app.services.evaluation_service import EvaluationRepository, run_evaluation_job
 from app.services.review_repository import ReviewRepository
@@ -38,11 +39,11 @@ async def get_evaluation_summary(
     )
 
 
-@router.post("/feedback", response_model=FeedbackCreate, status_code=201)
+@router.post("/feedback", response_model=FeedbackRecord, status_code=201)
 async def add_feedback(
     feedback: FeedbackCreate,
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> FeedbackCreate:
+) -> FeedbackRecord:
     try:
         return await ReviewRepository(session).add_feedback(feedback)
     except KeyError as exc:

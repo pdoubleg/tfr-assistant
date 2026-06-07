@@ -227,11 +227,20 @@ export interface ReviewRecord {
   original?: AuditFormResult | null;
   user_version?: AuditFormResult | null;
   userVersion?: AuditFormResult | null;
+  feedback_count?: number;
   feedback?: "up" | "down" | null;
   comments?: string;
   error_message?: string | null;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface FeedbackRecord {
+  id: string;
+  review_id: string;
+  score: number;
+  comment?: string | null;
+  created_at?: string;
 }
 
 export type BatchInputMode = "manual" | "upload" | "synthetic" | "completed_intake" | "manual_entry";
@@ -545,6 +554,8 @@ export interface OptimizationRunPayload {
   score_key: OptimizationScoreKey;
   reference_policy: OptimizationReferencePolicy;
   judge_model?: string | null;
+  use_feedback_when_available: boolean;
+  judge_score_weight: number;
   gepa_params: {
     auto?: OptimizationAutoBudget | null;
     max_full_evals?: number | null;
@@ -747,6 +758,12 @@ export interface DatasetSourceRowRecord {
   total_amount_reviewed_dollars?: number | null;
   total_overwrite_dollars: number;
   total_underwrite_dollars: number;
+  feedback_count: number;
+  feedback_average_score?: number | null;
+  feedback_min_score?: number | null;
+  feedback_latest_score?: number | null;
+  feedback_latest_comment?: string | null;
+  feedback_latest_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 }
@@ -979,6 +996,7 @@ export type OutputComponent =
       createdAt?: string;
       updatedAt?: string;
       claimNumber?: string;
+      feedbackCount?: number;
       collapsed?: boolean;
     }
   | {

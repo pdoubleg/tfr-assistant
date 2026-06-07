@@ -20,6 +20,7 @@ export interface AuditReviewCardProps {
   source?: string;
   status?: string;
   outcome?: string;
+  feedbackCount?: number;
   createdAt?: string;
   updatedAt?: string;
   form: AuditFormResult;
@@ -35,6 +36,7 @@ export function AuditReviewCard({
   runName,
   source,
   outcome,
+  feedbackCount = 0,
   createdAt,
   updatedAt,
   form,
@@ -70,6 +72,7 @@ export function AuditReviewCard({
     let openedCreatedAt = createdAt;
     let openedUpdatedAt = updatedAt;
     let openedClaimNumber = claimNumber;
+    let openedFeedbackCount = feedbackCount;
     try {
       const review = await getReview(reviewId);
       openedForm = getUserVersion(review) ?? form;
@@ -78,6 +81,7 @@ export function AuditReviewCard({
       openedCreatedAt = review.created_at;
       openedUpdatedAt = review.updated_at;
       openedClaimNumber = getClaimNumber(review) || claimNumber;
+      openedFeedbackCount = review.feedback_count ?? 0;
     } catch (error) {
       setOpenError(error instanceof Error ? error.message : "Failed to refresh review.");
     } finally {
@@ -94,6 +98,7 @@ export function AuditReviewCard({
       createdAt: openedCreatedAt,
       updatedAt: openedUpdatedAt,
       claimNumber: openedClaimNumber,
+      feedbackCount: openedFeedbackCount,
       collapsed: false,
     };
     openOutputComponent(component);

@@ -4,11 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
+  Columns3,
   Copy,
   Database,
   Eye,
   FilePenLine,
   GitBranch,
+  Info,
   Layers3,
   Loader2,
   PanelRightOpen,
@@ -61,7 +63,70 @@ import type {
 } from "@/lib/types";
 
 type AppDbResultVersion = "current" | "original";
-type SourceSort = "updated_desc" | "updated_asc" | "claim_asc" | "outcome_asc" | "issues_desc";
+type SourceSort =
+  | "updated_desc"
+  | "updated_asc"
+  | "claim_asc"
+  | "outcome_asc"
+  | "issues_desc"
+  | "feedback_low_score"
+  | "feedback_count_desc";
+type DatasetFeedbackFilter = "all" | "with_feedback" | "without_feedback" | "low_score";
+type SourceRowColumn =
+  | "claim"
+  | "source"
+  | "outcome"
+  | "issues"
+  | "drivers"
+  | "feedback"
+  | "feedback_score"
+  | "updated";
+type CandidateColumn =
+  | "candidate"
+  | "refs"
+  | "outcome"
+  | "issues"
+  | "feedback"
+  | "cluster"
+  | "source";
+
+const defaultSourceColumns: SourceRowColumn[] = [
+  "claim",
+  "source",
+  "outcome",
+  "issues",
+  "drivers",
+  "updated",
+];
+const defaultCandidateColumns: CandidateColumn[] = [
+  "candidate",
+  "refs",
+  "outcome",
+  "issues",
+  "cluster",
+  "source",
+];
+
+const sourceColumnLabels: Record<SourceRowColumn, string> = {
+  claim: "Claim",
+  source: "Source",
+  outcome: "Outcome",
+  issues: "Issues",
+  drivers: "Drivers",
+  feedback: "Feedback",
+  feedback_score: "Score",
+  updated: "Updated",
+};
+
+const candidateColumnLabels: Record<CandidateColumn, string> = {
+  candidate: "Candidate",
+  refs: "Refs",
+  outcome: "Outcome",
+  issues: "Issues",
+  feedback: "Feedback",
+  cluster: "Cluster",
+  source: "Source",
+};
 
 const sampleModes: Array<{ value: DatasetSampleMode; label: string }> = [
   { value: "all", label: "All included" },
@@ -106,15 +171,33 @@ function formatCurrency(value?: number | null): string {
   }).format(value);
 }
 
+function formatFeedbackScore(value?: number | null): string {
+  if (value === null || value === undefined) return "-";
+  return Number(value).toFixed(1);
+}
+
 function sortRows(rows: DatasetSourceRowRecord[], sort: SourceSort): DatasetSourceRowRecord[] {
   return [...rows].sort((first, second) => {
     if (sort === "claim_asc") return first.claim_number.localeCompare(second.claim_number, undefined, { numeric: true });
     if (sort === "outcome_asc") return first.outcome.localeCompare(second.outcome);
     if (sort === "issues_desc") return second.issue_count - first.issue_count;
+    if (sort === "feedback_count_desc") return second.feedback_count - first.feedback_count;
+    if (sort === "feedback_low_score") {
+      const firstScore = first.feedback_min_score ?? Number.POSITIVE_INFINITY;
+      const secondScore = second.feedback_min_score ?? Number.POSITIVE_INFINITY;
+      return firstScore - secondScore;
+    }
     const firstDate = first.updated_at ? new Date(first.updated_at).getTime() : 0;
     const secondDate = second.updated_at ? new Date(second.updated_at).getTime() : 0;
     return sort === "updated_asc" ? firstDate - secondDate : secondDate - firstDate;
   });
+}
+
+function feedbackCommentFromMetadata(metadata?: Record<string, unknown> | null): string {
+  const feedback = metadata?.feedback;
+  if (typeof feedback !== "object" || feedback === null) return "";
+  const latest = "latest_comment" in feedback ? feedback.latest_comment : "";
+  return typeof latest === "string" ? latest : "";
 }
 
 function referenceBadges(candidate: DatasetCandidateRecord) {
@@ -160,6 +243,8 @@ function buildCandidateEditRow(
     edited: candidateWasEdited(candidate),
     claimNumber: candidate.claim_number,
     form: reference.result,
+    feedbackCount: 0,
+    feedbackEnabled: false,
     createdAt: candidate.created_at ?? "",
     updatedAt: candidate.updated_at ?? "",
     source: candidate.source_label || candidate.source_key,
@@ -169,6 +254,7 @@ function buildCandidateEditRow(
 export default function DatasetsPage() {
   const [forms, setForms] = useState<FormCatalogEntry[]>([]);
   const [formKeyValue, setFormKeyValue] = useState("");
+  const [includeFeedbackSignals, setIncludeFeedbackSignals] = useState(false);
   const [sources, setSources] = useState<DatasetSourceRecord[]>([]);
   const [selectedSourceId, setSelectedSourceId] = useState("");
   const [population, setPopulation] = useState<DatasetPopulationRecord | null>(null);
@@ -193,6 +279,9 @@ export default function DatasetsPage() {
   const [appDbSource, setAppDbSource] = useState("all");
   const [appDbSort, setAppDbSort] = useState<SourceSort>("updated_desc");
   const [appDbResultVersion, setAppDbResultVersion] = useState<AppDbResultVersion>("current");
+  const [appDbFeedbackFilter, setAppDbFeedbackFilter] = useState<DatasetFeedbackFilter>("all");
+  const [sourceVisibleColumns, setSourceVisibleColumns] = useState<SourceRowColumn[]>(defaultSourceColumns);
+  const [candidateVisibleColumns, setCandidateVisibleColumns] = useState<CandidateColumn[]>(defaultCandidateColumns);
 
   const [selectedCandidate, setSelectedCandidate] = useState<DatasetCandidateRecord | null>(null);
   const [editingCandidate, setEditingCandidate] = useState<DatasetCandidateRecord | null>(null);
@@ -328,6 +417,15 @@ export default function DatasetsPage() {
   useEffect(() => {
     void loadForForm();
   }, [loadForForm]);
+
+  useEffect(() => {
+    if (!includeFeedbackSignals) {
+      setAppDbFeedbackFilter("all");
+      if (appDbSort === "feedback_count_desc" || appDbSort === "feedback_low_score") {
+        setAppDbSort("updated_desc");
+      }
+    }
+  }, [appDbSort, includeFeedbackSignals]);
 
   useEffect(() => {
     let canceled = false;
@@ -470,6 +568,8 @@ export default function DatasetsPage() {
         outcome: appDbOutcome,
         source: appDbSource,
         result_version: appDbResultVersion,
+        include_feedback: includeFeedbackSignals,
+        feedback_filter: includeFeedbackSignals ? appDbFeedbackFilter : "all",
         limit: 200,
       });
       setAppDbRows(rows);
@@ -488,6 +588,8 @@ export default function DatasetsPage() {
         outcome: appDbOutcome,
         source: appDbSource,
         result_version: appDbResultVersion,
+        include_feedback: includeFeedbackSignals,
+        feedback_filter: includeFeedbackSignals ? appDbFeedbackFilter : "all",
         limit: 200,
       });
       await refreshPopulation(response.population.id);
@@ -585,6 +687,13 @@ export default function DatasetsPage() {
     }, "Published dataset cloned into an editable draft.");
   };
 
+  const availableCandidateColumns = includeFeedbackSignals
+    ? (["candidate", "refs", "outcome", "issues", "feedback", "cluster", "source"] as const)
+    : (["candidate", "refs", "outcome", "issues", "cluster", "source"] as const);
+  const activeCandidateColumns = availableCandidateColumns.filter((column) =>
+    candidateVisibleColumns.includes(column),
+  );
+
   return (
     <div className="mx-auto w-full max-w-[1680px] space-y-4 p-4 lg:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -623,11 +732,17 @@ export default function DatasetsPage() {
         </div>
       ) : null}
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Database className="h-4 w-4 text-primary" />
-            Form Scope
+        <Card>
+          <CardHeader className="pb-3">
+          <CardTitle className="flex flex-wrap items-center justify-between gap-3 text-base">
+            <span className="flex items-center gap-2">
+              <Database className="h-4 w-4 text-primary" />
+              Form Scope
+            </span>
+            <FeedbackSignalsToggle
+              checked={includeFeedbackSignals}
+              onChange={setIncludeFeedbackSignals}
+            />
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -678,8 +793,14 @@ export default function DatasetsPage() {
               </p>
             </label>
 
-            <div className="flex items-end gap-2">
-              <Button type="button" onClick={() => void startNewDraft()} disabled={working || !selectedForm}>
+            <div className="flex items-start gap-2 lg:pt-6">
+              <Button
+                type="button"
+                onClick={() => void startNewDraft()}
+                disabled={working || !selectedForm}
+                title="Start a new draft candidate pool for the selected form."
+                aria-label="Start a new draft candidate pool for the selected form"
+              >
                 <Plus className="h-4 w-4" />
                 New Draft
               </Button>
@@ -766,6 +887,9 @@ export default function DatasetsPage() {
               selection={selectedExternalIds}
               selectionKey={(row) => row.source_record_id}
               onSelectionChange={setSelectedExternalIds}
+              visibleColumns={sourceVisibleColumns}
+              onVisibleColumnsChange={setSourceVisibleColumns}
+              includeFeedback={false}
             />
             <SourceActions
               selectedCount={selectedExternalIds.size}
@@ -788,7 +912,7 @@ export default function DatasetsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="grid gap-2 xl:grid-cols-[minmax(220px,1fr)_140px_140px_140px_150px_auto]">
+            <div className="grid gap-2 xl:grid-cols-[minmax(220px,1fr)_140px_140px_140px_150px_150px_auto]">
               <Input
                 value={appDbSearch}
                 onChange={(event) => setAppDbSearch(event.target.value)}
@@ -823,7 +947,19 @@ export default function DatasetsPage() {
                 <option value="current">Current</option>
                 <option value="original">Original</option>
               </select>
-              <SortSelect value={appDbSort} onChange={setAppDbSort} />
+              {includeFeedbackSignals ? (
+                <select
+                  value={appDbFeedbackFilter}
+                  onChange={(event) => setAppDbFeedbackFilter(event.target.value as DatasetFeedbackFilter)}
+                  className="h-10 rounded-md border border-input bg-background px-3 text-sm outline-none"
+                >
+                  <option value="all">All feedback</option>
+                  <option value="with_feedback">Has feedback</option>
+                  <option value="without_feedback">No feedback</option>
+                  <option value="low_score">Low score</option>
+                </select>
+              ) : null}
+              <SortSelect value={appDbSort} onChange={setAppDbSort} includeFeedback={includeFeedbackSignals} />
               <Button type="button" variant="outline" onClick={() => void refreshAppDbRows()} disabled={working}>
                 Load Rows
               </Button>
@@ -834,6 +970,9 @@ export default function DatasetsPage() {
               selection={selectedReviewIds}
               selectionKey={(row) => row.review_id}
               onSelectionChange={setSelectedReviewIds}
+              visibleColumns={sourceVisibleColumns}
+              onVisibleColumnsChange={setSourceVisibleColumns}
+              includeFeedback={includeFeedbackSignals}
             />
             <SourceActions
               selectedCount={selectedReviewIds.size}
@@ -895,17 +1034,24 @@ export default function DatasetsPage() {
                 </Button>
               </div>
             </div>
+            <div className="flex justify-end">
+              <ColumnPicker
+                options={availableCandidateColumns}
+                labels={candidateColumnLabels}
+                visible={candidateVisibleColumns}
+                onChange={setCandidateVisibleColumns}
+              />
+            </div>
             <div className="max-h-[520px] overflow-auto rounded-md border">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-secondary">
                   <tr className="text-left text-xs text-muted-foreground">
                     <th className="w-20 px-3 py-2">Keep</th>
-                    <th className="px-3 py-2">Candidate</th>
-                    <th className="px-3 py-2">Refs</th>
-                    <th className="px-3 py-2">Outcome</th>
-                    <th className="px-3 py-2 text-right">Issues</th>
-                    <th className="px-3 py-2">Cluster</th>
-                    <th className="px-3 py-2">Source</th>
+                    {activeCandidateColumns.map((column) => (
+                      <th key={column} className={column === "issues" ? "px-3 py-2 text-right" : "px-3 py-2"}>
+                        {candidateColumnLabels[column]}
+                      </th>
+                    ))}
                     <th className="w-24 px-3 py-2"></th>
                   </tr>
                 </thead>
@@ -923,27 +1069,9 @@ export default function DatasetsPage() {
                           {candidate.included ? "Keep" : "Restore"}
                         </Button>
                       </td>
-                      <td className="px-3 py-2">
-                        <p className="font-medium">{candidate.claim_number}</p>
-                        <p className="line-clamp-1 text-xs text-muted-foreground">{candidate.sample_reason || candidate.instructions}</p>
-                      </td>
-                      <td className="px-3 py-2">{referenceBadges(candidate)}</td>
-                      <td className="px-3 py-2">
-                        <Badge variant={candidate.metrics.outcome === "Meets" ? "success" : "danger"}>
-                          {String(candidate.metrics.outcome ?? "-")}
-                        </Badge>
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums">{metricNumber(candidate.metrics, "issue_count") ?? 0}</td>
-                      <td className="px-3 py-2">
-                        {candidate.cluster_id === null || candidate.cluster_id === undefined ? (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        ) : (
-                          <Badge variant="outline">C{candidate.cluster_id}</Badge>
-                        )}
-                      </td>
-                      <td className="px-3 py-2">
-                        <Badge variant="secondary">{candidate.source_label || candidate.source_key}</Badge>
-                      </td>
+                      {activeCandidateColumns.map((column) => (
+                        <CandidateCell key={column} candidate={candidate} column={column} />
+                      ))}
                       <td className="px-3 py-2">
                         <div className="flex justify-end gap-1">
                           <Button
@@ -967,7 +1095,7 @@ export default function DatasetsPage() {
                   ))}
                   {candidates.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-3 py-8 text-center text-sm text-muted-foreground">
+                      <td colSpan={activeCandidateColumns.length + 2} className="px-3 py-8 text-center text-sm text-muted-foreground">
                         Load source rows above, then add selected or all loaded rows into the draft pool.
                       </td>
                     </tr>
@@ -1089,7 +1217,94 @@ function SectionTitle({ step, title, detail }: { step: string; title: string; de
   );
 }
 
-function SortSelect({ value, onChange }: { value: SourceSort; onChange: (value: SourceSort) => void }) {
+function FeedbackSignalsToggle({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  const tooltip = "Add feedback filters and columns for app DB rows and candidates.";
+
+  return (
+    <div className="flex items-center gap-2 text-xs font-medium">
+      <span className="text-muted-foreground">Feedback signals</span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        title={tooltip}
+        onClick={() => onChange(!checked)}
+        className={[
+          "relative h-5 w-9 rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          checked ? "border-primary bg-primary" : "border-input bg-secondary",
+        ].join(" ")}
+      >
+        <span
+          className={[
+            "absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-background shadow-sm transition-transform",
+            checked ? "translate-x-4" : "translate-x-0",
+          ].join(" ")}
+        />
+      </button>
+      <span title={tooltip} aria-label={tooltip}>
+        <Info className="h-3.5 w-3.5 text-muted-foreground" />
+      </span>
+    </div>
+  );
+}
+
+function ColumnPicker<T extends string,>({
+  options,
+  labels,
+  visible,
+  onChange,
+}: {
+  options: readonly T[];
+  labels: Record<T, string>;
+  visible: T[];
+  onChange: (visible: T[]) => void;
+}) {
+  const visibleSet = new Set(visible);
+  const toggle = (column: T, checked: boolean) => {
+    const next = checked
+      ? [...visible.filter((item) => item !== column), column]
+      : visible.filter((item) => item !== column);
+    onChange(next);
+  };
+
+  return (
+    <details className="relative">
+      <summary className="inline-flex h-8 cursor-pointer list-none items-center justify-center gap-1.5 rounded-md border border-input bg-background px-3 text-xs font-medium transition-colors hover:bg-secondary [&::-webkit-details-marker]:hidden">
+        <Columns3 className="h-3.5 w-3.5" />
+        Columns
+      </summary>
+      <div className="absolute right-0 z-30 mt-2 w-56 rounded-md border bg-card p-2 shadow-lg">
+        {options.map((option) => (
+          <label key={option} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-secondary/60">
+            <input
+              type="checkbox"
+              checked={visibleSet.has(option)}
+              onChange={(event) => toggle(option, event.target.checked)}
+              className="h-4 w-4 accent-primary"
+            />
+            <span className="truncate">{labels[option]}</span>
+          </label>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function SortSelect({
+  value,
+  onChange,
+  includeFeedback = false,
+}: {
+  value: SourceSort;
+  onChange: (value: SourceSort) => void;
+  includeFeedback?: boolean;
+}) {
   return (
     <select
       value={value}
@@ -1101,6 +1316,8 @@ function SortSelect({ value, onChange }: { value: SourceSort; onChange: (value: 
       <option value="claim_asc">Claim</option>
       <option value="outcome_asc">Outcome</option>
       <option value="issues_desc">Issues</option>
+      {includeFeedback ? <option value="feedback_low_score">Low feedback score</option> : null}
+      {includeFeedback ? <option value="feedback_count_desc">Most feedback</option> : null}
     </select>
   );
 }
@@ -1138,13 +1355,32 @@ function SourceRowsTable({
   selection,
   selectionKey,
   onSelectionChange,
+  visibleColumns,
+  onVisibleColumnsChange,
+  includeFeedback,
 }: {
   rows: DatasetSourceRowRecord[];
   emptyText: string;
   selection: Set<string>;
   selectionKey: (row: DatasetSourceRowRecord) => string;
   onSelectionChange: (selection: Set<string>) => void;
+  visibleColumns: SourceRowColumn[];
+  onVisibleColumnsChange: (columns: SourceRowColumn[]) => void;
+  includeFeedback: boolean;
 }) {
+  const availableColumns = includeFeedback
+    ? ([
+        "claim",
+        "source",
+        "outcome",
+        "issues",
+        "drivers",
+        "feedback",
+        "feedback_score",
+        "updated",
+      ] as const)
+    : (["claim", "source", "outcome", "issues", "drivers", "updated"] as const);
+  const activeColumns = availableColumns.filter((column) => visibleColumns.includes(column));
   const toggle = (key: string, checked: boolean) => {
     const next = new Set(selection);
     if (checked) next.add(key);
@@ -1153,56 +1389,157 @@ function SourceRowsTable({
   };
 
   return (
-    <div className="max-h-80 overflow-auto rounded-md border">
-      <table className="w-full text-sm">
-        <thead className="sticky top-0 bg-secondary">
-          <tr className="text-left text-xs text-muted-foreground">
-            <th className="w-10 px-3 py-2">Add</th>
-            <th className="px-3 py-2">Claim</th>
-            <th className="px-3 py-2">Source</th>
-            <th className="px-3 py-2">Outcome</th>
-            <th className="px-3 py-2 text-right">Issues</th>
-            <th className="px-3 py-2 text-right">Drivers</th>
-            <th className="px-3 py-2">Updated</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y">
-          {rows.map((row) => {
-            const key = selectionKey(row);
-            return (
-              <tr key={row.source_record_id} className="bg-card/50">
-                <td className="px-3 py-2">
-                  <input
-                    type="checkbox"
-                    checked={selection.has(key)}
-                    onChange={(event) => toggle(key, event.target.checked)}
-                    className="h-4 w-4 accent-primary"
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <p className="font-medium">{row.claim_number || row.source_record_id.slice(0, 12)}</p>
-                  <p className="line-clamp-1 text-xs text-muted-foreground">{row.title}</p>
-                </td>
-                <td className="px-3 py-2"><Badge variant="secondary">{row.source_label || row.source}</Badge></td>
-                <td className="px-3 py-2">
-                  <Badge variant={row.outcome === "Meets" ? "success" : "danger"}>{row.outcome || "-"}</Badge>
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums">{row.issue_count}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{row.driver_count}</td>
-                <td className="px-3 py-2 text-xs text-muted-foreground">{formatDate(row.updated_at)}</td>
-              </tr>
-            );
-          })}
-          {rows.length === 0 ? (
-            <tr>
-              <td colSpan={7} className="px-3 py-8 text-center text-sm text-muted-foreground">
-                {emptyText}
-              </td>
+    <div className="space-y-2">
+      <div className="flex justify-end">
+        <ColumnPicker
+          options={availableColumns}
+          labels={sourceColumnLabels}
+          visible={visibleColumns}
+          onChange={onVisibleColumnsChange}
+        />
+      </div>
+      <div className="max-h-80 overflow-auto rounded-md border">
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 bg-secondary">
+            <tr className="text-left text-xs text-muted-foreground">
+              <th className="w-10 px-3 py-2">Add</th>
+              {activeColumns.map((column) => (
+                <th
+                  key={column}
+                  className={column === "issues" || column === "drivers" || column === "feedback_score" ? "px-3 py-2 text-right" : "px-3 py-2"}
+                >
+                  {sourceColumnLabels[column]}
+                </th>
+              ))}
             </tr>
-          ) : null}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y">
+            {rows.map((row) => {
+              const key = selectionKey(row);
+              return (
+                <tr key={row.source_record_id} className="bg-card/50">
+                  <td className="px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={selection.has(key)}
+                      onChange={(event) => toggle(key, event.target.checked)}
+                      className="h-4 w-4 accent-primary"
+                    />
+                  </td>
+                  {activeColumns.map((column) => (
+                    <SourceRowCell key={column} row={row} column={column} />
+                  ))}
+                </tr>
+              );
+            })}
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={activeColumns.length + 1} className="px-3 py-8 text-center text-sm text-muted-foreground">
+                  {emptyText}
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
     </div>
+  );
+}
+
+function SourceRowCell({ row, column }: { row: DatasetSourceRowRecord; column: SourceRowColumn }) {
+  if (column === "claim") {
+    return (
+      <td className="px-3 py-2">
+        <p className="font-medium">{row.claim_number || row.source_record_id.slice(0, 12)}</p>
+        <p className="line-clamp-1 text-xs text-muted-foreground">{row.title}</p>
+      </td>
+    );
+  }
+  if (column === "source") {
+    return <td className="px-3 py-2"><Badge variant="secondary">{row.source_label || row.source}</Badge></td>;
+  }
+  if (column === "outcome") {
+    return (
+      <td className="px-3 py-2">
+        <Badge variant={row.outcome === "Meets" ? "success" : "danger"}>{row.outcome || "-"}</Badge>
+      </td>
+    );
+  }
+  if (column === "issues") return <td className="px-3 py-2 text-right tabular-nums">{row.issue_count}</td>;
+  if (column === "drivers") return <td className="px-3 py-2 text-right tabular-nums">{row.driver_count}</td>;
+  if (column === "feedback") {
+    return (
+      <td className="max-w-[260px] px-3 py-2">
+        <Badge variant={row.feedback_count ? "warning" : "outline"}>{row.feedback_count} item{row.feedback_count === 1 ? "" : "s"}</Badge>
+        {row.feedback_latest_comment ? (
+          <p className="mt-1 line-clamp-1 text-xs text-muted-foreground" title={row.feedback_latest_comment}>
+            {row.feedback_latest_comment}
+          </p>
+        ) : null}
+      </td>
+    );
+  }
+  if (column === "feedback_score") {
+    return (
+      <td className="px-3 py-2 text-right tabular-nums">
+        {row.feedback_count ? formatFeedbackScore(row.feedback_min_score) : "-"}
+      </td>
+    );
+  }
+  return <td className="px-3 py-2 text-xs text-muted-foreground">{formatDate(row.updated_at)}</td>;
+}
+
+function CandidateCell({ candidate, column }: { candidate: DatasetCandidateRecord; column: CandidateColumn }) {
+  if (column === "candidate") {
+    return (
+      <td className="px-3 py-2">
+        <p className="font-medium">{candidate.claim_number}</p>
+        <p className="line-clamp-1 text-xs text-muted-foreground">{candidate.sample_reason || candidate.instructions}</p>
+      </td>
+    );
+  }
+  if (column === "refs") return <td className="px-3 py-2">{referenceBadges(candidate)}</td>;
+  if (column === "outcome") {
+    return (
+      <td className="px-3 py-2">
+        <Badge variant={candidate.metrics.outcome === "Meets" ? "success" : "danger"}>
+          {String(candidate.metrics.outcome ?? "-")}
+        </Badge>
+      </td>
+    );
+  }
+  if (column === "issues") {
+    return <td className="px-3 py-2 text-right tabular-nums">{metricNumber(candidate.metrics, "issue_count") ?? 0}</td>;
+  }
+  if (column === "feedback") {
+    const count = metricNumber(candidate.metrics, "feedback_count") ?? 0;
+    const minScore = metricNumber(candidate.metrics, "feedback_min_score");
+    const comment = feedbackCommentFromMetadata(candidate.metadata);
+    return (
+      <td className="max-w-[280px] px-3 py-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge variant={count ? "warning" : "outline"}>{count} item{count === 1 ? "" : "s"}</Badge>
+          {count ? <Badge variant="outline">low {formatFeedbackScore(minScore)}</Badge> : null}
+        </div>
+        {comment ? <p className="mt-1 line-clamp-1 text-xs text-muted-foreground" title={comment}>{comment}</p> : null}
+      </td>
+    );
+  }
+  if (column === "cluster") {
+    return (
+      <td className="px-3 py-2">
+        {candidate.cluster_id === null || candidate.cluster_id === undefined ? (
+          <span className="text-xs text-muted-foreground">-</span>
+        ) : (
+          <Badge variant="outline">C{candidate.cluster_id}</Badge>
+        )}
+      </td>
+    );
+  }
+  return (
+    <td className="px-3 py-2">
+      <Badge variant="secondary">{candidate.source_label || candidate.source_key}</Badge>
+    </td>
   );
 }
 

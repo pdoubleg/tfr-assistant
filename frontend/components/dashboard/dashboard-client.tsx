@@ -18,6 +18,7 @@ import {
   listPublishedDatasetRows,
   listPublishedDatasets,
   listReviews,
+  getReview,
 } from "@/lib/api";
 import {
   defaultDashboardFilters,
@@ -240,6 +241,21 @@ export function DashboardClient() {
     setViewerOpen(true);
   };
 
+  const refreshReview = useCallback(
+    async (reviewId: string) => {
+      if (sourceMode === "dataset" || reviewId.startsWith("eval-ground-truth:")) return;
+      const updatedReview = await getReview(reviewId);
+      setReviews((current) =>
+        current.map((review) => (review.id === reviewId ? updatedReview : review)),
+      );
+      const nextRow = deriveReviewRows([updatedReview], filters.resultVersion)[0];
+      if (nextRow) {
+        setSelectedRow((current) => (current?.reviewId === reviewId ? nextRow : current));
+      }
+    },
+    [filters.resultVersion, sourceMode],
+  );
+
   const clearCommentQuestionFilter = () =>
     setCommentQuestionFilter({
       questionKeys: new Set(),
@@ -435,7 +451,12 @@ export function DashboardClient() {
         onViewReview={openRow}
       />
 
-      <FormViewerSheet row={selectedRow} open={viewerOpen} onOpenChange={setViewerOpen} />
+      <FormViewerSheet
+        row={selectedRow}
+        open={viewerOpen}
+        onOpenChange={setViewerOpen}
+        onFeedbackSubmitted={refreshReview}
+      />
     </div>
   );
 }

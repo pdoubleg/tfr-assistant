@@ -108,7 +108,7 @@ def test_prompt_program_overrides_string_instructions_and_preserves_callables() 
     assert "original" not in request.instructions
 
 
-def test_metric_modes_keep_deterministic_score_and_append_judge_feedback(tmp_path) -> None:
+def test_metric_modes_blend_judge_score_and_pass_prior_feedback(tmp_path) -> None:
     generated = _result(q2_answer="Yes", q3_answer="Yes", outcome="Meets")
     reference = _result(
         q2_answer="No",
@@ -122,6 +122,8 @@ def test_metric_modes_keep_deterministic_score_and_append_judge_feedback(tmp_pat
         form_version="v0.1",
         metric_mode="comparison_with_judge",
         score_key="question_agreement",
+        use_feedback_when_available=True,
+        judge_score_weight=0.25,
         case_splits=[
             {"case_id": "case-1", "split": "train"},
             {"case_id": "case-2", "split": "val"},
@@ -135,7 +137,13 @@ def test_metric_modes_keep_deterministic_score_and_append_judge_feedback(tmp_pat
         proposer_model_config=_test_model_config(),
         judge_model_config=_test_model_config(),
     )
-    adapter._judge_feedback = lambda *_args: "judge says fix the amount threshold"  # type: ignore[method-assign]
+    captured: dict[str, str] = {}
+
+    def fake_judge(*_args, prior_feedback: str = "") -> tuple[str, float]:
+        captured["prior_feedback"] = prior_feedback
+        return "judge says fix the amount threshold", 0.2
+
+    adapter._judge_feedback = fake_judge  # type: ignore[method-assign]
 
     instance = OptimizationDataInstance(
         case_id="case-1",
@@ -148,12 +156,19 @@ def test_metric_modes_keep_deterministic_score_and_append_judge_feedback(tmp_pat
         knowledge_docs=[],
         references=[("R2", reference)],
         split="train",
+        metadata={"feedback": {"comments": ["Use better citations for Q2."]}},
     )
 
     score, feedback, comparison = adapter._score(instance, generated, None)
 
-    assert score == comparison["references"][0]["question_agreement"]
+    deterministic_score = comparison["references"][0]["question_agreement"]
+    assert comparison["deterministic_score"] == deterministic_score
+    assert comparison["judge_score"] == 0.2
+    assert score == pytest.approx((deterministic_score * 0.75) + (0.2 * 0.25))
+    assert comparison["score"] == score
     assert "judge says fix the amount threshold" in feedback
+    assert "Use better citations for Q2." in feedback
+    assert captured["prior_feedback"] == "- Use better citations for Q2."
     assert "Q2 mismatch" in feedback
 
 

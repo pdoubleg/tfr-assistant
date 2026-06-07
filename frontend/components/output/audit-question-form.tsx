@@ -21,6 +21,10 @@ import {
   XCircle,
 } from "lucide-react";
 
+import {
+  ReviewFeedbackButton,
+  ReviewFeedbackSubmittedCount,
+} from "@/components/feedback/review-feedback-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Toast } from "@/components/ui/toast";
@@ -567,6 +571,9 @@ export function AuditQuestionForm({
   submitLabel = "Submit Form",
   allowSubmitWhenPristine = false,
   blankEntryMode = false,
+  enableFeedback = false,
+  feedbackCount = 0,
+  onFeedbackSubmitted,
 }: {
   reviewId: string;
   form: AuditFormResult;
@@ -577,6 +584,9 @@ export function AuditQuestionForm({
   submitLabel?: string;
   allowSubmitWhenPristine?: boolean;
   blankEntryMode?: boolean;
+  enableFeedback?: boolean;
+  feedbackCount?: number;
+  onFeedbackSubmitted?: (reviewId: string) => void | Promise<void>;
 }) {
   const [draft, setDraft] = useState(() => cloneForm(form));
   const [baseline, setBaseline] = useState(() => cloneForm(form));
@@ -689,7 +699,7 @@ export function AuditQuestionForm({
         message={saveNotice?.message}
         onClose={() => setSaveNotice(null)}
       />
-      <div className="relative border-b bg-secondary/45 px-4 py-3 pr-36">
+      <div className="relative border-b bg-secondary/45 px-4 py-3 pr-72">
         <div className="flex flex-wrap items-start gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -716,6 +726,19 @@ export function AuditQuestionForm({
             ) : null}
           </div>
           <div className="absolute right-3 top-3 flex items-center gap-1">
+            {enableFeedback ? (
+              <>
+                <ReviewFeedbackSubmittedCount count={feedbackCount} />
+                <ReviewFeedbackButton
+                  reviewId={reviewId}
+                  claimNumber={metadata?.claimNumber}
+                  variant="ghost"
+                  size="icon"
+                  iconOnly
+                  onSubmitted={() => onFeedbackSubmitted?.(reviewId)}
+                />
+              </>
+            ) : null}
             <Button
               type="button"
               variant="ghost"

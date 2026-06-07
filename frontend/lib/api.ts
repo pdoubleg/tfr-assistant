@@ -22,6 +22,7 @@ import type {
   EvalRunPayload,
   EvalRunRecord,
   FormCatalogEntry,
+  FeedbackRecord,
   IntakeDocumentRecord,
   OptimizationCaseRecord,
   OptimizationDagArtifact,
@@ -111,6 +112,19 @@ export async function updateReviewUserVersion(
     body: JSON.stringify({ user_version: userVersion }),
   });
   return parseJsonResponse<ReviewRecord>(response);
+}
+
+export async function submitReviewFeedback(payload: {
+  review_id: string;
+  score: number;
+  comment?: string | null;
+}): Promise<FeedbackRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/evaluations/feedback`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<FeedbackRecord>(response);
 }
 
 export async function listChatModels(): Promise<ChatModelCatalog> {
@@ -592,6 +606,8 @@ export async function browseDatasetAppDbRows(
     source?: string;
     outcome?: string;
     result_version?: "current" | "original";
+    include_feedback?: boolean;
+    feedback_filter?: "all" | "with_feedback" | "without_feedback" | "low_score";
     limit?: number;
   },
 ): Promise<DatasetSourceRowRecord[]> {
@@ -604,6 +620,8 @@ export async function browseDatasetAppDbRows(
       source: payload.source ?? "all",
       outcome: payload.outcome ?? "all",
       result_version: payload.result_version ?? "current",
+      include_feedback: payload.include_feedback ?? false,
+      feedback_filter: payload.feedback_filter ?? "all",
       limit: payload.limit ?? 100,
     }),
   });
@@ -619,6 +637,8 @@ export async function addDatasetAppDbRows(
     source?: string;
     outcome?: string;
     result_version?: "current" | "original";
+    include_feedback?: boolean;
+    feedback_filter?: "all" | "with_feedback" | "without_feedback" | "low_score";
     limit?: number;
   },
 ): Promise<DatasetAddCandidatesResponse> {
@@ -632,6 +652,8 @@ export async function addDatasetAppDbRows(
       source: payload.source ?? "all",
       outcome: payload.outcome ?? "all",
       result_version: payload.result_version ?? "current",
+      include_feedback: payload.include_feedback ?? false,
+      feedback_filter: payload.feedback_filter ?? "all",
       limit: payload.limit ?? 100,
     }),
   });

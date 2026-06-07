@@ -2,6 +2,10 @@
 
 import { FilePenLine, X } from "lucide-react";
 
+import {
+  ReviewFeedbackButton,
+  ReviewFeedbackSubmittedCount,
+} from "@/components/feedback/review-feedback-button";
 import { AuditQuestionForm } from "@/components/output/audit-question-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +18,8 @@ export interface AuditResultEditSheetRow {
   edited: boolean;
   claimNumber: string;
   form: AuditFormResult;
+  feedbackCount: number;
+  feedbackEnabled: boolean;
   createdAt: string;
   updatedAt: string;
   source: string;
@@ -23,10 +29,12 @@ export function AuditResultEditSheet({
   row,
   onClose,
   onSubmit,
+  onFeedbackSubmitted,
 }: {
   row: AuditResultEditSheetRow | null;
   onClose: () => void;
   onSubmit: (form: AuditFormResult) => Promise<void>;
+  onFeedbackSubmitted?: (reviewId: string) => void | Promise<void>;
 }) {
   if (!row) return null;
 
@@ -57,9 +65,23 @@ export function AuditResultEditSheet({
               {row.claimNumber ? `Claim ${row.claimNumber}` : row.reviewId}
             </p>
           </div>
-          <Button type="button" variant="ghost" size="icon" onClick={onClose} title="Close" aria-label="Close">
-            <X className="h-5 w-5" />
-          </Button>
+          <div className="flex shrink-0 items-center gap-1">
+            {row.feedbackEnabled ? (
+              <>
+                <ReviewFeedbackSubmittedCount count={row.feedbackCount} />
+                <ReviewFeedbackButton
+                  reviewId={row.reviewId}
+                  claimNumber={row.claimNumber}
+                  variant="outline"
+                  size="sm"
+                  onSubmitted={() => onFeedbackSubmitted?.(row.reviewId)}
+                />
+              </>
+            ) : null}
+            <Button type="button" variant="ghost" size="icon" onClick={onClose} title="Close" aria-label="Close">
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
         </header>
         <div className="chat-scrollbar min-h-0 flex-1 overflow-y-auto p-5">
           <AuditQuestionForm
