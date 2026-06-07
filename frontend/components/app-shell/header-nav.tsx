@@ -2,19 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Database, FileCheck2, Files, Home, Moon, Rows3, Settings2, Sun } from "lucide-react";
+import { Fragment } from "react";
+import { BarChart3, Database, FileCheck2, Files, Home, Info, Moon, Rows3, Settings2, Sun } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/", label: "Home", icon: Home },
-  { href: "/batch-audits", label: "Batch Audits", icon: Rows3 },
-  { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
-  { href: "/forms", label: "Forms", icon: Files },
-  { href: "/datasets", label: "Datasets", icon: Database },
-  { href: "/evaluation", label: "Evaluation", icon: FileCheck2 },
-  { href: "/optimization", label: "Optimization", icon: Settings2 },
+  { href: "/", label: "Home", icon: Home, section: "user" },
+  { href: "/batch-audits", label: "Batch Audits", icon: Rows3, section: "user" },
+  { href: "/dashboard", label: "Dashboard", icon: BarChart3, section: "user" },
+  { href: "/about", label: "About", icon: Info, section: "user" },
+  { href: "/forms", label: "Forms", icon: Files, section: "modeling" },
+  { href: "/datasets", label: "Datasets", icon: Database, section: "modeling" },
+  { href: "/evaluation", label: "Evaluation", icon: FileCheck2, section: "modeling" },
+  { href: "/optimization", label: "Optimization", icon: Settings2, section: "modeling" },
 ];
 
 export function HeaderNav({
@@ -37,16 +39,27 @@ export function HeaderNav({
         </Link>
 
         <nav className="ml-2 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
-          {navItems.map((item) => {
+          {navItems.map((item, index) => {
             const Icon = item.icon;
             const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+            const startsModeling = item.section === "modeling" && navItems[index - 1]?.section !== "modeling";
             return (
-              <Button key={item.href} asChild variant={active ? "secondary" : "ghost"} size="sm">
-                <Link className={cn("gap-1.5", active && "text-foreground")} href={item.href}>
-                  <Icon className="h-4 w-4" />
-                  <span className="hidden md:inline">{item.label}</span>
-                </Link>
-              </Button>
+              <Fragment key={item.href}>
+                {startsModeling ? (
+                  <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-border" />
+                ) : null}
+                <Button
+                  asChild
+                  variant={active ? "secondary" : "ghost"}
+                  size="sm"
+                  className={cn(item.section === "modeling" && "font-mono font-semibold")}
+                >
+                  <Link className={cn("gap-1.5", active && "text-foreground")} href={item.href}>
+                    <Icon className="h-4 w-4" />
+                    <span className="hidden md:inline">{item.label}</span>
+                  </Link>
+                </Button>
+              </Fragment>
             );
           })}
         </nav>
