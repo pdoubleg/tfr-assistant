@@ -408,10 +408,15 @@ export function DashboardClient() {
             <div className="flex items-end gap-2">
               <Button
                 type="button"
-                variant={filters.finalizedOnly ? "secondary" : "outline"}
+                variant={filters.finalizedOnly ? "default" : "outline"}
                 size="sm"
                 onClick={() => setFilter("finalizedOnly", !filters.finalizedOnly)}
                 aria-pressed={filters.finalizedOnly}
+                className={
+                  filters.finalizedOnly
+                    ? "border border-primary shadow-sm ring-2 ring-primary/25"
+                    : undefined
+                }
               >
                 <CheckCheck className="h-3.5 w-3.5" />
                 Finalized
