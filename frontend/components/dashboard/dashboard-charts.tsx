@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { Activity, BarChart3, Gauge, LineChart, Pencil, SlidersHorizontal, TrendingUp } from "lucide-react";
+import { Activity, BarChart3, CheckCheck, Gauge, LineChart, SlidersHorizontal, TrendingUp } from "lucide-react";
 
 import { PlotlyChart } from "@/components/a2ui/plotly-chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1189,7 +1189,7 @@ export function DashboardCharts({
 
   const totalReviews = rows.length;
   const doesNotMeetCount = rows.filter((row) => row.outcome === "Does Not Meet").length;
-  const editedCount = rows.filter((row) => row.edited).length;
+  const finalizedCount = rows.filter((row) => row.finalized).length;
   const totalQuestions = rows.reduce((sum, row) => sum + row.questionCount, 0);
   const totalNoQuestions = rows.reduce((sum, row) => sum + row.noCount, 0);
 
@@ -1253,10 +1253,10 @@ export function DashboardCharts({
           color={metricCardColors[2]}
         />
         <MetricCard
-          label="Edited reviews"
-          value={`${percent(editedCount, totalReviews)}%`}
-          helper={`${editedCount} current versions differ from original`}
-          icon={Pencil}
+          label="Finalized reviews"
+          value={`${percent(finalizedCount, totalReviews)}%`}
+          helper={`${finalizedCount} explicitly validated`}
+          icon={CheckCheck}
           color={metricCardColors[3]}
         />
       </div>

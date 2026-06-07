@@ -114,6 +114,18 @@ export async function updateReviewUserVersion(
   return parseJsonResponse<ReviewRecord>(response);
 }
 
+export async function finalizeReview(
+  reviewId: string,
+  userVersion?: AuditFormResult,
+): Promise<ReviewRecord> {
+  const response = await fetch(`${apiBaseUrl}/api/reviews/${reviewId}/finalization`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_version: userVersion ?? null }),
+  });
+  return parseJsonResponse<ReviewRecord>(response);
+}
+
 export async function submitReviewFeedback(payload: {
   review_id: string;
   score: number;

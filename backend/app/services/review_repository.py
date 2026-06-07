@@ -42,6 +42,7 @@ from app.schemas.reviews import (
     BatchTemplateCreate,
     BatchTemplateRecord,
     BatchTemplateUpdate,
+    ReviewFinalization,
     ReviewRecord,
     ReviewUpdate,
 )
@@ -435,12 +436,7 @@ class ReviewRepository:
 
     async def update_user_version(self, review_id: str, update: ReviewUpdate) -> ReviewRecord:
         record = await self._get_review_orm(review_id)
-        if record.status != "completed":
-            raise ValueError("Only completed reviews can be edited.")
-        if update.user_version.form_id != record.form_id:
-            raise ValueError("User version form_id must match the review.")
-        if update.user_version.form_version != record.form_version:
-            raise ValueError("User version form_version must match the review.")
+        self._validate_user_version(record, update.user_version)
 
         version = await self._create_result_version(
             record,
@@ -449,7 +445,38 @@ class ReviewRepository:
             created_by="user",
         )
         record.current_user_result_version_id = version.id
+        record.finalized = False
         record.updated_at = _now()
+        await self.session.commit()
+        await self.session.refresh(record)
+        return await self._review_to_schema(record)
+
+    async def finalize_review(
+        self,
+        review_id: str,
+        update: ReviewFinalization,
+    ) -> ReviewRecord:
+        record = await self._get_review_orm(review_id)
+        if record.status != "completed":
+            raise ValueError("Only completed reviews can be finalized.")
+        if not record.current_user_result_version_id and update.user_version is None:
+            raise ValueError("Completed reviews require a current user result before finalizing.")
+
+        if update.user_version is not None:
+            self._validate_user_version(record, update.user_version)
+            version = await self._create_result_version(
+                record,
+                update.user_version,
+                kind="user",
+                created_by="user",
+            )
+            record.current_user_result_version_id = version.id
+
+        finalized_at = _now()
+        record.finalized = True
+        record.first_finalized_at = record.first_finalized_at or finalized_at
+        record.last_finalized_at = finalized_at
+        record.updated_at = finalized_at
         await self.session.commit()
         await self.session.refresh(record)
         return await self._review_to_schema(record)
@@ -726,6 +753,9 @@ class ReviewRepository:
         record.error_message = None
         record.original_result_version_id = original.id
         record.current_user_result_version_id = user.id
+        record.finalized = False
+        record.first_finalized_at = None
+        record.last_finalized_at = None
         record.updated_at = _now()
 
     async def _create_result_version(
@@ -933,9 +963,24 @@ class ReviewRepository:
             user_version=user_version,
             feedback_count=feedback_count,
             error_message=record.error_message,
+            finalized=record.finalized,
+            first_finalized_at=record.first_finalized_at,
+            last_finalized_at=record.last_finalized_at,
             created_at=record.created_at,
             updated_at=record.updated_at,
         )
+
+    def _validate_user_version(
+        self,
+        record: AuditReviewORM,
+        user_version: AuditResult,
+    ) -> None:
+        if record.status != "completed":
+            raise ValueError("Only completed reviews can be edited.")
+        if user_version.form_id != record.form_id:
+            raise ValueError("User version form_id must match the review.")
+        if user_version.form_version != record.form_version:
+            raise ValueError("User version form_version must match the review.")
 
     async def _load_result(
         self,

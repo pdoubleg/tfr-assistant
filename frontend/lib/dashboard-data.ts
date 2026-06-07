@@ -9,6 +9,7 @@ import type {
 } from "@/lib/types";
 
 export type ResultVersionKind = "current" | "original";
+export type ReviewFormStatus = "finalized" | "edited" | "unedited";
 export type TrendGranularity = "day" | "week" | "month";
 export type TrendCompareBy =
   | "none"
@@ -39,6 +40,7 @@ export interface DashboardFilters {
   dateTo: string;
   resultVersion: ResultVersionKind;
   evalRole: string;
+  finalizedOnly: boolean;
 }
 
 export interface DashboardReviewRow {
@@ -83,6 +85,10 @@ export interface DashboardReviewRow {
   updatedAt: string;
   resultVersion: ResultVersionKind;
   edited: boolean;
+  finalized: boolean;
+  formStatus: ReviewFormStatus;
+  firstFinalizedAt: string;
+  lastFinalizedAt: string;
   feedbackCount: number;
   form: AuditFormResult;
   originalForm: AuditFormResult | null;
@@ -179,12 +185,25 @@ export const defaultDashboardFilters: DashboardFilters = {
   dateTo: "",
   resultVersion: "current",
   evalRole: "all",
+  finalizedOnly: false,
 };
 
 export const resultVersionLabels: Record<ResultVersionKind, string> = {
   current: "Current user version",
   original: "Original agent version",
 };
+
+export const formStatusLabels: Record<ReviewFormStatus, string> = {
+  finalized: "Finalized",
+  edited: "Edited",
+  unedited: "Unedited",
+};
+
+export function formStatusVariant(status: ReviewFormStatus): "success" | "warning" | "outline" {
+  if (status === "finalized") return "success";
+  if (status === "edited") return "warning";
+  return "outline";
+}
 
 export const trendMetricLabels: Record<TrendMetric, string> = {
   review_volume: "Review volume",
@@ -280,6 +299,19 @@ export function reviewHasEdits(record: ReviewRecord): boolean {
   return normalizeComparableForm(original) !== normalizeComparableForm(current);
 }
 
+function reviewFirstFinalizedAt(record: ReviewRecord): string {
+  return record.first_finalized_at ?? record.firstFinalizedAt ?? "";
+}
+
+function reviewLastFinalizedAt(record: ReviewRecord): string {
+  return record.last_finalized_at ?? record.lastFinalizedAt ?? "";
+}
+
+function reviewFormStatus(finalized: boolean, edited: boolean): ReviewFormStatus {
+  if (finalized) return "finalized";
+  return edited ? "edited" : "unedited";
+}
+
 function questionWasEdited(row: DashboardReviewRow, questionId: string): boolean {
   const originalQuestion = row.originalForm?.questions.find((question) => question.id === questionId);
   const currentQuestion = row.currentForm?.questions.find((question) => question.id === questionId);
@@ -323,6 +355,8 @@ export function deriveReviewRows(records: ReviewRecord[], resultVersion: ResultV
       const formId = form.form_id || record.form_id || "";
       const formVersion = form.form_version || record.form_version || "";
       const formKind = form.form_kind ?? record.form_kind ?? "standard";
+      const edited = reviewHasEdits(record);
+      const finalized = Boolean(record.finalized);
       const evalResultRole =
         getStringField(record, "eval_result_role") || (record.source === "eval" ? "model" : "");
       const evalReferenceKind = getStringField(record, "eval_reference_kind");
@@ -363,7 +397,11 @@ export function deriveReviewRows(records: ReviewRecord[], resultVersion: ResultV
         createdAt: record.created_at ?? form.created_at ?? "",
         updatedAt: record.updated_at ?? form.updated_at ?? "",
         resultVersion,
-        edited: reviewHasEdits(record),
+        edited,
+        finalized,
+        formStatus: reviewFormStatus(finalized, edited),
+        firstFinalizedAt: reviewFirstFinalizedAt(record),
+        lastFinalizedAt: reviewLastFinalizedAt(record),
         feedbackCount: record.feedback_count ?? 0,
         form,
         originalForm,
@@ -411,6 +449,10 @@ export function derivePublishedDatasetRows(records: PublishedDatasetRow[]): Dash
       updatedAt: record.updated_at ?? record.created_at ?? "",
       resultVersion: "current",
       edited: false,
+      finalized: false,
+      formStatus: "unedited",
+      firstFinalizedAt: "",
+      lastFinalizedAt: "",
       feedbackCount: 0,
       form,
       originalForm: form,
@@ -461,6 +503,7 @@ export function filterDashboardRows(rows: DashboardReviewRow[], filters: Dashboa
     if (filters.formVersion !== "all" && row.formVersion !== filters.formVersion) return false;
     if (filters.source !== "all" && row.source !== filters.source) return false;
     if (filters.outcome !== "all" && row.outcome !== filters.outcome) return false;
+    if (filters.finalizedOnly && !row.finalized) return false;
     if (filters.evalRole !== "all") {
       const rowRole = evalRoleLabel(row.evalResultRole, row.evalReferenceKind);
       if (rowRole !== filters.evalRole) return false;
@@ -485,6 +528,7 @@ export function filterDashboardRows(rows: DashboardReviewRow[], filters: Dashboa
       row.description,
       row.outcome,
       row.source,
+      formStatusLabels[row.formStatus],
       evalRoleLabel(row.evalResultRole, row.evalReferenceKind),
       row.evalRunName,
       row.outcomeJustification,

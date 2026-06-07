@@ -60,3 +60,36 @@ async def test_repair_local_sqlite_schema_adds_missing_eval_case_metadata_column
             assert "metadata_json" in columns
     finally:
         await engine.dispose()
+
+
+@pytest.mark.anyio
+async def test_repair_local_sqlite_schema_adds_missing_review_finalization_columns() -> None:
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    try:
+        async with engine.begin() as connection:
+            await connection.execute(
+                text(
+                    """
+                    CREATE TABLE audit_reviews (
+                        id VARCHAR NOT NULL,
+                        form_id VARCHAR NOT NULL,
+                        form_version VARCHAR NOT NULL,
+                        PRIMARY KEY (id)
+                    )
+                    """
+                )
+            )
+
+            await repair_local_sqlite_schema(connection)
+
+            columns = {
+                row[1]
+                for row in (
+                    await connection.execute(text("PRAGMA table_info(audit_reviews)"))
+                ).all()
+            }
+            assert "finalized" in columns
+            assert "first_finalized_at" in columns
+            assert "last_finalized_at" in columns
+    finally:
+        await engine.dispose()

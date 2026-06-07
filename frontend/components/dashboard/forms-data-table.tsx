@@ -25,6 +25,8 @@ import { TablePagination } from "@/components/dashboard/table-pagination";
 import {
   compareDashboardValues,
   evalRoleLabel,
+  formStatusLabels,
+  formStatusVariant,
   formatDateTime,
   resultVersionLabels,
   type DashboardReviewRow,
@@ -49,7 +51,7 @@ type FormSortKey =
   | "driverCount"
   | "totalOverwriteDollars"
   | "totalUnderwriteDollars"
-  | "edited"
+  | "formStatus"
   | "updatedAt";
 
 interface ColumnDef {
@@ -75,7 +77,7 @@ const columns: ColumnDef[] = [
   { key: "driverCount", label: "Drivers", align: "center" },
   { key: "totalOverwriteDollars", label: "OW", align: "right" },
   { key: "totalUnderwriteDollars", label: "UW", align: "right" },
-  { key: "edited", label: "Edited", align: "center" },
+  { key: "formStatus", label: "Status", align: "center" },
   { key: "updatedAt", label: "Updated" },
 ];
 
@@ -117,7 +119,9 @@ const viewColumns: ExportColumn<DashboardReviewRow>[] = [
   { header: "Overwrite Percent", value: (row) => row.overwritePercent ?? "" },
   { header: "Underwrite Percent", value: (row) => row.underwritePercent ?? "" },
   { header: "Net Exception Dollars", value: (row) => row.netExceptionDollars },
-  { header: "Edited", value: (row) => (row.edited ? "Yes" : "No") },
+  { header: "Status", value: (row) => formStatusLabels[row.formStatus] },
+  { header: "First Finalized", value: (row) => formatDateTime(row.firstFinalizedAt) },
+  { header: "Last Finalized", value: (row) => formatDateTime(row.lastFinalizedAt) },
   { header: "Updated", value: (row) => formatDateTime(row.updatedAt) },
 ];
 
@@ -125,7 +129,7 @@ const dataColumns: ExportColumn<DashboardReviewRow>[] = [
   { header: "Export Row ID", value: exportRowId },
   { header: "Review ID", value: (row) => row.reviewId },
   { header: "Batch ID", value: (row) => row.batchId },
-  { header: "Status", value: (row) => row.status },
+  { header: "Review Lifecycle", value: (row) => row.status },
   { header: "Source", value: (row) => row.source },
   { header: "Eval Run ID", value: (row) => row.evalRunId },
   { header: "Eval Run", value: (row) => row.evalRunName },
@@ -152,7 +156,9 @@ const dataColumns: ExportColumn<DashboardReviewRow>[] = [
   { header: "No Count", value: (row) => row.noCount },
   { header: "Sub-question Count", value: (row) => row.subQuestionCount },
   { header: "Driver Count", value: (row) => row.driverCount },
-  { header: "Edited", value: (row) => (row.edited ? "Yes" : "No") },
+  { header: "Status", value: (row) => formStatusLabels[row.formStatus] },
+  { header: "First Finalized", value: (row) => formatDateTime(row.firstFinalizedAt) },
+  { header: "Last Finalized", value: (row) => formatDateTime(row.lastFinalizedAt) },
   { header: "Title", value: (row) => row.title },
   { header: "Description", value: (row) => row.description },
   { header: "Outcome Justification", value: (row) => row.outcomeJustification },
@@ -215,7 +221,7 @@ export function FormsDataTable({
   const [search, setSearch] = useState("");
   const [outcomeFilter, setOutcomeFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
-  const [editedFilter, setEditedFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [sortKey, setSortKey] = useState<FormSortKey>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [copyStatus, setCopyStatus] = useState<"idle" | "success">("idle");
@@ -232,8 +238,7 @@ export function FormsDataTable({
     const filtered = rows.filter((row) => {
       if (outcomeFilter !== "all" && row.outcome !== outcomeFilter) return false;
       if (sourceFilter !== "all" && row.source !== sourceFilter) return false;
-      if (editedFilter === "edited" && !row.edited) return false;
-      if (editedFilter === "unedited" && row.edited) return false;
+      if (statusFilter !== "all" && row.formStatus !== statusFilter) return false;
       if (!query) return true;
       return [
         row.reviewId,
@@ -245,6 +250,7 @@ export function FormsDataTable({
         row.formVersion,
         row.outcome,
         row.source,
+        formStatusLabels[row.formStatus],
         evalRoleLabel(row.evalResultRole, row.evalReferenceKind),
         row.evalRunName,
       ]
@@ -256,7 +262,7 @@ export function FormsDataTable({
     return [...filtered].sort((first, second) =>
       compareDashboardValues(getSortValue(first, sortKey), getSortValue(second, sortKey), sortDir),
     );
-  }, [editedFilter, outcomeFilter, rows, search, sortDir, sortKey, sourceFilter]);
+  }, [outcomeFilter, rows, search, sortDir, sortKey, sourceFilter, statusFilter]);
   const totalPages = Math.max(1, Math.ceil(visibleRows.length / pageSize));
   const paginatedRows = useMemo(
     () => visibleRows.slice((Math.min(page, totalPages) - 1) * pageSize, Math.min(page, totalPages) * pageSize),
@@ -289,7 +295,7 @@ export function FormsDataTable({
     setSearch("");
     setOutcomeFilter("all");
     setSourceFilter("all");
-    setEditedFilter("all");
+    setStatusFilter("all");
   };
 
   return (
@@ -322,8 +328,9 @@ export function FormsDataTable({
               </option>
             ))}
           </SelectFilter>
-          <SelectFilter label="Edited" value={editedFilter} onChange={setEditedFilter}>
-            <option value="all">All versions</option>
+          <SelectFilter label="Status" value={statusFilter} onChange={setStatusFilter}>
+            <option value="all">All statuses</option>
+            <option value="finalized">Finalized</option>
             <option value="edited">Edited</option>
             <option value="unedited">Unedited</option>
           </SelectFilter>
@@ -332,7 +339,7 @@ export function FormsDataTable({
             variant="ghost"
             size="sm"
             onClick={resetTableFilters}
-            disabled={!search && outcomeFilter === "all" && sourceFilter === "all" && editedFilter === "all"}
+            disabled={!search && outcomeFilter === "all" && sourceFilter === "all" && statusFilter === "all"}
           >
             <X className="h-3.5 w-3.5" />
             Clear
@@ -461,7 +468,9 @@ export function FormsDataTable({
                       {row.driverCount}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge variant={row.edited ? "warning" : "outline"}>{row.edited ? "Yes" : "No"}</Badge>
+                      <Badge variant={formStatusVariant(row.formStatus)}>
+                        {formStatusLabels[row.formStatus]}
+                      </Badge>
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
                       {formatDateTime(row.updatedAt)}

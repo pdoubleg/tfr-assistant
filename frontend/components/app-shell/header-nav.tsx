@@ -31,9 +31,9 @@ export function HeaderNav({
       <div className="flex h-full items-center gap-3 px-4">
         <Link href="/" className="flex min-w-fit items-center gap-2 font-semibold">
           <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-sm text-primary-foreground">
-            TF
+            TFR
           </span>
-          <span className="hidden sm:inline">Targeted File Review</span>
+          <span className="hidden sm:inline">Targeted File Review Assistant</span>
         </Link>
 
         <nav className="ml-2 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">

@@ -5,7 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
 from app.models.audit import AuditResult
-from app.schemas.reviews import ReviewGenerateRequest, ReviewRecord, ReviewUpdate
+from app.schemas.reviews import (
+    ReviewFinalization,
+    ReviewGenerateRequest,
+    ReviewRecord,
+    ReviewUpdate,
+)
 from app.services.audit_generation import AuditGenerationService
 from app.services.review_repository import ReviewRepository
 
@@ -55,6 +60,20 @@ async def update_user_version(
 ) -> ReviewRecord:
     try:
         return await ReviewRepository(session).update_user_version(review_id, update)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.put("/{review_id}/finalization", response_model=ReviewRecord)
+async def finalize_review(
+    review_id: str,
+    update: ReviewFinalization,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> ReviewRecord:
+    try:
+        return await ReviewRepository(session).finalize_review(review_id, update)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:

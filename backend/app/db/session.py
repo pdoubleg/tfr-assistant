@@ -113,6 +113,24 @@ async def repair_local_sqlite_schema(connection) -> None:
                 text("ALTER TABLE audit_batch_templates ADD COLUMN prompt_ref_json JSON")
             )
 
+    if "audit_reviews" in tables:
+        audit_review_columns = {
+            row[1]
+            for row in (await connection.execute(text("PRAGMA table_info(audit_reviews)"))).all()
+        }
+        if "finalized" not in audit_review_columns:
+            await connection.execute(
+                text("ALTER TABLE audit_reviews ADD COLUMN finalized BOOLEAN NOT NULL DEFAULT 0")
+            )
+        if "first_finalized_at" not in audit_review_columns:
+            await connection.execute(
+                text("ALTER TABLE audit_reviews ADD COLUMN first_finalized_at DATETIME")
+            )
+        if "last_finalized_at" not in audit_review_columns:
+            await connection.execute(
+                text("ALTER TABLE audit_reviews ADD COLUMN last_finalized_at DATETIME")
+            )
+
     if "eval_cases" in tables:
         eval_case_columns = {
             row[1]

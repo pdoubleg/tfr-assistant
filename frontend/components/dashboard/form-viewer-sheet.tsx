@@ -20,7 +20,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  formatDateTime,
+  formStatusLabels,
+  formStatusVariant,
   getQuestionDriverCount,
   getSubQuestionLabel,
   resultVersionLabels,
@@ -67,6 +68,17 @@ function TextBlock({ label, text }: { label: string; text: string }) {
 
 function outcomeLabel(outcome: string): string {
   return outcome === "Does Not Meet" ? "DNM" : outcome;
+}
+
+function formatDateOnly(value: string): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
 }
 
 function canSubmitFeedback(row: DashboardReviewRow): boolean {
@@ -217,8 +229,15 @@ export function FormViewerSheet({
                 <Badge variant="secondary">{resultVersionLabels[row.resultVersion]}</Badge>
                 {row.claimNumber ? <Badge variant="outline">Claim {row.claimNumber}</Badge> : null}
                 {row.runName ? <Badge variant="outline">{row.runName}</Badge> : null}
-                <Badge variant={row.edited ? "warning" : "outline"}>{row.edited ? "Edited" : "Unedited"}</Badge>
-                {row.createdAt ? <Badge variant="outline">Created {formatDateTime(row.createdAt)}</Badge> : null}
+                <Badge variant={formStatusVariant(row.formStatus)}>
+                  {formStatusLabels[row.formStatus]}
+                </Badge>
+                {row.lastFinalizedAt ? (
+                  <Badge variant="outline">
+                    {row.finalized ? "Finalized" : "Last finalized"} {formatDateOnly(row.lastFinalizedAt)}
+                  </Badge>
+                ) : null}
+                {row.createdAt ? <Badge variant="outline">Created {formatDateOnly(row.createdAt)}</Badge> : null}
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-1">

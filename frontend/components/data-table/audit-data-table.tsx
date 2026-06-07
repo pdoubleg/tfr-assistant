@@ -44,6 +44,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   evalRoleLabel,
+  formStatusLabels,
+  formStatusVariant,
   formatDateTime,
   resultVersionLabels,
   type DashboardReviewRow,
@@ -98,7 +100,9 @@ const exportColumns: ExportColumn<DashboardReviewRow>[] = [
   { header: "Yes Count", value: (row) => row.yesCount },
   { header: "No Count", value: (row) => row.noCount },
   { header: "Driver Count", value: (row) => row.driverCount },
-  { header: "Edited", value: (row) => (row.edited ? "Yes" : "No") },
+  { header: "Status", value: (row) => formStatusLabels[row.formStatus] },
+  { header: "First Finalized", value: (row) => formatDateTime(row.firstFinalizedAt) },
+  { header: "Last Finalized", value: (row) => formatDateTime(row.lastFinalizedAt) },
 ];
 
 function loadSettings(): AuditDataTableSettings {
@@ -179,6 +183,7 @@ function rowSearchText(row: DashboardReviewRow): string {
     row.description,
     row.outcome,
     row.source,
+    formStatusLabels[row.formStatus],
     evalRoleLabel(row.evalResultRole, row.evalReferenceKind),
     row.outcomeJustification,
   ]
@@ -212,6 +217,10 @@ function selectedHomeRowFromDashboardRow(row: DashboardReviewRow): SelectedHomeR
     no_count: row.noCount,
     driver_count: row.driverCount,
     edited: row.edited,
+    finalized: row.finalized,
+    form_status: row.formStatus,
+    first_finalized_at: row.firstFinalizedAt,
+    last_finalized_at: row.lastFinalizedAt,
     row_kind: row.rowKind ?? "review",
     dataset_id: row.datasetId ?? "",
     dataset_case_id: row.datasetCaseId ?? "",
@@ -226,6 +235,7 @@ export function AuditDataTable({
   loading,
   onRefresh,
   onSaveForm,
+  onFinalizeForm,
   onFeedbackSubmitted,
 }: {
   rows: DashboardReviewRow[];
@@ -233,6 +243,7 @@ export function AuditDataTable({
   loading?: boolean;
   onRefresh: () => void;
   onSaveForm: (reviewId: string, form: AuditFormResult) => Promise<void>;
+  onFinalizeForm?: (reviewId: string, form: AuditFormResult) => Promise<void>;
   onFeedbackSubmitted?: (reviewId: string) => void | Promise<void>;
 }) {
   const { setHomeTableContext, setState: setAgentState } = useTfrAgent();
@@ -544,17 +555,17 @@ export function AuditDataTable({
         meta: { label: "Drivers", align: "center", fitContent: true },
       },
       {
-        id: "edited",
-        accessorFn: (row) => (row.edited ? "edited" : "unedited"),
+        id: "formStatus",
+        accessorFn: (row) => row.formStatus,
         filterFn: "equalsString",
-        size: 88,
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Edited" />,
+        size: 104,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
         cell: ({ row }) => (
-          <Badge variant={row.original.edited ? "warning" : "outline"}>
-            {row.original.edited ? "Yes" : "No"}
+          <Badge variant={formStatusVariant(row.original.formStatus)}>
+            {formStatusLabels[row.original.formStatus]}
           </Badge>
         ),
-        meta: { label: "Edited", align: "center", fitContent: true },
+        meta: { label: "Status", align: "center", fitContent: true },
       },
       {
         accessorKey: "updatedAt",
@@ -657,7 +668,8 @@ export function AuditDataTable({
   }, [rowSelection, rows]);
   const filtersActive = Boolean(globalFilter.trim()) || columnFilters.length > 0;
   const dnmCount = tableRows.filter((row) => row.outcome === "Does Not Meet").length;
-  const editedCount = tableRows.filter((row) => row.edited).length;
+  const finalizedCount = tableRows.filter((row) => row.finalized).length;
+  const editedCount = tableRows.filter((row) => row.formStatus === "edited").length;
   const driverCount = tableRows.reduce((sum, row) => sum + row.driverCount, 0);
 
   useEffect(() => {
@@ -726,6 +738,11 @@ export function AuditDataTable({
     await onSaveForm(editRow.reviewId, form);
   };
 
+  const finalizeEditForm = async (form: AuditFormResult) => {
+    if (!editRow || !onFinalizeForm) return;
+    await onFinalizeForm(editRow.reviewId, form);
+  };
+
   const handleFeedbackSubmitted = async (reviewId: string) => {
     await onFeedbackSubmitted?.(reviewId);
   };
@@ -747,6 +764,7 @@ export function AuditDataTable({
             <span>{tableRows.length} visible</span>
             <span>of {totalCount} completed</span>
             <span>{dnmCount} DNM</span>
+            <span>{finalizedCount} finalized</span>
             <span>{editedCount} edited</span>
             <span>{driverCount} drivers</span>
           </div>
@@ -811,8 +829,9 @@ export function AuditDataTable({
           ))}
         </SelectFilter>
 
-        <SelectFilter label="Edited" value={getColumnFilter("edited")} onChange={(value) => setColumnFilter("edited", value)}>
-          <option value="all">All edits</option>
+        <SelectFilter label="Status" value={getColumnFilter("formStatus")} onChange={(value) => setColumnFilter("formStatus", value)}>
+          <option value="all">All statuses</option>
+          <option value="finalized">Finalized</option>
           <option value="edited">Edited</option>
           <option value="unedited">Unedited</option>
         </SelectFilter>
@@ -963,10 +982,14 @@ export function AuditDataTable({
                 title: editRow.title,
                 formKey: editRow.formKey,
                 edited: editRow.edited,
+                finalized: editRow.finalized,
+                formStatus: editRow.formStatus,
                 claimNumber: editRow.claimNumber,
                 form: editRow.form,
                 feedbackCount: editRow.feedbackCount,
                 feedbackEnabled: editRow.rowKind !== "dataset_case" && !editRow.reviewId.startsWith("eval-ground-truth:"),
+                firstFinalizedAt: editRow.firstFinalizedAt,
+                lastFinalizedAt: editRow.lastFinalizedAt,
                 createdAt: editRow.createdAt,
                 updatedAt: editRow.updatedAt,
                 source: editRow.source,
@@ -975,6 +998,7 @@ export function AuditDataTable({
         }
         onClose={() => setEditRow(null)}
         onSubmit={submitEditForm}
+        onFinalize={onFinalizeForm ? finalizeEditForm : undefined}
         onFeedbackSubmitted={handleFeedbackSubmitted}
       />
     </>

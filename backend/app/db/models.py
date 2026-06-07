@@ -148,6 +148,15 @@ class AuditReviewORM(Base):
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     original_result_version_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     current_user_result_version_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    finalized: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    first_finalized_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    last_finalized_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

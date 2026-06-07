@@ -9,6 +9,7 @@ import {
 import { AuditQuestionForm } from "@/components/output/audit-question-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { formStatusLabels, formStatusVariant, type ReviewFormStatus } from "@/lib/dashboard-data";
 import type { AuditFormResult } from "@/lib/types";
 
 export interface AuditResultEditSheetRow {
@@ -16,10 +17,14 @@ export interface AuditResultEditSheetRow {
   title: string;
   formKey: string;
   edited: boolean;
+  finalized: boolean;
+  formStatus: ReviewFormStatus;
   claimNumber: string;
   form: AuditFormResult;
   feedbackCount: number;
   feedbackEnabled: boolean;
+  firstFinalizedAt: string;
+  lastFinalizedAt: string;
   createdAt: string;
   updatedAt: string;
   source: string;
@@ -29,11 +34,13 @@ export function AuditResultEditSheet({
   row,
   onClose,
   onSubmit,
+  onFinalize,
   onFeedbackSubmitted,
 }: {
   row: AuditResultEditSheetRow | null;
   onClose: () => void;
   onSubmit: (form: AuditFormResult) => Promise<void>;
+  onFinalize?: (form: AuditFormResult) => Promise<void>;
   onFeedbackSubmitted?: (reviewId: string) => void | Promise<void>;
 }) {
   if (!row) return null;
@@ -57,8 +64,8 @@ export function AuditResultEditSheet({
               <Badge variant="outline" className="font-mono text-[10px]">
                 {row.formKey}
               </Badge>
-              <Badge variant={row.edited ? "warning" : "outline"}>
-                {row.edited ? "Edited" : "Unedited"}
+              <Badge variant={formStatusVariant(row.formStatus)}>
+                {formStatusLabels[row.formStatus]}
               </Badge>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -88,13 +95,18 @@ export function AuditResultEditSheet({
             reviewId={row.reviewId}
             form={row.form}
             onSubmit={onSubmit}
+            onFinalize={onFinalize}
             onClose={onClose}
             metadata={{
               claimNumber: row.claimNumber,
-              finalizedAt: row.createdAt,
+              finalized: row.finalized,
+              firstFinalizedAt: row.firstFinalizedAt,
+              lastFinalizedAt: row.lastFinalizedAt,
+              createdAt: row.createdAt,
               updatedAt: row.updatedAt,
               source: row.source,
             }}
+            submitLabel="Save Changes"
           />
         </div>
       </aside>

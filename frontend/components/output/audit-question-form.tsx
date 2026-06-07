@@ -17,6 +17,7 @@ import {
   Loader2,
   Pencil,
   Save,
+  ShieldCheck,
   X,
   XCircle,
 } from "lucide-react";
@@ -36,7 +37,11 @@ type DraftOverallOutcome = OverallOutcome | "";
 
 interface AuditFormMetadata {
   claimNumber?: string;
+  createdAt?: string;
+  finalized?: boolean;
   finalizedAt?: string;
+  firstFinalizedAt?: string;
+  lastFinalizedAt?: string;
   updatedAt?: string;
   source?: string;
 }
@@ -53,8 +58,6 @@ function formatMetadataDate(value?: string): string {
     month: "short",
     day: "numeric",
     year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
   }).format(date);
 }
 
@@ -64,15 +67,23 @@ function sameTimestamp(first?: string, second?: string): boolean {
 }
 
 function buildMetadataItems(reviewId: string, metadata?: AuditFormMetadata) {
-  const finalizedAt = formatMetadataDate(metadata?.finalizedAt);
+  const createdAt = formatMetadataDate(metadata?.createdAt ?? metadata?.finalizedAt);
+  const firstFinalizedAt = formatMetadataDate(metadata?.firstFinalizedAt);
+  const lastFinalizedAt = formatMetadataDate(metadata?.lastFinalizedAt);
   const updatedAt = formatMetadataDate(metadata?.updatedAt);
   const items = [
     {
       label: metadata?.claimNumber ? "Claim" : "Review",
       value: metadata?.claimNumber || reviewId.slice(0, 8),
     },
-    finalizedAt ? { label: "Finalized", value: finalizedAt } : null,
-    updatedAt && !sameTimestamp(metadata?.finalizedAt, metadata?.updatedAt)
+    lastFinalizedAt
+      ? { label: metadata?.finalized ? "Finalized" : "Last finalized", value: lastFinalizedAt }
+      : null,
+    firstFinalizedAt && firstFinalizedAt !== lastFinalizedAt
+      ? { label: "First finalized", value: firstFinalizedAt }
+      : null,
+    !metadata?.finalized && createdAt ? { label: "Created", value: createdAt } : null,
+    updatedAt && !sameTimestamp(metadata?.lastFinalizedAt ?? metadata?.createdAt, metadata?.updatedAt)
       ? { label: "Updated", value: updatedAt }
       : null,
   ];
@@ -565,10 +576,12 @@ export function AuditQuestionForm({
   reviewId,
   form,
   onSubmit,
+  onFinalize,
   onClose,
   collapsed = false,
   metadata,
   submitLabel = "Submit Form",
+  finalizeLabel = "Finalize",
   allowSubmitWhenPristine = false,
   blankEntryMode = false,
   enableFeedback = false,
@@ -578,10 +591,12 @@ export function AuditQuestionForm({
   reviewId: string;
   form: AuditFormResult;
   onSubmit: (form: AuditFormResult) => Promise<void>;
+  onFinalize?: (form: AuditFormResult) => Promise<void>;
   onClose?: () => void;
   collapsed?: boolean;
   metadata?: AuditFormMetadata;
   submitLabel?: string;
+  finalizeLabel?: string;
   allowSubmitWhenPristine?: boolean;
   blankEntryMode?: boolean;
   enableFeedback?: boolean;
@@ -590,7 +605,7 @@ export function AuditQuestionForm({
 }) {
   const [draft, setDraft] = useState(() => cloneForm(form));
   const [baseline, setBaseline] = useState(() => cloneForm(form));
-  const [saving, setSaving] = useState(false);
+  const [submitAction, setSubmitAction] = useState<"save" | "finalize" | null>(null);
   const [savedPulse, setSavedPulse] = useState(false);
   const [collapsedLocal, setCollapsedLocal] = useState(collapsed);
   const [expandAllSignal, setExpandAllSignal] = useState(0);
@@ -641,6 +656,7 @@ export function AuditQuestionForm({
     () => buildMetadataItems(reviewId, metadata),
     [metadata, reviewId],
   );
+  const saving = submitAction !== null;
 
   const updateQuestion = (question: FormQuestion) => {
     setSaveNotice(null);
@@ -652,7 +668,7 @@ export function AuditQuestionForm({
     }));
   };
 
-  const save = async () => {
+  const submitDraft = async (action: "save" | "finalize") => {
     const localValidationError = validateFormForSubmit(draft, {
       manualEntryMode: blankEntryMode,
       requireOutcomeJustification: blankEntryMode,
@@ -667,26 +683,30 @@ export function AuditQuestionForm({
     }
 
     const nextForm = normalizeFormForSubmit(draft);
-    setSaving(true);
+    const handler = action === "finalize" && onFinalize ? onFinalize : onSubmit;
+    setSubmitAction(action);
     try {
-      await onSubmit(nextForm);
+      await handler(nextForm);
       setDraft(cloneForm(nextForm));
       setBaseline(cloneForm(nextForm));
       setSavedPulse(true);
       setSaveNotice({
         type: "success",
-        title: "Form saved",
-        message: "This entry is ready in the batch configuration.",
+        title: action === "finalize" ? "Form finalized" : "Form saved",
+        message:
+          action === "finalize"
+            ? "Form has been finalized"
+            : "Changes have been saved.",
       });
       window.setTimeout(() => setSavedPulse(false), 1800);
     } catch (error) {
       setSaveNotice({
         type: "error",
-        title: "Unable to save form",
+        title: action === "finalize" ? "Unable to finalize form" : "Unable to save form",
         message: error instanceof Error ? error.message : "Unable to save the form.",
       });
     } finally {
-      setSaving(false);
+      setSubmitAction(null);
     }
   };
 
@@ -801,7 +821,7 @@ export function AuditQuestionForm({
             {saving ? (
               <>
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Saving
+                {submitAction === "finalize" ? "Finalizing" : "Saving"}
               </>
             ) : dirty ? (
               <>
@@ -925,10 +945,31 @@ export function AuditQuestionForm({
                   Close
                 </Button>
               ) : null}
-              <Button type="button" size="sm" onClick={save} disabled={saving || (!dirty && !allowSubmitWhenPristine)}>
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              <Button
+                type="button"
+                variant={onFinalize ? "outline" : "default"}
+                size="sm"
+                onClick={() => void submitDraft("save")}
+                disabled={saving || (!dirty && !allowSubmitWhenPristine)}
+              >
+                {submitAction === "save" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 {submitLabel}
               </Button>
+              {onFinalize ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => void submitDraft("finalize")}
+                  disabled={saving}
+                >
+                  {submitAction === "finalize" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ShieldCheck className="h-4 w-4" />
+                  )}
+                  {finalizeLabel}
+                </Button>
+              ) : null}
             </div>
           </div>
         </div>

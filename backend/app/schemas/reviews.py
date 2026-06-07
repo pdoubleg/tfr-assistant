@@ -87,6 +87,9 @@ class ReviewRecord(BaseModel):
     user_version: AuditResult | None = None
     feedback_count: int = 0
     error_message: str | None = None
+    finalized: bool = False
+    first_finalized_at: datetime | None = None
+    last_finalized_at: datetime | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
@@ -94,6 +97,10 @@ class ReviewRecord(BaseModel):
 class ReviewUpdate(BaseModel):
     user_version: AuditResult
     comment: str | None = None
+
+
+class ReviewFinalization(BaseModel):
+    user_version: AuditResult | None = None
 
 
 class BatchReviewInput(BaseModel):

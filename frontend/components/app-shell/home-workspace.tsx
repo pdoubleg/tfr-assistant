@@ -10,6 +10,7 @@ import {
   listPublishedDatasets,
   listReviews,
   getReview,
+  finalizeReview,
   updateReviewUserVersion,
 } from "@/lib/api";
 import { derivePublishedDatasetRows, deriveReviewRows } from "@/lib/dashboard-data";
@@ -117,6 +118,14 @@ export function HomeWorkspace() {
   const saveForm = async (reviewId: string, form: AuditFormResult) => {
     if (sourceMode === "dataset" || reviewId.startsWith("dataset:")) return;
     const updatedReview = await updateReviewUserVersion(reviewId, form);
+    setReviews((current) =>
+      current.map((review) => (review.id === reviewId ? updatedReview : review)),
+    );
+  };
+
+  const finalizeForm = async (reviewId: string, form: AuditFormResult) => {
+    if (sourceMode === "dataset" || reviewId.startsWith("dataset:")) return;
+    const updatedReview = await finalizeReview(reviewId, form);
     setReviews((current) =>
       current.map((review) => (review.id === reviewId ? updatedReview : review)),
     );
@@ -251,6 +260,7 @@ export function HomeWorkspace() {
           loading={loading}
           onRefresh={() => void refresh()}
           onSaveForm={saveForm}
+          onFinalizeForm={finalizeForm}
           onFeedbackSubmitted={refreshReview}
         />
       </div>

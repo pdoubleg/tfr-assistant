@@ -231,6 +231,11 @@ export interface ReviewRecord {
   feedback?: "up" | "down" | null;
   comments?: string;
   error_message?: string | null;
+  finalized?: boolean;
+  first_finalized_at?: string | null;
+  last_finalized_at?: string | null;
+  firstFinalizedAt?: string | null;
+  lastFinalizedAt?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -934,6 +939,10 @@ export interface SelectedHomeRowContext {
   no_count: number;
   driver_count: number;
   edited: boolean;
+  finalized?: boolean;
+  form_status?: string;
+  first_finalized_at?: string;
+  last_finalized_at?: string;
   row_kind?: "review" | "dataset_case";
   dataset_id?: string;
   dataset_case_id?: string;

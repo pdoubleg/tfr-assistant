@@ -2,7 +2,13 @@ import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.db.models import Base
-from app.schemas.reviews import BatchCreateRequest, BatchReviewInput, ReviewGenerateRequest
+from app.schemas.reviews import (
+    BatchCreateRequest,
+    BatchReviewInput,
+    ReviewFinalization,
+    ReviewGenerateRequest,
+    ReviewUpdate,
+)
 from app.services.audit_generation import AuditGenerationService, BatchReviewGenerationService
 from app.services.catalog import FormCatalog
 from app.services.review_repository import ReviewRepository
@@ -261,6 +267,51 @@ async def test_manual_entry_allows_yes_without_evidence_and_driver_without_citat
     assert completed.original.questions[1].sub_questions
     assert completed.original.questions[1].sub_questions[0].answer is True
     assert completed.original.questions[1].sub_questions[0].citations == ""
+
+
+@pytest.mark.anyio
+async def test_finalization_tracks_dates_and_resets_on_user_edit(session):
+    repository = ReviewRepository(session)
+    service = AuditGenerationService(session)
+    canonical = service.catalog.get_form("tfr_default", "v0.1").canonical.model_copy(deep=True)
+    review = await repository.create_from_agent_output(
+        canonical,
+        source="manual_entry",
+        input_json={"claim_number": "FINAL-001"},
+    )
+
+    assert review.finalized is False
+    assert review.first_finalized_at is None
+    assert review.last_finalized_at is None
+
+    finalized = await repository.finalize_review(
+        review.id,
+        ReviewFinalization(user_version=canonical),
+    )
+
+    assert finalized.finalized is True
+    assert finalized.first_finalized_at is not None
+    assert finalized.last_finalized_at is not None
+    first_finalized_at = finalized.first_finalized_at
+    last_finalized_at = finalized.last_finalized_at
+
+    edited_result = finalized.user_version.model_copy(deep=True)
+    edited_result.outcome_justification = "Reviewer adjusted the validation narrative."
+    edited = await repository.update_user_version(
+        review.id,
+        ReviewUpdate(user_version=edited_result),
+    )
+
+    assert edited.finalized is False
+    assert edited.first_finalized_at == first_finalized_at
+    assert edited.last_finalized_at == last_finalized_at
+
+    refinalized = await repository.finalize_review(review.id, ReviewFinalization())
+
+    assert refinalized.finalized is True
+    assert refinalized.first_finalized_at == first_finalized_at
+    assert refinalized.last_finalized_at is not None
+    assert refinalized.last_finalized_at >= last_finalized_at
 
 
 @pytest.mark.anyio

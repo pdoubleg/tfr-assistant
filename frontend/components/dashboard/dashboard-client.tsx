@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Database, Filter, Loader2, RefreshCw, Search, X } from "lucide-react";
+import { CheckCheck, Database, Filter, Loader2, RefreshCw, Search, X } from "lucide-react";
 
 import { CommentsReportTable } from "@/components/dashboard/comments-report-table";
 import { DashboardCharts } from "@/components/dashboard/dashboard-charts";
@@ -405,7 +405,17 @@ export function DashboardClient() {
             <DateControl label="From" value={filters.dateFrom} onChange={(value) => setFilter("dateFrom", value)} />
             <DateControl label="To" value={filters.dateTo} onChange={(value) => setFilter("dateTo", value)} />
 
-            <div className="flex items-end">
+            <div className="flex items-end gap-2">
+              <Button
+                type="button"
+                variant={filters.finalizedOnly ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => setFilter("finalizedOnly", !filters.finalizedOnly)}
+                aria-pressed={filters.finalizedOnly}
+              >
+                <CheckCheck className="h-3.5 w-3.5" />
+                Finalized
+              </Button>
               <Button type="button" variant="ghost" size="sm" onClick={clearFilters}>
                 <X className="h-3.5 w-3.5" />
                 Clear

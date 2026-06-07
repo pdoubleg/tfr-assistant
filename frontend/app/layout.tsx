@@ -6,7 +6,7 @@ import { AppShell } from "@/components/app-shell/app-shell";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Targeted File Review",
+  title: "Targeted File Review Assistant",
   description: "Agent-assisted audit form review, evaluation, and optimization.",
 };
 

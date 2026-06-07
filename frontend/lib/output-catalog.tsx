@@ -27,7 +27,7 @@ export const outputCatalog: Record<string, OutputRenderer> = {
         collapsed={component.collapsed}
         metadata={{
           claimNumber: component.claimNumber,
-          finalizedAt: component.createdAt,
+          createdAt: component.createdAt,
           updatedAt: component.updatedAt,
           source: component.source,
         }}
