@@ -2,6 +2,7 @@
   "id": "tfr_default",
   "version": "v0.2",
   "title": "Default TFR Questionnaire",
+  "published": true,
   "description": "Starter canonical form used while the audit system is still evolving.",
   "canonical": {
     "form_id": "tfr_default",

@@ -2,8 +2,15 @@
   "id": "interior_water",
   "version": "v0.1",
   "title": "Interior Water Loss Review",
+  "published": false,
+  "form_kind": "standard",
+  "model_name": "gpt-5.4-nano",
   "description": "Canonical form for interior water loss file reviews.",
+  "tools": null,
+  "knowledge_docs": null,
+  "include_state_compliance": false,
   "canonical": {
+    "form_kind": "standard",
     "form_id": "interior_water",
     "form_version": "v0.1",
     "title": "Interior Water Loss Review",
@@ -22,6 +29,8 @@
         "id": "Q2",
         "text": "Were affected rooms and materials documented well enough to support the estimate?",
         "answer": "No",
+        "comments": null,
+        "citations": null,
         "sub_questions": [
           {
             "id": "Q2.1",
@@ -53,7 +62,13 @@
       }
     ],
     "overall_outcome": "Does Not Meet",
-    "outcome_justification": "The canonical template includes a documentation-support opportunity for room-level repair scope."
+    "outcome_justification": "The canonical template includes a documentation-support opportunity for room-level repair scope.",
+    "id": null,
+    "cost": null,
+    "image_cost": null,
+    "latency": null,
+    "ground_truth": null,
+    "extras": null
   },
   "created_at": "2026-05-09T00:00:00Z"
 }

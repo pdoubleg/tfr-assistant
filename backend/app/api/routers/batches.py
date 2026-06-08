@@ -29,7 +29,7 @@ def validate_registered_forms(
 ) -> None:
     catalog = FormCatalog(settings.form_catalog_dir)
     try:
-        catalog.get_form(request.form_id, request.form_version)
+        catalog.get_published_form(request.form_id, request.form_version)
     except KeyError as exc:
         raise HTTPException(
             status_code=400,
@@ -38,6 +38,8 @@ def validate_registered_forms(
                 f"{request.form_id}@{request.form_version} was not found in the form catalog."
             ),
         ) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     for index, item in enumerate(request.items, start=1):
         if item.form_id and item.form_id != request.form_id:

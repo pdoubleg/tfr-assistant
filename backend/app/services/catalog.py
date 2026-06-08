@@ -9,12 +9,13 @@ class FormCatalog:
         self.catalog_dir = catalog_dir
         self.catalog_dir.mkdir(parents=True, exist_ok=True)
 
-    def list_forms(self) -> list[AuditFormSummary]:
+    def list_forms(self, *, published_only: bool = False) -> list[AuditFormSummary]:
         return [
             AuditFormSummary(
                 id=form.id,
                 version=form.version,
                 title=form.title,
+                published=form.published,
                 form_kind=form.form_kind,
                 model_name=form.model_name,
                 description=form.description,
@@ -29,6 +30,7 @@ class FormCatalog:
                 created_at=form.created_at,
             )
             for form in self._load_all()
+            if not published_only or form.published
         ]
 
     def get_form(self, form_id: str, version: str) -> AuditFormDefinition:
@@ -37,15 +39,23 @@ class FormCatalog:
             raise KeyError(f"Unknown audit form: {form_id}@{version}")
         return AuditFormDefinition.model_validate_json(path.read_text(encoding="utf-8"))
 
+    def get_published_form(self, form_id: str, version: str) -> AuditFormDefinition:
+        definition = self.get_form(form_id, version)
+        if not definition.published:
+            raise PermissionError(f"Audit form {form_id}@{version} is not published.")
+        return definition
+
     def register_form(self, registration: AuditFormRegistration) -> AuditFormDefinition:
         definition = AuditFormDefinition(**registration.model_dump())
         path = self.path_for(definition.id, definition.version)
         if path.exists():
             raise ValueError(f"Audit form {definition.id}@{definition.version} already exists.")
-        path.write_text(
-            json.dumps(definition.model_dump(mode="json"), indent=2),
-            encoding="utf-8",
-        )
+        self._write_form(definition)
+        return definition
+
+    def set_published(self, form_id: str, version: str, published: bool) -> AuditFormDefinition:
+        definition = self.get_form(form_id, version).model_copy(update={"published": published})
+        self._write_form(definition)
         return definition
 
     def _load_all(self) -> list[AuditFormDefinition]:
@@ -57,3 +67,9 @@ class FormCatalog:
     def path_for(self, form_id: str, version: str) -> Path:
         safe_name = f"{form_id}__{version}".replace("/", "_")
         return self.catalog_dir / f"{safe_name}.json"
+
+    def _write_form(self, definition: AuditFormDefinition) -> None:
+        self.path_for(definition.id, definition.version).write_text(
+            json.dumps(definition.model_dump(mode="json"), indent=2),
+            encoding="utf-8",
+        )

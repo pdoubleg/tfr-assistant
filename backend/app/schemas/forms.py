@@ -98,6 +98,7 @@ class AuditFormDefinition(BaseModel):
     id: str
     version: str
     title: str
+    published: bool = False
     form_kind: FormKind = "standard"
     model_name: str = DEFAULT_AUDIT_MODEL_NAME
     description: str | None = None
@@ -132,6 +133,7 @@ class AuditFormRegistration(BaseModel):
     id: str
     version: str
     title: str
+    published: bool = False
     form_kind: FormKind = "standard"
     model_name: str = DEFAULT_AUDIT_MODEL_NAME
     description: str | None = None
@@ -161,6 +163,7 @@ class AuditFormSummary(BaseModel):
     id: str
     version: str
     title: str
+    published: bool = False
     form_kind: FormKind = "standard"
     model_name: str = DEFAULT_AUDIT_MODEL_NAME
     description: str | None = None
@@ -179,3 +182,7 @@ class AuditFormSummary(BaseModel):
     @classmethod
     def normalize_tools(cls, value: Any) -> Any:
         return normalize_review_agent_tool_names(value)
+
+
+class AuditFormPublicationUpdate(BaseModel):
+    published: bool

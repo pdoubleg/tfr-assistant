@@ -71,7 +71,7 @@ const initialState = (forms: FormCatalogEntry[], template?: BatchTemplateRecord 
     ? `${template.form_id}@${template.form_version}`
     : firstForm
       ? `${firstForm.id}@${firstForm.version}`
-      : "tfr_default@v0.1";
+      : "";
 
   return {
     name: template?.name ?? "",
@@ -360,7 +360,6 @@ export function BatchRunDialog({
   const handleSave = async () => {
     const name = state.name.trim();
     const description = state.description.trim();
-    const { form_id, form_version } = splitFormKey(state.formKey);
     const inputMode = state.synthetic ? "synthetic" : state.input_mode;
     if (inputMode === "upload") {
       const hasPersistedUploadItems =
@@ -394,6 +393,14 @@ export function BatchRunDialog({
       setFormError("Run name is required.");
       return;
     }
+    if (!state.formKey) {
+      setFormError("Publish a registered form before creating a batch run.");
+      return;
+    }
+    if (!selectedForm) {
+      setFormError("Select a published form before saving this batch run.");
+      return;
+    }
     if (!state.synthetic && !usableItems.length) {
       setFormError("Add at least one review.");
       return;
@@ -407,6 +414,7 @@ export function BatchRunDialog({
       return;
     }
 
+    const { form_id, form_version } = splitFormKey(state.formKey);
     setFormError("");
     await onSave({
       name,
@@ -491,6 +499,12 @@ export function BatchRunDialog({
                 disabled={disabled}
                 className="h-12 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
               >
+                <option value="">No published form selected</option>
+                {state.formKey && !selectedForm ? (
+                  <option value={state.formKey} disabled>
+                    {state.formKey} - unpublished
+                  </option>
+                ) : null}
                 {forms.map((form) => (
                   <option key={`${form.id}@${form.version}`} value={`${form.id}@${form.version}`}>
                     {form.title} - {form.id}@{form.version}

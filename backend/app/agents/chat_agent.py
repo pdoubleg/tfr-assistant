@@ -64,7 +64,7 @@ def build_chat_agent(settings: Settings | None = None) -> Agent[TFRChatDeps, str
             "folder; inspect directories before reading unknown paths, and treat Mermaid "
             "diagrams as text that the frontend can render and download. "
             "When the user asks you to create or generate a one-off audit form review, call "
-            "get_registered_forms_listing first when you need valid form IDs, then call "
+            "get_registered_forms_listing first when you need published form IDs, then call "
             "generate_audit_form_review so the result is persisted and rendered for review. "
             "For synthetic data, smoke-style data, or completed audit intake, direct the user "
             "to Batch Audits instead of generating it from chat."
@@ -76,39 +76,72 @@ def build_chat_agent(settings: Settings | None = None) -> Agent[TFRChatDeps, str
 chat_agent = build_chat_agent()
 
 
-@chat_agent.tool
-async def get_registered_forms_listing(ctx: RunContext[TFRChatDeps]) -> str:
-    """Get valid audit form IDs before calling generate_audit_form_review.
+def _markdown_table_cell(value: object) -> str:
+    text = " ".join(str(value or "").split()) or "None"
+    return text.replace("|", "\\|")
 
-    Call this tool to get valid form IDs and versions prior to running
-    generate_audit_form_review so that the generation args are valid.
 
-    Returns:
-        Compact registered form metadata from the form catalog.
-    """
-
-    catalog = FormCatalog(ctx.deps.settings.form_catalog_dir)
+def _published_forms_markdown(catalog: FormCatalog) -> str:
     definitions = [
-        catalog.get_form(summary.id, summary.version) for summary in catalog.list_forms()
+        catalog.get_form(summary.id, summary.version)
+        for summary in catalog.list_forms(published_only=True)
     ]
     if not definitions:
-        return "No registered audit forms found."
-    lines = ["Registered audit forms:"]
+        return "### Published Audit Forms\n\nNo published audit forms found."
+
+    rows = [
+        "| Form ID | Version | Kind | Title | Description |",
+        "| --- | --- | --- | --- | --- |",
+    ]
     for definition in definitions:
         description = " ".join((definition.description or "").split()) or "None"
-        lines.append(
-            "; ".join(
+        rows.append(
+            " | ".join(
                 [
-                    f"canonical_form_id={definition.canonical.form_id}",
-                    f"form_kind={definition.form_kind}",
-                    f"form_id={definition.id}",
-                    f"form_version={definition.version}",
-                    f"title={definition.title}",
-                    f"description={description}",
+                    f"| `{_markdown_table_cell(definition.id)}`",
+                    f"`{_markdown_table_cell(definition.version)}`",
+                    _markdown_table_cell(definition.form_kind),
+                    _markdown_table_cell(definition.title),
+                    f"{_markdown_table_cell(description)} |",
                 ]
             )
         )
-    return "\n".join(lines)
+
+    return "\n".join(
+        [
+            "### Published Audit Forms",
+            "",
+            f"{len(definitions)} published form{'s' if len(definitions) != 1 else ''} can be used by chat audit generation.",
+            "",
+            *rows,
+        ]
+    )
+
+
+@chat_agent.tool
+async def get_registered_forms_listing(ctx: RunContext[TFRChatDeps]) -> ToolReturn:
+    """Get published audit form IDs before calling generate_audit_form_review.
+
+    Call this tool to get published form IDs and versions prior to running
+    generate_audit_form_review so that the generation args are valid.
+
+    Returns:
+        Compact published form metadata from the form catalog.
+    """
+
+    state = ctx.deps.state
+    reporter = ChatStateStatusReporter(state, source_name="get_registered_forms_listing")
+    reporter.in_progress("Loading published audit forms...", progress=25)
+
+    markdown = _published_forms_markdown(FormCatalog(ctx.deps.settings.form_catalog_dir))
+    reporter.completed("Published audit forms loaded.", progress=100)
+    state.status = "complete"
+    state.current_step = "Published audit forms loaded."
+
+    return ToolReturn(
+        return_value=markdown,
+        metadata=[StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=state)],
+    )
 
 
 @chat_agent.tool
@@ -134,6 +167,17 @@ async def generate_audit_form_review(
     state = ctx.deps.state
     reporter = ChatStateStatusReporter(state)
     reporter.in_progress("Starting audit form generation tool...", progress=10)
+
+    catalog = FormCatalog(ctx.deps.settings.form_catalog_dir)
+    try:
+        catalog.get_published_form(form_id, form_version)
+    except (KeyError, PermissionError) as exc:
+        message = str(exc)
+        reporter.error(message, progress=100)
+        return ToolReturn(
+            return_value=message,
+            metadata=[StateSnapshotEvent(type=EventType.STATE_SNAPSHOT, snapshot=state)],
+        )
 
     request = ReviewGenerateRequest(
         claim_number=claim_number,

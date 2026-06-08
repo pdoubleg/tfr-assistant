@@ -95,6 +95,7 @@ export interface AuditFormDefinition {
   id: string;
   version: string;
   title: string;
+  published?: boolean;
   form_kind?: FormKind;
   model_name?: string;
   description?: string | null;
@@ -842,6 +843,7 @@ export interface FormCatalogEntry {
   id: string;
   version: string;
   title: string;
+  published: boolean;
   formKind: FormKind;
   modelName: string;
   description: string;

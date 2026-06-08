@@ -170,8 +170,13 @@ export async function deleteChatThread(threadId: string): Promise<void> {
   }
 }
 
-export async function listFormCatalog(): Promise<FormCatalogEntry[]> {
-  const response = await fetch(`${apiBaseUrl}/api/forms`, {
+export async function listFormCatalog(
+  options: { publishedOnly?: boolean } = {},
+): Promise<FormCatalogEntry[]> {
+  const params = new URLSearchParams();
+  if (options.publishedOnly) params.set("published_only", "true");
+  const query = params.toString();
+  const response = await fetch(`${apiBaseUrl}/api/forms${query ? `?${query}` : ""}`, {
     cache: "no-store",
   });
   const forms = await parseJsonResponse<
@@ -179,6 +184,7 @@ export async function listFormCatalog(): Promise<FormCatalogEntry[]> {
       id: string;
       version: string;
       title: string;
+      published?: boolean;
       form_kind?: "standard" | "financial";
       model_name?: string;
       description?: string | null;
@@ -198,6 +204,7 @@ export async function listFormCatalog(): Promise<FormCatalogEntry[]> {
     id: form.id,
     version: form.version,
     title: form.title,
+    published: form.published ?? false,
     formKind: form.form_kind ?? "standard",
     modelName: form.model_name ?? "gpt-5.4-nano",
     description: form.description ?? "",
@@ -239,6 +246,7 @@ export async function registerForm(
       id: definition.id,
       version: definition.version,
       title: definition.title,
+      published: definition.published ?? false,
       form_kind: definition.form_kind ?? definition.canonical.form_kind ?? "standard",
       model_name: definition.model_name ?? "gpt-5.4-nano",
       description: definition.description ?? "",
@@ -251,6 +259,22 @@ export async function registerForm(
       },
     }),
   });
+  return parseJsonResponse<AuditFormDefinition>(response);
+}
+
+export async function setFormPublication(
+  formId: string,
+  version: string,
+  published: boolean,
+): Promise<AuditFormDefinition> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/forms/${encodeURIComponent(formId)}/${encodeURIComponent(version)}/publication`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ published }),
+    },
+  );
   return parseJsonResponse<AuditFormDefinition>(response);
 }
 

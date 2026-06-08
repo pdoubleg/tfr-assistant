@@ -17,6 +17,7 @@ from app.core.llm import (
     context_window_for_model,
     llm_model_config_for,
 )
+from app.models.chat_state import TFRChatState
 from app.models.audit import AuditFormResult
 from app.presenters.a2ui import generate_audit_review_card
 from app.schemas.reviews import ReviewRecord
@@ -39,17 +40,21 @@ def test_generate_audit_form_review_tool_schema_omits_runtime_prompt() -> None:
 
 @pytest.mark.anyio
 async def test_registered_forms_listing_returns_compact_catalog_metadata() -> None:
-    ctx = SimpleNamespace(deps=SimpleNamespace(settings=Settings()))
+    state = TFRChatState()
+    ctx = SimpleNamespace(deps=SimpleNamespace(settings=Settings(), state=state))
 
-    listing = await get_registered_forms_listing(ctx)
+    result = await get_registered_forms_listing(ctx)
+    listing = result.return_value
 
-    assert "Registered audit forms:" in listing
-    assert "canonical_form_id=tfr_default" in listing
-    assert "form_kind=standard" in listing
-    assert "form_id=tfr_default" in listing
-    assert "form_version=v0.1" in listing
-    assert "title=" in listing
-    assert "description=" in listing
+    assert "### Published Audit Forms" in listing
+    assert "| Form ID | Version | Kind | Title | Description |" in listing
+    assert "`tfr_default`" in listing
+    assert "`v0.1`" in listing
+    assert "canonical_form_id" not in listing
+    assert "```json" not in listing
+    assert state.status == "complete"
+    assert state.current_step == "Published audit forms loaded."
+    assert state.activity_log[-1].status == "completed"
 
 
 def test_audit_review_card_component_opens_generated_result() -> None:

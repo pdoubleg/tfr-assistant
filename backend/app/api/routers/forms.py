@@ -7,7 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import Settings, get_settings
 from app.db.models import AuditReviewORM
 from app.db.session import get_session
-from app.schemas.forms import AuditFormDefinition, AuditFormRegistration, AuditFormSummary
+from app.schemas.forms import (
+    AuditFormDefinition,
+    AuditFormPublicationUpdate,
+    AuditFormRegistration,
+    AuditFormSummary,
+)
 from app.services.catalog import FormCatalog
 
 router = APIRouter()
@@ -51,8 +56,9 @@ async def _usage_stats_by_form(
 async def list_forms(
     catalog: Annotated[FormCatalog, Depends(get_catalog)],
     session: Annotated[AsyncSession, Depends(get_session)],
+    published_only: bool = False,
 ) -> list[AuditFormSummary]:
-    forms = catalog.list_forms()
+    forms = catalog.list_forms(published_only=published_only)
     stats = await _usage_stats_by_form(session)
     return [form.model_copy(update=stats.get((form.id, form.version), {})) for form in forms]
 
@@ -78,3 +84,16 @@ def register_form(
         return catalog.register_form(registration)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.patch("/{form_id}/{version}/publication", response_model=AuditFormDefinition)
+def update_form_publication(
+    form_id: str,
+    version: str,
+    request: AuditFormPublicationUpdate,
+    catalog: Annotated[FormCatalog, Depends(get_catalog)],
+) -> AuditFormDefinition:
+    try:
+        return catalog.set_published(form_id, version, request.published)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

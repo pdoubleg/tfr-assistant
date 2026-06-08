@@ -544,12 +544,14 @@ class BatchReviewGenerationService:
                 if item.manual_result.form_version != request.form_version:
                     raise ValueError(f"Manual entry row {index} uses a different form version.")
         try:
-            catalog.get_form(request.form_id, request.form_version)
+            catalog.get_published_form(request.form_id, request.form_version)
         except KeyError as exc:
             raise ValueError(
                 f"Registered form {request.form_id}@{request.form_version} was not "
                 "found in the form catalog."
             ) from exc
+        except PermissionError as exc:
+            raise ValueError(str(exc)) from exc
 
     def _source_for_request(self, request: BatchCreateRequest) -> str:
         if request.input_mode == "manual_entry":

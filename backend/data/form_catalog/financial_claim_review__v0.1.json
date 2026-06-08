@@ -2,6 +2,7 @@
   "id": "financial_claim_review",
   "version": "v0.1",
   "title": "Financial Claim Review",
+  "published": true,
   "form_kind": "financial",
   "description": "Flat financial audit form for overwrite and underwrite exception review.",
   "tools": [],

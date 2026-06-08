@@ -110,7 +110,7 @@ export function BatchQueuePanel({ onBatchCompleted }: BatchQueuePanelProps) {
     setError("");
     try {
       const [nextForms, nextTemplates] = await Promise.all([
-        listFormCatalog(),
+        listFormCatalog({ publishedOnly: true }),
         listBatchTemplates(),
       ]);
       setForms(nextForms);

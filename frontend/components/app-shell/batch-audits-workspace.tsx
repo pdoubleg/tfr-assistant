@@ -285,7 +285,7 @@ export function BatchAuditsWorkspace() {
     setError("");
     try {
       const [nextForms, nextTemplates, nextBatches, nextSummary] = await Promise.all([
-        listFormCatalog(),
+        listFormCatalog({ publishedOnly: true }),
         listBatchTemplates(),
         listBatches(),
         getBatchSummary(),

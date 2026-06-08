@@ -2,6 +2,7 @@
   "id": "exterior_hail",
   "version": "v0.1",
   "title": "Exterior Hail Review",
+  "published": true,
   "description": "Canonical form for exterior hail and wind file reviews.",
   "canonical": {
     "form_id": "exterior_hail",

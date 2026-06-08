@@ -42,6 +42,7 @@ import {
   listReviews,
   listPromptFamilies,
   registerForm,
+  setFormPublication,
   setPromptAlias,
   setPromptActivation,
 } from "@/lib/api";
@@ -63,6 +64,7 @@ import { cn } from "@/lib/utils";
 
 type DialogMode = "create" | "edit";
 type UsageFilter = "all" | "used" | "unused";
+type PublicationFilter = "all" | "published" | "unpublished";
 type PreviewMode = "form" | "json" | "string";
 type PromptViewerMode = "prompt" | "diff";
 
@@ -105,6 +107,7 @@ interface FormEditorState {
   id: string;
   version: string;
   title: string;
+  published: boolean;
   formKind: FormKind;
   modelName: string;
   description: string;
@@ -379,6 +382,7 @@ function buildDefinition(state: FormEditorState): AuditFormDefinition {
     id: canonical.form_id,
     version: canonical.form_version,
     title: canonical.title,
+    published: state.published,
     form_kind: canonical.form_kind ?? state.formKind,
     model_name: state.modelName || DEFAULT_AUDIT_MODEL_NAME,
     description: canonical.description,
@@ -441,6 +445,7 @@ function definitionToState(
   const description = definition?.description ?? canonical?.description ?? "";
   const formKind = definition?.form_kind ?? canonical?.form_kind ?? "standard";
   const modelName = definition?.model_name ?? DEFAULT_AUDIT_MODEL_NAME;
+  const published = mode === "edit" ? false : definition?.published ?? false;
   const questions = canonical?.questions?.length
       ? canonical.questions.map((question) => ({
         ...question,
@@ -463,6 +468,7 @@ function definitionToState(
     id: baseId,
     version,
     title,
+    published,
     formKind,
     modelName,
     description,
@@ -606,6 +612,7 @@ function FormCatalogRow({
       className={cn(
         "grid w-full gap-3 border-b px-4 py-3 text-left transition-colors hover:bg-secondary/45",
         compact ? "grid-cols-1" : "md:grid-cols-[minmax(0,1fr)_auto]",
+        form.published && "border-l-4 border-l-emerald-500 bg-emerald-500/5",
         selected && "border-primary bg-primary/5",
       )}
     >
@@ -613,6 +620,7 @@ function FormCatalogRow({
         <div className="flex flex-wrap items-center gap-2">
           <p className="truncate text-sm font-medium">{form.title}</p>
           {selected ? <Badge variant="outline">Open</Badge> : null}
+          {form.published ? <Badge variant="success">Published</Badge> : null}
           <Badge variant="outline" className="font-mono text-[10px]">
             {form.id}@{form.version}
           </Badge>
@@ -628,6 +636,7 @@ function FormCatalogRow({
         <Badge variant={form.reviewCount ? "success" : "secondary"}>
           {form.reviewCount ? "used" : "unused"}
         </Badge>
+        {!form.published ? <Badge variant="secondary">Unpublished</Badge> : null}
         <Badge variant="outline">{form.formKind}</Badge>
         <Badge variant="outline">{form.questionCount} questions</Badge>
         {form.formKind === "standard" ? (
@@ -1491,6 +1500,7 @@ export function FormCatalog() {
   const [modelOptions, setModelOptions] = useState<ChatModelOption[]>([]);
   const [query, setQuery] = useState("");
   const [usageFilter, setUsageFilter] = useState<UsageFilter>("all");
+  const [publicationFilter, setPublicationFilter] = useState<PublicationFilter>("all");
   const [selectedKey, setSelectedKey] = useState("");
   const [selectedDefinition, setSelectedDefinition] = useState<AuditFormDefinition | null>(null);
   const [promptFamilies, setPromptFamilies] = useState<PromptFamilyRecord[]>([]);
@@ -1498,6 +1508,7 @@ export function FormCatalog() {
   const [definitionLoading, setDefinitionLoading] = useState(false);
   const [promptLoading, setPromptLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [publishingKey, setPublishingKey] = useState("");
   const [error, setError] = useState("");
   const [promptError, setPromptError] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -1600,9 +1611,12 @@ export function FormCatalog() {
       const matchesUsage =
         usageFilter === "all" ||
         (usageFilter === "used" ? form.reviewCount > 0 : form.reviewCount === 0);
-      return matchesQuery && matchesUsage;
+      const matchesPublication =
+        publicationFilter === "all" ||
+        (publicationFilter === "published" ? form.published : !form.published);
+      return matchesQuery && matchesUsage && matchesPublication;
     });
-  }, [forms, query, usageFilter]);
+  }, [forms, publicationFilter, query, usageFilter]);
 
   const selectedForm = useMemo(
     () => forms.find((form) => formKey(form) === selectedKey) ?? null,
@@ -1624,6 +1638,7 @@ export function FormCatalog() {
   const aggregateStats = useMemo(
     () => ({
       forms: filteredForms.length,
+      published: filteredForms.reduce((total, form) => total + (form.published ? 1 : 0), 0),
       questions: filteredForms.reduce((total, form) => total + form.questionCount, 0),
       subQuestions: filteredForms.reduce((total, form) => total + form.subQuestionCount, 0),
       reviews: filteredForms.reduce((total, form) => total + form.reviewCount, 0),
@@ -1632,6 +1647,7 @@ export function FormCatalog() {
     [filteredForms],
   );
   const hasSelection = Boolean(selectedKey);
+  const selectedPublicationChanging = selectedForm ? publishingKey === formKey(selectedForm) : false;
 
   const openCreate = () => {
     setDialogMode("create");
@@ -1648,7 +1664,8 @@ export function FormCatalog() {
     setSaving(true);
     setError("");
     try {
-      const saved = await registerForm(definition);
+      const shouldPublish = definition.published ?? false;
+      const saved = await registerForm({ ...definition, published: false });
       const promptText = initialPrompt.trim();
       const promptVersion = await createPromptVersion({
         form_id: saved.id,
@@ -1667,14 +1684,38 @@ export function FormCatalog() {
         scope: "form_version",
         notes: `Activated initial prompt for ${saved.id}@${saved.version}.`,
       });
+      const finalDefinition = shouldPublish
+        ? await setFormPublication(saved.id, saved.version, true)
+        : saved;
       setDialogOpen(false);
       await refresh();
-      setSelectedKey(`${saved.id}@${saved.version}`);
+      setSelectedDefinition(finalDefinition);
+      setSelectedKey(`${finalDefinition.id}@${finalDefinition.version}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to register form.");
       throw err;
     } finally {
       setSaving(false);
+    }
+  };
+
+  const updateSelectedPublication = async (published: boolean) => {
+    if (!selectedForm) return;
+    const key = formKey(selectedForm);
+    setPublishingKey(key);
+    setError("");
+    try {
+      const updated = await setFormPublication(selectedForm.id, selectedForm.version, published);
+      setForms((current) =>
+        current.map((form) =>
+          formKey(form) === key ? { ...form, published: updated.published ?? published } : form,
+        ),
+      );
+      setSelectedDefinition(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update publication status.");
+    } finally {
+      setPublishingKey("");
     }
   };
 
@@ -1760,7 +1801,7 @@ export function FormCatalog() {
               </div>
             ) : null}
 
-            <div className={cn("grid gap-3 border-b bg-secondary/35 p-3", hasSelection ? "grid-cols-1" : "lg:grid-cols-[minmax(220px,1fr)_180px]")}>
+            <div className={cn("grid gap-3 border-b bg-secondary/35 p-3", hasSelection ? "grid-cols-1" : "lg:grid-cols-[minmax(220px,1fr)_180px_180px]")}>
               <label className="relative">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -1779,10 +1820,20 @@ export function FormCatalog() {
                 <option value="used">Used in reviews</option>
                 <option value="unused">Unused</option>
               </select>
+              <select
+                value={publicationFilter}
+                onChange={(event) => setPublicationFilter(event.target.value as PublicationFilter)}
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="all">All publication</option>
+                <option value="published">Published</option>
+                <option value="unpublished">Unpublished</option>
+              </select>
             </div>
 
-            <div className={cn("grid gap-2 px-4", hasSelection ? "grid-cols-2" : "sm:grid-cols-5")}>
+            <div className={cn("grid gap-2 px-4", hasSelection ? "grid-cols-2" : "sm:grid-cols-6")}>
               <MetadataPill label="Visible" value={aggregateStats.forms} />
+              <MetadataPill label="Published" value={aggregateStats.published} />
               <MetadataPill label="Questions" value={aggregateStats.questions} />
               <MetadataPill label="Sub-Questions" value={aggregateStats.subQuestions} />
               <MetadataPill label="Reviews" value={aggregateStats.reviews} />
@@ -1829,6 +1880,23 @@ export function FormCatalog() {
                 Selected Form
               </CardTitle>
               <div className="flex items-center gap-2">
+                {selectedForm ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={selectedForm.published ? "outline" : "default"}
+                    className="gap-1.5"
+                    onClick={() => void updateSelectedPublication(!selectedForm.published)}
+                    disabled={selectedPublicationChanging}
+                  >
+                    {selectedPublicationChanging ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                    )}
+                    {selectedForm.published ? "Unpublish" : "Publish"}
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
                   size="sm"
@@ -1869,6 +1937,9 @@ export function FormCatalog() {
                     <h2 className="text-lg font-semibold">{selectedDefinition.title}</h2>
                     <Badge variant="outline" className="font-mono text-[10px]">
                       {selectedDefinition.id}@{selectedDefinition.version}
+                    </Badge>
+                    <Badge variant={selectedForm.published ? "success" : "secondary"}>
+                      {selectedForm.published ? "Published" : "Unpublished"}
                     </Badge>
                     <Badge variant="secondary" className="font-mono text-[10px]">
                       {selectedDefinition.model_name ?? DEFAULT_AUDIT_MODEL_NAME}
@@ -2376,6 +2447,26 @@ function FormRegistrationDialog({
                 </div>
               </div>
             </div>
+
+            <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border bg-background p-4">
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold">
+                  {state.published ? "Publish on save" : "Keep unpublished"}
+                </span>
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  {state.published ? "Batch Audits and chat" : "Draft catalog version"}
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                checked={state.published}
+                onChange={(event) =>
+                  setState((current) => ({ ...current, published: event.target.checked }))
+                }
+                disabled={saving}
+                className="h-4 w-4"
+              />
+            </label>
 
             <div className="rounded-lg border bg-background p-4">
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.7fr)]">

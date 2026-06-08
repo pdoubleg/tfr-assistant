@@ -1592,6 +1592,9 @@ function formatToolStatusMessage(
       ? "Selected-row SQL context loaded."
       : "Reading selected-row SQL context...";
   }
+  if (name === "get_registered_forms_listing") {
+    return completed ? "Published form catalog loaded." : "Loading published form catalog...";
+  }
   if (name.startsWith("get_")) {
     return completed ? "Database inspection completed." : "Inspecting database...";
   }
@@ -1636,6 +1639,17 @@ function toolResultCodePreview(
   args: string | undefined,
   result: string | undefined,
 ): ToolCodePreview | undefined {
+  if (name === "get_registered_forms_listing") {
+    const markdown = extractToolReturnValueString(result).trim();
+    if (!markdown) return undefined;
+    return {
+      code: markdown,
+      language: "markdown",
+      title: "Published Forms",
+      caption: "Form catalog available to chat",
+      defaultOpen: true,
+    };
+  }
   if (!isHelpToolName(name) || !result?.trim()) return undefined;
   const parsed = parseToolArgs(args);
   const target = getStringArg(parsed, "name").trim() || "overview";
@@ -1646,6 +1660,32 @@ function toolResultCodePreview(
     caption: `Python repl help: ${target}`,
     defaultOpen: false,
   };
+}
+
+function extractToolReturnValueString(result: string | undefined): string {
+  if (!result?.trim()) return "";
+  try {
+    return stringifyToolReturnValue(JSON.parse(result));
+  } catch {
+    return result;
+  }
+}
+
+function stringifyToolReturnValue(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (!value || typeof value !== "object") return "";
+  const record = value as {
+    content?: unknown;
+    result?: unknown;
+    return_value?: unknown;
+    returnValue?: unknown;
+  };
+  return (
+    stringifyToolReturnValue(record.return_value) ||
+    stringifyToolReturnValue(record.returnValue) ||
+    stringifyToolReturnValue(record.result) ||
+    stringifyToolReturnValue(record.content)
+  );
 }
 
 function isExecuteToolName(name: string): boolean {
