@@ -53,7 +53,6 @@ class OptimizationRepository:
         form_id: str,
         form_version: str,
         search: str = "",
-        include_demo: bool = True,
     ) -> list[OptimizationCaseRecord]:
         statement = (
             select(EvalCaseORM, EvalDatasetORM)
@@ -65,8 +64,6 @@ class OptimizationRepository:
         records: list[OptimizationCaseRecord] = []
         query = search.strip().lower()
         for case, dataset in rows:
-            if not include_demo and dataset.source_kind == "optimization_demo":
-                continue
             truths = (
                 await self.session.scalars(
                     select(EvalGroundTruthORM)

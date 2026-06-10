@@ -58,7 +58,16 @@ def test_review_agent_registers_every_canonical_form_tool() -> None:
 
 
 def test_prepare_review_agent_tools_filters_to_enabled_pairs() -> None:
-    ctx = SimpleNamespace(deps=SimpleNamespace(tools=["Documents", "Policy Docs"]))
+    ctx = SimpleNamespace(
+        deps=SimpleNamespace(
+            tools=[
+                ReviewAgentToolName.GET_CLAIM_DOCUMENTS_METADATA.value,
+                ReviewAgentToolName.GET_CLAIM_DOCUMENT_CONTENT.value,
+                ReviewAgentToolName.GET_POLICY_DOCUMENTS_METADATA.value,
+                ReviewAgentToolName.GET_POLICY_DOCUMENT_CONTENT.value,
+            ]
+        )
+    )
     tool_defs = [ToolDefinition(name=tool.value) for tool in ALL_REVIEW_AGENT_TOOLS]
 
     prepared = asyncio.run(_prepare_review_agent_tools(ctx, tool_defs))

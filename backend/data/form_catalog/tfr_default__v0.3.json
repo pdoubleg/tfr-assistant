@@ -6,7 +6,7 @@
   "form_kind": "standard",
   "description": "Starter canonical form used while the audit system is still evolving.",
   "tools": [
-    "Notes"
+    "get_claim_notes"
   ],
   "knowledge_docs": [
     "HELP-123456"

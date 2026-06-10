@@ -2,20 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
-import random
-import re
-import warnings
-from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any, Literal
 from uuid import uuid4
 
-import numpy as np
-from sklearn.cluster import KMeans
-from sklearn.exceptions import ConvergenceWarning
-from sklearn.metrics import silhouette_score
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -32,9 +22,7 @@ from app.db.models import (
     FeedbackORM,
 )
 from app.models.audit import (
-    AuditFormWithFinancialsResult,
     AuditResult,
-    compact_audit_result_text,
     financial_totals,
     parse_audit_result,
 )
@@ -49,7 +37,6 @@ from app.schemas.datasets import (
     DatasetCloneRequest,
     DatasetClusterRequest,
     DatasetClusterResult,
-    DatasetMaterializeResponse,
     DatasetPopulationCreate,
     DatasetPopulationDetail,
     DatasetPopulationRecord,
@@ -58,18 +45,19 @@ from app.schemas.datasets import (
     DatasetReference,
     DatasetSampleRequest,
     DatasetSampleResult,
-    DatasetSourceAddRequest,
-    DatasetSourceBrowseRequest,
-    DatasetSourceFetchRequest,
-    DatasetSourceRecord,
     DatasetSourceRowRecord,
     PublishedDatasetRow,
 )
 from app.schemas.evaluations import EvalCaseCreate, EvalDatasetCreate
 from app.services.catalog import FormCatalog
+from app.services.datasets.clustering import (
+    _candidate_vectors,
+    _cluster_vectors,
+    _sample_candidates,
+    _sample_reason,
+)
 from app.services.evaluation_service import EvaluationRepository
 from app.services.optimization.metrics import driver_count, issue_count
-from app.services.review_repository import ReviewRepository
 
 
 def _now() -> datetime:
@@ -89,25 +77,6 @@ def _string(value: Any) -> str:
 
 def _payload_for(result: AuditResult) -> dict[str, Any]:
     return result.model_dump(mode="json")
-
-
-def _result_text(result: AuditResult) -> str:
-    return compact_audit_result_text(result)
-
-
-def _candidate_text(candidate: DatasetCandidateORM) -> str:
-    parts = [
-        candidate.claim_number,
-        candidate.instructions,
-        json.dumps(candidate.input_json or {}, ensure_ascii=False, default=str),
-    ]
-    for reference in candidate.references_json or []:
-        try:
-            result = parse_audit_result(reference.get("result"))
-        except Exception:
-            continue
-        parts.append(_result_text(result))
-    return "\n".join(part for part in parts if part)
 
 
 def _candidate_metrics(result: AuditResult) -> dict[str, Any]:
@@ -170,213 +139,11 @@ def _reference_payload(reference: DatasetReference) -> dict[str, Any]:
     }
 
 
-def _materialized_source_for(source_key: str) -> str:
-    source = f"dataset:{source_key}"
-    return source if len(source) <= 32 else source[:32]
-
-
-@dataclass(frozen=True, slots=True)
-class DatasetSourceDefinition:
-    id: str
-    label: str
-    kind: str
-    description: str
-
-
-class DatasetSourceRegistry:
-    """Registry for code-owned dataset population sources.
-
-    The placeholder source mirrors the future Snowflake query helper shape: developers only
-    replace the fetch implementation and keep returning CanonicalDatasetCandidate.
-    """
-
-    placeholder_source = DatasetSourceDefinition(
-        id="sister_app_placeholder",
-        label="Sister App Placeholder",
-        kind="external_named_query",
-        description="Dummy rows shaped like the future sister-application Snowflake extract.",
-    )
-
-    def __init__(self, catalog: FormCatalog) -> None:
-        self.catalog = catalog
-
-    def list_for_form(self, form_id: str, form_version: str) -> list[DatasetSourceRecord]:
-        self.catalog.get_form(form_id, form_version)
-        source = self.placeholder_source
-        return [
-            DatasetSourceRecord(
-                id=source.id,
-                label=source.label,
-                kind=source.kind,  # type: ignore[arg-type]
-                form_id=form_id,
-                form_versions=[form_version],
-                description=source.description,
-                params_schema={
-                    "type": "object",
-                    "properties": {
-                        "count": {
-                            "type": "integer",
-                            "minimum": 1,
-                            "maximum": 100,
-                            "default": 12,
-                        }
-                    },
-                },
-            )
-        ]
-
-    def fetch(
-        self,
-        source_id: str,
-        *,
-        form_id: str,
-        form_version: str,
-        params: dict[str, Any] | None = None,
-    ) -> list[CanonicalDatasetCandidate]:
-        if source_id != self.placeholder_source.id:
-            raise KeyError(f"Unknown dataset source: {source_id}")
-        definition = self.catalog.get_form(form_id, form_version)
-        count = int((params or {}).get("count") or 12)
-        count = max(1, min(count, 100))
-        return [
-            _dummy_candidate(definition.canonical, index, self.placeholder_source)
-            for index in range(1, count + 1)
-        ]
-
-
-def _dummy_candidate(
-    canonical: AuditResult,
-    index: int,
-    source: DatasetSourceDefinition,
-) -> CanonicalDatasetCandidate:
-    failing = index % 3 == 0 or index % 5 == 0
-    result = _dummy_result(canonical, index, failing)
-    note = (
-        f"Placeholder sister-app case {index}: "
-        f"{'exception evidence present' if failing else 'support appears complete'}."
-    )
-    return CanonicalDatasetCandidate(
-        source_key=source.id,
-        source_kind=source.kind,
-        source_label=source.label,
-        source_record_id=f"{canonical.form_id}:{canonical.form_version}:dummy:{index:03d}",
-        claim_number=f"EXT-{canonical.form_id.upper()}-{index:03d}",
-        effective_date="2026-05-31",
-        instructions=f"Review the sister-app audit packet. {note}",
-        input={
-            "prompt": note,
-            "external_source": source.id,
-            "placeholder": True,
-        },
-        references=[
-            DatasetReference(
-                reference_kind="R2",
-                result=result,
-                reviewer="sister-app-placeholder",
-                source_metadata={"placeholder": True, "row_index": index},
-            )
-        ],
-        metadata={
-            "external_query_id": source.id,
-            "external_record_id": f"dummy-{index:03d}",
-            "placeholder": True,
-        },
-        tags=["placeholder", "external"],
-    )
-
-
-def _dummy_result(canonical: AuditResult, index: int, failing: bool) -> AuditResult:
-    if isinstance(canonical, AuditFormWithFinancialsResult):
-        questions = []
-        for q_index, question in enumerate(canonical.questions, start=1):
-            overwrite = float(index * 37) if failing and q_index == 1 else 0
-            underwrite = float(index * 19) if failing and q_index == 2 else 0
-            questions.append(
-                question.model_copy(
-                    update={
-                        "answer": "No" if overwrite or underwrite else "Yes",
-                        "comments": (
-                            "Placeholder financial exception from sister-app extract."
-                            if overwrite or underwrite
-                            else "Placeholder review found no financial exception."
-                        ),
-                        "citations": "Placeholder source row.",
-                        "overwrite_dollars": overwrite,
-                        "underwrite_dollars": underwrite,
-                    }
-                )
-            )
-        return canonical.model_copy(
-            deep=True,
-            update={
-                "total_amount_reviewed_dollars": max(1, index * 1000),
-                "questions": questions,
-                "overall_outcome": "Does Not Meet" if failing else "Meets",
-                "outcome_justification": (
-                    "Placeholder case has financial exceptions."
-                    if failing
-                    else "Placeholder case has no financial exceptions."
-                ),
-            },
-        )
-
-    questions = []
-    for q_index, question in enumerate(canonical.questions, start=1):
-        sub_questions = []
-        for sub_index, sub_question in enumerate(question.sub_questions or [], start=1):
-            applies = failing and q_index == 1 and sub_index == 1
-            sub_questions.append(
-                sub_question.model_copy(
-                    update={
-                        "answer": applies,
-                        "reasoning": (
-                            "Placeholder sister-app evidence activates this driver."
-                            if applies
-                            else ""
-                        ),
-                        "citations": "Placeholder source row." if applies else "",
-                    }
-                )
-            )
-        has_driver = any(sub.answer for sub in sub_questions)
-        is_no = failing and (q_index == 1 or not sub_questions)
-        questions.append(
-            question.model_copy(
-                update={
-                    "answer": "No" if is_no or has_driver else "Yes",
-                    "comments": (
-                        "Placeholder exception evidence found."
-                        if is_no and not sub_questions
-                        else "Placeholder evidence supports the answer."
-                    ),
-                    "citations": "Placeholder source row.",
-                    "sub_questions": sub_questions or None,
-                }
-            )
-        )
-    return canonical.model_copy(
-        deep=True,
-        update={
-            "questions": questions,
-            "overall_outcome": "Does Not Meet" if failing else "Meets",
-            "outcome_justification": (
-                "Placeholder case contains exception evidence."
-                if failing
-                else "Placeholder case satisfies the audit form."
-            ),
-        },
-    )
-
-
 class DatasetRepository:
     def __init__(self, session: AsyncSession, settings: Settings | None = None) -> None:
         self.session = session
         self.settings = settings or get_settings()
         self.catalog = FormCatalog(self.settings.form_catalog_dir)
-        self.sources = DatasetSourceRegistry(self.catalog)
-
-    def list_sources(self, form_id: str, form_version: str) -> list[DatasetSourceRecord]:
-        return self.sources.list_for_form(form_id, form_version)
 
     async def create_population(self, request: DatasetPopulationCreate) -> DatasetPopulationRecord:
         form = self.catalog.get_form(request.form_id, request.form_version)
@@ -430,131 +197,6 @@ class DatasetRepository:
         return DatasetPopulationDetail(
             **base.model_dump(),
             candidates=[self._candidate_to_schema(candidate) for candidate in candidates],
-        )
-
-    async def fetch_source(
-        self,
-        population_id: str,
-        request: DatasetSourceFetchRequest,
-    ) -> DatasetAddCandidatesResponse:
-        population = await self._get_population_orm(population_id)
-        self._require_draft_population(population)
-        candidates = self._fetch_source_candidates(
-            request.source_id,
-            form_id=population.form_id,
-            form_version=population.form_version,
-            params=request.params,
-        )
-        population.source_config_json = {
-            "last_source_id": request.source_id,
-            "last_params": request.params,
-            "last_fetched_at": _now().isoformat(),
-        }
-        return await self._add_canonical_candidates(population, candidates)
-
-    async def browse_source(
-        self,
-        form_id: str,
-        form_version: str,
-        request: DatasetSourceBrowseRequest,
-    ) -> list[DatasetSourceRowRecord]:
-        candidates = self._fetch_source_candidates(
-            request.source_id,
-            form_id=form_id,
-            form_version=form_version,
-            params=request.params,
-        )
-        return [
-            self._candidate_to_source_row(candidate) for candidate in candidates[: request.limit]
-        ]
-
-    async def add_source_candidates(
-        self,
-        population_id: str,
-        request: DatasetSourceAddRequest,
-    ) -> DatasetAddCandidatesResponse:
-        population = await self._get_population_orm(population_id)
-        self._require_draft_population(population)
-        candidates = self._fetch_source_candidates(
-            request.source_id,
-            form_id=population.form_id,
-            form_version=population.form_version,
-            params=request.params,
-        )[: request.limit]
-        if not request.add_all_filtered:
-            selected_ids = set(request.source_record_ids)
-            if not selected_ids:
-                raise ValueError("Select at least one source row before adding candidates.")
-            candidates = [
-                candidate for candidate in candidates if candidate.source_record_id in selected_ids
-            ]
-        population.source_config_json = {
-            "last_source_id": request.source_id,
-            "last_params": request.params,
-            "last_added_at": _now().isoformat(),
-            "last_selected_count": len(candidates),
-            "last_add_all_filtered": request.add_all_filtered,
-        }
-        return await self._add_canonical_candidates(population, candidates)
-
-    async def materialize_source_reviews(
-        self,
-        form_id: str,
-        form_version: str,
-        request: DatasetSourceAddRequest,
-    ) -> DatasetMaterializeResponse:
-        self.catalog.get_form(form_id, form_version)
-        candidates = self._fetch_source_candidates(
-            request.source_id,
-            form_id=form_id,
-            form_version=form_version,
-            params=request.params,
-        )[: request.limit]
-        if not request.add_all_filtered:
-            selected_ids = set(request.source_record_ids)
-            if not selected_ids:
-                raise ValueError("Select at least one source row before importing reviews.")
-            candidates = [
-                candidate for candidate in candidates if candidate.source_record_id in selected_ids
-            ]
-
-        created_ids: list[str] = []
-        skipped_ids: list[str] = []
-        repository = ReviewRepository(self.session)
-        for candidate in candidates:
-            if await self._materialized_review_exists(candidate):
-                skipped_ids.append(candidate.source_record_id)
-                continue
-            reference = next(
-                (item for item in candidate.references if item.reference_kind == "R2"),
-                candidate.references[0],
-            )
-            input_json = {
-                **candidate.input,
-                "claim_number": candidate.claim_number,
-                "effective_date": candidate.effective_date,
-                "instructions": candidate.instructions,
-                "dataset_materialized": True,
-                "dataset_source_key": candidate.source_key,
-                "dataset_source_kind": candidate.source_kind,
-                "dataset_source_label": candidate.source_label,
-                "dataset_source_record_id": candidate.source_record_id,
-                "dataset_source_metadata": candidate.metadata or {},
-                "dataset_reference_kind": reference.reference_kind,
-                "dataset_reference_source_metadata": reference.source_metadata or {},
-            }
-            review = await repository.create_from_agent_output(
-                reference.result,
-                source=_materialized_source_for(candidate.source_key),
-                input_json=input_json,
-            )
-            created_ids.append(review.id)
-
-        return DatasetMaterializeResponse(
-            created_count=len(created_ids),
-            skipped_count=len(skipped_ids),
-            review_ids=created_ids,
-            skipped_source_record_ids=skipped_ids,
         )
 
     async def browse_app_db_source(
@@ -1086,65 +728,6 @@ class DatasetRepository:
             )
         return output
 
-    def _fetch_source_candidates(
-        self,
-        source_id: str,
-        *,
-        form_id: str,
-        form_version: str,
-        params: dict[str, Any] | None,
-    ) -> list[CanonicalDatasetCandidate]:
-        form = self.catalog.get_form(form_id, form_version)
-        candidates = self.sources.fetch(
-            source_id,
-            form_id=form_id,
-            form_version=form_version,
-            params=params,
-        )
-        for candidate in candidates:
-            population_shape = DatasetPopulationORM(
-                id="validation-only",
-                name="validation-only",
-                description="",
-                form_id=form_id,
-                form_version=form_version,
-                form_kind=form.form_kind,
-                status="draft",
-            )
-            self._validate_candidate(candidate, population_shape)
-        return candidates
-
-    def _candidate_to_source_row(
-        self,
-        candidate: CanonicalDatasetCandidate,
-    ) -> DatasetSourceRowRecord:
-        preferred = next(
-            (
-                reference.result
-                for reference in candidate.references
-                if reference.reference_kind == "R2"
-            ),
-            candidate.references[0].result,
-        )
-        metrics = _candidate_metrics(preferred)
-        return DatasetSourceRowRecord(
-            source_record_id=candidate.source_record_id,
-            review_id=candidate.source_record_id,
-            source_id=candidate.source_key,
-            source_kind=candidate.source_kind,
-            source_label=candidate.source_label,
-            source=candidate.source_label or candidate.source_key,
-            claim_number=candidate.claim_number,
-            effective_date=candidate.effective_date,
-            title=preferred.title,
-            outcome=preferred.overall_outcome,
-            issue_count=int(metrics["issue_count"]),
-            driver_count=int(metrics["driver_count"]),
-            total_amount_reviewed_dollars=metrics["total_amount_reviewed_dollars"],
-            total_overwrite_dollars=metrics["total_overwrite_dollars"],
-            total_underwrite_dollars=metrics["total_underwrite_dollars"],
-        )
-
     async def _add_canonical_candidates(
         self,
         population: DatasetPopulationORM,
@@ -1285,28 +868,6 @@ class DatasetRepository:
 
         population.updated_at = _now()
         self.session.add(population)
-
-    async def _materialized_review_exists(self, candidate: CanonicalDatasetCandidate) -> bool:
-        source = _materialized_source_for(candidate.source_key)
-        records = (
-            await self.session.scalars(
-                select(AuditReviewORM).where(
-                    AuditReviewORM.form_id == candidate.references[0].result.form_id,
-                    AuditReviewORM.form_version == candidate.references[0].result.form_version,
-                    AuditReviewORM.status == "completed",
-                    AuditReviewORM.source == source,
-                )
-            )
-        ).all()
-        for record in records:
-            input_json = record.input_json or {}
-            if (
-                input_json.get("dataset_materialized") is True
-                and input_json.get("dataset_source_key") == candidate.source_key
-                and input_json.get("dataset_source_record_id") == candidate.source_record_id
-            ):
-                return True
-        return False
 
     async def _app_db_review_rows(
         self,
@@ -1668,354 +1229,3 @@ class DatasetRepository:
         if not candidate:
             raise KeyError(f"Unknown dataset candidate: {candidate_id}")
         return candidate
-
-
-def _candidate_vectors(
-    candidates: list[DatasetCandidateORM],
-    settings: Settings,
-    request: DatasetClusterRequest,
-) -> tuple[list[list[float]], str]:
-    semantic_vectors, backend = _minilm_vectors(candidates, settings)
-    if semantic_vectors is None:
-        semantic_vectors = _lexical_vectors(candidates)
-        backend = "lexical"
-    structured = _structured_vectors(candidates)
-    semantic_weight = request.semantic_weight
-    structured_weight = request.structured_weight
-    vectors = []
-    for semantic, struct in zip(semantic_vectors, structured, strict=True):
-        vectors.append(
-            _l2_normalize(
-                [
-                    *(value * semantic_weight for value in semantic),
-                    *(value * structured_weight for value in struct),
-                ]
-            )
-        )
-    return vectors, backend
-
-
-def _minilm_vectors(
-    candidates: list[DatasetCandidateORM],
-    settings: Settings,
-) -> tuple[list[list[float]], str] | tuple[None, str]:
-    model_dir = getattr(
-        settings,
-        "dataset_embedding_model_dir",
-        settings.data_dir / "models" / "all-MiniLM-L6-v2",
-    )
-    model_dir = Path(model_dir)
-    model_path = model_dir / "onnx" / "model_quantized.onnx"
-    tokenizer_path = model_dir / "tokenizer.json"
-    if not model_path.exists() or not tokenizer_path.exists():
-        return None, "lexical"
-    try:
-        import onnxruntime as ort
-        from tokenizers import Tokenizer
-    except Exception:
-        return None, "lexical"
-    try:
-        tokenizer = Tokenizer.from_file(str(tokenizer_path))
-        session = ort.InferenceSession(str(model_path), providers=["CPUExecutionProvider"])
-        texts = [_candidate_text(candidate) for candidate in candidates]
-        encodings = tokenizer.encode_batch(texts)
-        max_length = min(max((len(encoding.ids) for encoding in encodings), default=1), 256)
-        input_ids = []
-        attention_mask = []
-        token_type_ids = []
-        for encoding in encodings:
-            ids = encoding.ids[:max_length]
-            mask = encoding.attention_mask[:max_length]
-            types = encoding.type_ids[:max_length] if encoding.type_ids else [0] * len(ids)
-            pad = max_length - len(ids)
-            input_ids.append(ids + [0] * pad)
-            attention_mask.append(mask + [0] * pad)
-            token_type_ids.append(types + [0] * pad)
-        feeds = {
-            "input_ids": np.asarray(input_ids, dtype=np.int64),
-            "attention_mask": np.asarray(attention_mask, dtype=np.int64),
-        }
-        input_names = {item.name for item in session.get_inputs()}
-        if "token_type_ids" in input_names:
-            feeds["token_type_ids"] = np.asarray(token_type_ids, dtype=np.int64)
-        output = session.run(None, feeds)[0]
-        mask = feeds["attention_mask"].astype(np.float32)[..., None]
-        pooled = (output * mask).sum(axis=1) / np.clip(mask.sum(axis=1), 1e-9, None)
-        vectors = [_l2_normalize(row.astype(float).tolist()) for row in pooled]
-        return vectors, "minilm_onnx"
-    except Exception:
-        return None, "lexical"
-
-
-def _lexical_vectors(candidates: list[DatasetCandidateORM]) -> list[list[float]]:
-    docs = [_tokens(_candidate_text(candidate)) for candidate in candidates]
-    vocab: dict[str, int] = {}
-    for doc in docs:
-        for token in sorted(set(doc)):
-            if len(vocab) >= 256:
-                break
-            vocab.setdefault(token, len(vocab))
-    if not vocab:
-        return [[0.0] for _ in candidates]
-    doc_freq = [0] * len(vocab)
-    for doc in docs:
-        for token in set(doc):
-            index = vocab.get(token)
-            if index is not None:
-                doc_freq[index] += 1
-    vectors = []
-    total_docs = max(1, len(docs))
-    for doc in docs:
-        counts: dict[int, int] = {}
-        for token in doc:
-            index = vocab.get(token)
-            if index is not None:
-                counts[index] = counts.get(index, 0) + 1
-        vector = [0.0] * len(vocab)
-        for index, count in counts.items():
-            idf = math.log((1 + total_docs) / (1 + doc_freq[index])) + 1
-            vector[index] = count * idf
-        vectors.append(_l2_normalize(vector))
-    return vectors
-
-
-def _structured_vectors(candidates: list[DatasetCandidateORM]) -> list[list[float]]:
-    outputs = []
-    for candidate in candidates:
-        metrics = candidate.metrics_json or {}
-        outcome = 1.0 if metrics.get("outcome") == "Does Not Meet" else 0.0
-        outputs.append(
-            _l2_normalize(
-                [
-                    outcome,
-                    float(metrics.get("issue_count") or 0),
-                    float(metrics.get("driver_count") or 0),
-                    math.log1p(float(metrics.get("total_amount_reviewed_dollars") or 0)),
-                    math.log1p(float(metrics.get("total_overwrite_dollars") or 0)),
-                    math.log1p(float(metrics.get("total_underwrite_dollars") or 0)),
-                ]
-            )
-        )
-    return outputs
-
-
-def _tokens(text: str) -> list[str]:
-    return re.findall(r"[a-z0-9]{2,}", text.lower())
-
-
-def _cluster_vectors(
-    vectors: list[list[float]],
-    *,
-    min_k: int,
-    max_k: int,
-    seed: int,
-) -> tuple[int, list[int], list[float], float | None]:
-    matrix = np.asarray(vectors, dtype=float)
-    n = matrix.shape[0]
-    max_k = min(max_k, n)
-    min_k = min(min_k, max_k)
-    if max_k <= 1:
-        model = _fit_kmeans(matrix, 1, seed)
-        return _cluster_model_result(matrix, model, selected_k=1, score=None)
-    if n == 2:
-        model = _fit_kmeans(matrix, 2, seed)
-        return _cluster_model_result(matrix, model, selected_k=2, score=None)
-
-    best: tuple[float | None, int, np.ndarray, np.ndarray] | None = None
-    for k in range(max(2, min_k), max_k + 1):
-        model = _fit_kmeans(matrix, k, seed)
-        labels = model.labels_
-        score = _score_silhouette(matrix, labels)
-        if best is None or _silhouette_rank(score) > _silhouette_rank(best[0]):
-            best = (score, k, labels, model.cluster_centers_)
-    if best is None:
-        model = _fit_kmeans(matrix, 2, seed)
-        best = (_score_silhouette(matrix, model.labels_), 2, model.labels_, model.cluster_centers_)
-    score, selected_k, labels, centroids = best
-    return _cluster_result(matrix, labels, centroids, selected_k=selected_k, score=score)
-
-
-def _cluster_model_result(
-    vectors: np.ndarray,
-    model: KMeans,
-    *,
-    selected_k: int,
-    score: float | None,
-) -> tuple[int, list[int], list[float], float | None]:
-    return _cluster_result(
-        vectors,
-        model.labels_,
-        model.cluster_centers_,
-        selected_k=selected_k,
-        score=score,
-    )
-
-
-def _cluster_result(
-    vectors: np.ndarray,
-    labels: np.ndarray,
-    centroids: np.ndarray,
-    *,
-    selected_k: int,
-    score: float | None,
-) -> tuple[int, list[int], list[float], float | None]:
-    assigned_centroids = centroids[labels]
-    distances = np.linalg.norm(vectors - assigned_centroids, axis=1).astype(float).tolist()
-    return selected_k, labels.astype(int).tolist(), distances, score
-
-
-def _fit_kmeans(vectors: np.ndarray, k: int, seed: int) -> KMeans:
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", ConvergenceWarning)
-        return KMeans(n_clusters=k, random_state=seed, n_init=10).fit(vectors)
-
-
-def _score_silhouette(vectors: np.ndarray, labels: np.ndarray) -> float | None:
-    unique_labels = np.unique(labels)
-    if len(unique_labels) < 2 or len(unique_labels) >= len(labels):
-        return None
-    return float(silhouette_score(vectors, labels, metric="euclidean"))
-
-
-def _silhouette_rank(score: float | None) -> float:
-    return score if score is not None else float("-inf")
-
-
-def _l2_normalize(vector: list[float]) -> list[float]:
-    array = np.asarray(vector, dtype=float)
-    norm = np.linalg.norm(array)
-    if norm == 0:
-        return vector
-    return (array / norm).astype(float).tolist()
-
-
-def _sample_candidates(
-    candidates: list[DatasetCandidateORM],
-    request: DatasetSampleRequest,
-) -> set[str]:
-    included = [candidate for candidate in candidates if candidate.included]
-    if request.mode == "all" or not request.size or request.size >= len(included):
-        return {candidate.id for candidate in included}
-    rng = random.Random(request.seed)
-    size = max(1, request.size)
-    if request.mode == "random":
-        return {candidate.id for candidate in rng.sample(included, size)}
-    if request.mode == "outcome":
-        return _proportional_stratified_sample(
-            included,
-            size,
-            lambda item: str((item.metrics_json or {}).get("outcome") or "unknown"),
-            rng,
-        )
-    if request.mode == "stratified_outcome_issues":
-        return _round_robin_sample(
-            included,
-            size,
-            lambda item: (
-                f"{(item.metrics_json or {}).get('outcome')}:"
-                f"{(item.metrics_json or {}).get('issue_count')}"
-            ),
-            rng,
-        )
-    if request.mode == "cluster_balanced":
-        return _round_robin_sample(
-            included,
-            size,
-            lambda item: str(item.cluster_id if item.cluster_id is not None else "unclustered"),
-            rng,
-        )
-    ordered = sorted(
-        included,
-        key=lambda item: (
-            -(item.cluster_distance or 0),
-            -float((item.metrics_json or {}).get("issue_count") or 0),
-            item.claim_number,
-        ),
-    )
-    return {candidate.id for candidate in ordered[:size]}
-
-
-def _proportional_stratified_sample(
-    candidates: list[DatasetCandidateORM],
-    size: int,
-    key_fn,
-    rng: random.Random,
-) -> set[str]:
-    groups: dict[str, list[DatasetCandidateORM]] = {}
-    for candidate in candidates:
-        groups.setdefault(key_fn(candidate), []).append(candidate)
-    for values in groups.values():
-        rng.shuffle(values)
-
-    total = max(1, len(candidates))
-    quotas = {key: (len(values) / total) * size for key, values in groups.items()}
-    counts = {key: min(len(groups[key]), int(math.floor(quota))) for key, quota in quotas.items()}
-    remaining = size - sum(counts.values())
-    remainder_order = sorted(
-        groups,
-        key=lambda key: (quotas[key] - math.floor(quotas[key]), len(groups[key]), key),
-        reverse=True,
-    )
-    while remaining > 0 and remainder_order:
-        progressed = False
-        for key in remainder_order:
-            if remaining <= 0:
-                break
-            if counts[key] >= len(groups[key]):
-                continue
-            counts[key] += 1
-            remaining -= 1
-            progressed = True
-        if not progressed:
-            break
-
-    selected: set[str] = set()
-    for key in sorted(groups):
-        selected.update(candidate.id for candidate in groups[key][: counts[key]])
-    return selected
-
-
-def _round_robin_sample(
-    candidates: list[DatasetCandidateORM],
-    size: int,
-    key_fn,
-    rng: random.Random,
-) -> set[str]:
-    groups: dict[str, list[DatasetCandidateORM]] = {}
-    for candidate in candidates:
-        groups.setdefault(key_fn(candidate), []).append(candidate)
-    for values in groups.values():
-        rng.shuffle(values)
-    selected: set[str] = set()
-    while len(selected) < size and any(groups.values()):
-        for key in sorted(groups):
-            if len(selected) >= size:
-                break
-            if groups[key]:
-                selected.add(groups[key].pop().id)
-    return selected
-
-
-def _sample_reason(
-    candidate: DatasetCandidateORM,
-    request: DatasetSampleRequest,
-    included: bool,
-) -> str:
-    if request.mode == "all":
-        return "Included by all-candidates sample."
-    if included:
-        if request.mode == "outcome":
-            metrics = candidate.metrics_json or {}
-            return f"Included by outcome-proportional sample for {metrics.get('outcome')}."
-        if request.mode == "cluster_balanced":
-            return f"Included by cluster-balanced sample from cluster {candidate.cluster_id}."
-        if request.mode == "stratified_outcome_issues":
-            metrics = candidate.metrics_json or {}
-            return (
-                "Included by outcome/issues stratum "
-                f"{metrics.get('outcome')} / {metrics.get('issue_count')} issue(s)."
-            )
-        if request.mode == "diversity":
-            return "Included by diversity ranking."
-        return "Included by random sample."
-    return f"Excluded by {request.mode} sample."

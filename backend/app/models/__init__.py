@@ -6,7 +6,6 @@ from app.models.audit import (
     FinancialQuestionResult,
     FormQuestion,
     FormSubQuestion,
-    TFRAnalysisResult,
 )
 from app.models.chat_state import TFRChatState
 
@@ -18,6 +17,5 @@ __all__ = [
     "FinancialQuestionResult",
     "FormQuestion",
     "FormSubQuestion",
-    "TFRAnalysisResult",
     "TFRChatState",
 ]

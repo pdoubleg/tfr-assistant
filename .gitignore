@@ -23,9 +23,16 @@ frontend/next-dev*.log
 !.env.example
 backend/data/*.db
 backend/data/*.db-*
+backend/data/*.db.*
+backend/data/*.backup-*
+backend/data/*.sqlite-backup-*
 backend/data/generated_images/
 backend/data/chat_artifacts/
+backend/data/intake_docs/
 backend/data/models/
+backend/data/optimization_runs/
+backend/data/tmp/
+backend/data/workspace/
 
 # OS / editor
 .DS_Store
@@ -34,8 +41,3 @@ Thumbs.db
 .vscode/
 backend/uvicorn.err.log
 backend/uvicorn.log
-backend/uvicorn.err.log
-backend/uvicorn.err.log
-backend/uvicorn.err.log
-backend/uvicorn.log
-backend/uvicorn.err.log

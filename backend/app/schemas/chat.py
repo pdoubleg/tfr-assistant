@@ -3,20 +3,6 @@ from pydantic import BaseModel, Field
 from app.core.llm import LLMModelAPI, ReasoningEffort
 
 
-class ChatMessage(BaseModel):
-    role: str
-    content: str
-
-
-class ChatRequest(BaseModel):
-    messages: list[ChatMessage] = Field(default_factory=list)
-    active_review_id: str | None = None
-
-
-class ChatResponse(BaseModel):
-    message: ChatMessage
-
-
 class ChatModelOption(BaseModel):
     name: str
     label: str

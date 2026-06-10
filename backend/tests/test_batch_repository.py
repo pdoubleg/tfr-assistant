@@ -32,25 +32,25 @@ async def test_batch_pause_resume_and_retry_failed_reviews(session):
     repository = ReviewRepository(session)
     batch = await repository.create_batch(
         total_count=3,
-        input_json={"name": "Pilot", "form_id": "tfr_default", "form_version": "v0.1"},
+        input_json={"name": "Pilot", "form_id": "tfr_default", "form_version": "v0.3"},
     )
     await repository.create_review_placeholder(
         form_id="tfr_default",
-        form_version="v0.1",
+        form_version="v0.3",
         source="batch",
         batch_id=batch.id,
         status="completed",
     )
     await repository.create_review_placeholder(
         form_id="tfr_default",
-        form_version="v0.1",
+        form_version="v0.3",
         source="batch",
         batch_id=batch.id,
         status="failed",
     )
     await repository.create_review_placeholder(
         form_id="tfr_default",
-        form_version="v0.1",
+        form_version="v0.3",
         source="batch",
         batch_id=batch.id,
         status="queued",
@@ -112,7 +112,7 @@ async def test_synthetic_batch_creates_synth_claims_and_source(session):
         BatchCreateRequest(
             name="Synthetic pilot",
             form_id="tfr_default",
-            form_version="v0.1",
+            form_version="v0.3",
             synthetic=True,
             synthetic_count=2,
             input_mode="synthetic",
@@ -137,7 +137,7 @@ async def test_normal_batch_keeps_generation_prompt_out_of_runtime_context(sessi
         BatchCreateRequest(
             name="Normal pilot",
             form_id="tfr_default",
-            form_version="v0.1",
+            form_version="v0.3",
             generation_prompt="Legacy batch prompt.",
             items=[
                 BatchReviewInput(
@@ -164,7 +164,7 @@ async def test_manual_entry_batch_queues_manual_results_and_completes_without_ag
         FormCatalog(service.settings.form_catalog_dir)
         .get_form(
             "tfr_default",
-            "v0.1",
+            "v0.3",
         )
         .canonical.model_copy(deep=True)
     )
@@ -173,7 +173,7 @@ async def test_manual_entry_batch_queues_manual_results_and_completes_without_ag
         BatchCreateRequest(
             name="Manual entries",
             form_id="tfr_default",
-            form_version="v0.1",
+            form_version="v0.3",
             input_mode="manual_entry",
             items=[
                 BatchReviewInput(
@@ -210,7 +210,7 @@ async def test_manual_entry_allows_yes_without_evidence_and_driver_without_citat
     manual_result = (
         FormCatalog(service.settings.form_catalog_dir)
         .get_form(
-            "interior_water",
+            "exterior_hail",
             "v0.1",
         )
         .canonical.model_copy(deep=True)
@@ -241,7 +241,7 @@ async def test_manual_entry_allows_yes_without_evidence_and_driver_without_citat
     batch = await service.create_batch(
         BatchCreateRequest(
             name="Flexible manual entry",
-            form_id="interior_water",
+            form_id="exterior_hail",
             form_version="v0.1",
             input_mode="manual_entry",
             items=[
@@ -273,7 +273,7 @@ async def test_manual_entry_allows_yes_without_evidence_and_driver_without_citat
 async def test_finalization_tracks_dates_and_resets_on_user_edit(session):
     repository = ReviewRepository(session)
     service = AuditGenerationService(session)
-    canonical = service.catalog.get_form("tfr_default", "v0.1").canonical.model_copy(deep=True)
+    canonical = service.catalog.get_form("tfr_default", "v0.3").canonical.model_copy(deep=True)
     review = await repository.create_from_agent_output(
         canonical,
         source="manual_entry",
@@ -323,11 +323,11 @@ async def test_batch_validation_rejects_mixed_forms_and_bad_intake_rows(session)
             BatchCreateRequest(
                 name="Mixed forms",
                 form_id="tfr_default",
-                form_version="v0.1",
+                form_version="v0.3",
                 items=[
                     BatchReviewInput(
                         claim_number="123",
-                        form_id="interior_water",
+                        form_id="exterior_hail",
                         form_version="v0.1",
                     )
                 ],
@@ -339,7 +339,7 @@ async def test_batch_validation_rejects_mixed_forms_and_bad_intake_rows(session)
             BatchCreateRequest(
                 name="Intake",
                 form_id="tfr_default",
-                form_version="v0.1",
+                form_version="v0.3",
                 input_mode="completed_intake",
                 items=[BatchReviewInput(source_file_ids=[])],
             )

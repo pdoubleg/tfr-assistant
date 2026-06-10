@@ -12,9 +12,6 @@ from app.schemas.datasets import (
     DatasetPopulationCreate,
     DatasetPublishRequest,
     DatasetSampleRequest,
-    DatasetSourceAddRequest,
-    DatasetSourceBrowseRequest,
-    DatasetSourceFetchRequest,
 )
 from app.schemas.evaluations import FeedbackCreate
 from app.services.catalog import FormCatalog
@@ -42,8 +39,95 @@ def test_cluster_vectors_supports_single_cluster_request() -> None:
     assert silhouette is None
 
 
+def _result_variant(settings: Settings, index: int, *, outcome: str = "Meets"):
+    canonical = FormCatalog(settings.form_catalog_dir).get_form("tfr_default", "v0.1").canonical
+    failing = outcome == "Does Not Meet"
+    questions = []
+    for question_index, question in enumerate(canonical.questions, start=1):
+        answer = "No" if failing and question_index == 1 else "Yes"
+        sub_questions = [
+            sub_question.model_copy(
+                deep=True,
+                update={
+                    "answer": answer == "No",
+                    "reasoning": (
+                        f"Case {index} has an issue on {sub_question.id}." if answer == "No" else ""
+                    ),
+                    "citations": (
+                        f"Case {index} citation for {sub_question.id}." if answer == "No" else ""
+                    ),
+                },
+            )
+            for sub_question in question.sub_questions
+        ]
+        questions.append(
+            question.model_copy(
+                deep=True,
+                update={
+                    "answer": answer,
+                    "comments": f"Case {index} answer for {question.id}.",
+                    "citations": f"Case {index} citation for {question.id}.",
+                    "sub_questions": sub_questions,
+                },
+            )
+        )
+    return canonical.model_copy(
+        deep=True,
+        update={
+            "questions": questions,
+            "overall_outcome": outcome,
+            "outcome_justification": f"Curated app DB result {index}: {outcome}.",
+        },
+    )
+
+
+async def _seed_app_db_reviews(session, settings: Settings, *, outcomes: list[str]):
+    reviews = []
+    review_repository = ReviewRepository(session)
+    for index, outcome in enumerate(outcomes, start=1):
+        reviews.append(
+            await review_repository.create_from_agent_output(
+                _result_variant(settings, index, outcome=outcome),
+                source="manual_entry",
+                input_json={
+                    "claim_number": f"CLAIM-{index:03d}",
+                    "effective_date": "2026-05-31",
+                    "instructions": f"Review curated app DB case {index}.",
+                },
+            )
+        )
+    return reviews
+
+
+async def _create_population(repository: DatasetRepository, name: str):
+    return await repository.create_population(
+        DatasetPopulationCreate(
+            name=name,
+            form_id="tfr_default",
+            form_version="v0.1",
+        )
+    )
+
+
+async def _add_app_db_reviews(
+    repository: DatasetRepository,
+    population_id: str,
+    *,
+    limit: int = 100,
+    review_ids: list[str] | None = None,
+):
+    return await repository.add_app_db_source(
+        population_id,
+        DatasetAppDbAddRequest(
+            review_ids=review_ids or [],
+            add_all_filtered=review_ids is None,
+            limit=limit,
+        ),
+    )
+
+
 @pytest.mark.anyio
-async def test_dummy_source_fetch_clusters_and_publishes_dataset(tmp_path) -> None:
+async def test_app_db_source_adds_clusters_and_publishes_dataset(tmp_path) -> None:
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     try:
         async with engine.begin() as connection:
@@ -54,22 +138,15 @@ async def test_dummy_source_fetch_clusters_and_publishes_dataset(tmp_path) -> No
             dataset_embedding_model_dir=tmp_path / "missing-model",
         )
         async with session_factory() as session:
+            await _seed_app_db_reviews(
+                session,
+                settings,
+                outcomes=["Meets", "Meets", "Does Not Meet", "Meets", "Meets", "Does Not Meet"],
+            )
             repository = DatasetRepository(session, settings)
-            population = await repository.create_population(
-                DatasetPopulationCreate(
-                    name="Test population",
-                    form_id="tfr_default",
-                    form_version="v0.1",
-                )
-            )
+            population = await _create_population(repository, "Test population")
 
-            response = await repository.fetch_source(
-                population.id,
-                DatasetSourceFetchRequest(
-                    source_id="sister_app_placeholder",
-                    params={"count": 6},
-                ),
-            )
+            response = await _add_app_db_reviews(repository, population.id, limit=6)
 
             assert response.added_count == 6
             detail = await repository.get_population(population.id)
@@ -92,14 +169,14 @@ async def test_dummy_source_fetch_clusters_and_publishes_dataset(tmp_path) -> No
 
             assert dataset.case_count == 6
             assert len(rows) == 6
-            assert rows[0].metadata["source_key"] == "sister_app_placeholder"
+            assert rows[0].metadata["source_key"] == "app_db_reviews"
             assert rows[0].cluster_id is not None
     finally:
         await engine.dispose()
 
 
 @pytest.mark.anyio
-async def test_code_owned_source_can_preview_and_add_selected_rows(tmp_path) -> None:
+async def test_app_db_source_can_preview_and_add_selected_rows(tmp_path) -> None:
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     try:
         async with engine.begin() as connection:
@@ -110,41 +187,34 @@ async def test_code_owned_source_can_preview_and_add_selected_rows(tmp_path) -> 
             dataset_embedding_model_dir=tmp_path / "missing-model",
         )
         async with session_factory() as session:
-            repository = DatasetRepository(session, settings)
-            population = await repository.create_population(
-                DatasetPopulationCreate(
-                    name="Preview population",
-                    form_id="tfr_default",
-                    form_version="v0.1",
-                )
+            await _seed_app_db_reviews(
+                session,
+                settings,
+                outcomes=["Meets", "Does Not Meet", "Meets", "Does Not Meet"],
             )
-            preview = await repository.browse_source(
+            repository = DatasetRepository(session, settings)
+            population = await _create_population(repository, "Preview population")
+            preview = await repository.browse_app_db_source(
                 "tfr_default",
                 "v0.1",
-                DatasetSourceBrowseRequest(
-                    source_id="sister_app_placeholder",
-                    params={"count": 4},
-                ),
+                DatasetAppDbBrowseRequest(limit=4),
             )
+            selected = [preview[1], preview[3]]
 
             assert len(preview) == 4
-            assert preview[0].source_id == "sister_app_placeholder"
+            assert preview[0].source_id == "app_db_reviews"
 
-            added = await repository.add_source_candidates(
+            added = await _add_app_db_reviews(
+                repository,
                 population.id,
-                DatasetSourceAddRequest(
-                    source_id="sister_app_placeholder",
-                    params={"count": 4},
-                    source_record_ids=[preview[1].source_record_id, preview[3].source_record_id],
-                ),
+                review_ids=[row.review_id for row in selected],
             )
             detail = await repository.get_population(population.id)
 
             assert added.added_count == 2
             assert detail.candidate_count == 2
             assert {candidate.source_record_id for candidate in detail.candidates} == {
-                preview[1].source_record_id,
-                preview[3].source_record_id,
+                row.source_record_id for row in selected
             }
     finally:
         await engine.dispose()
@@ -162,21 +232,14 @@ async def test_outcome_sampling_preserves_candidate_outcome_split(tmp_path) -> N
             dataset_embedding_model_dir=tmp_path / "missing-model",
         )
         async with session_factory() as session:
+            await _seed_app_db_reviews(
+                session,
+                settings,
+                outcomes=["Meets", "Meets", "Meets", "Meets", "Does Not Meet", "Does Not Meet"],
+            )
             repository = DatasetRepository(session, settings)
-            population = await repository.create_population(
-                DatasetPopulationCreate(
-                    name="Outcome sample population",
-                    form_id="tfr_default",
-                    form_version="v0.1",
-                )
-            )
-            await repository.fetch_source(
-                population.id,
-                DatasetSourceFetchRequest(
-                    source_id="sister_app_placeholder",
-                    params={"count": 6},
-                ),
-            )
+            population = await _create_population(repository, "Outcome sample population")
+            await _add_app_db_reviews(repository, population.id, limit=6)
 
             sample = await repository.sample_population(
                 population.id,
@@ -221,13 +284,7 @@ async def test_app_db_source_converts_completed_reviews(tmp_path) -> None:
             assert reviewed.feedback_count == 1
             assert await ReviewRepository(session).edited_review_count() == 1
             repository = DatasetRepository(session, settings)
-            population = await repository.create_population(
-                DatasetPopulationCreate(
-                    name="App DB population",
-                    form_id="tfr_default",
-                    form_version="v0.1",
-                )
-            )
+            population = await _create_population(repository, "App DB population")
             rows = await repository.browse_app_db_source(
                 "tfr_default",
                 "v0.1",
@@ -272,21 +329,14 @@ async def test_candidate_reference_edit_invalidates_analysis_and_publishes_updat
             dataset_embedding_model_dir=tmp_path / "missing-model",
         )
         async with session_factory() as session:
+            await _seed_app_db_reviews(
+                session,
+                settings,
+                outcomes=["Meets", "Does Not Meet", "Meets", "Does Not Meet"],
+            )
             repository = DatasetRepository(session, settings)
-            population = await repository.create_population(
-                DatasetPopulationCreate(
-                    name="Editable population",
-                    form_id="tfr_default",
-                    form_version="v0.1",
-                )
-            )
-            await repository.fetch_source(
-                population.id,
-                DatasetSourceFetchRequest(
-                    source_id="sister_app_placeholder",
-                    params={"count": 4},
-                ),
-            )
+            population = await _create_population(repository, "Editable population")
+            await _add_app_db_reviews(repository, population.id, limit=4)
             await repository.cluster_population(
                 population.id,
                 DatasetClusterRequest(min_clusters=2, max_clusters=2, seed=3),
@@ -350,21 +400,10 @@ async def test_published_population_rejects_candidate_reference_edit(tmp_path) -
         session_factory = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
         settings = Settings(data_dir=tmp_path / "data")
         async with session_factory() as session:
+            await _seed_app_db_reviews(session, settings, outcomes=["Meets"])
             repository = DatasetRepository(session, settings)
-            population = await repository.create_population(
-                DatasetPopulationCreate(
-                    name="Published population",
-                    form_id="tfr_default",
-                    form_version="v0.1",
-                )
-            )
-            await repository.fetch_source(
-                population.id,
-                DatasetSourceFetchRequest(
-                    source_id="sister_app_placeholder",
-                    params={"count": 1},
-                ),
-            )
+            population = await _create_population(repository, "Published population")
+            await _add_app_db_reviews(repository, population.id, limit=1)
             detail = await repository.get_population(population.id)
             candidate = detail.candidates[0]
             await repository.publish_population(
@@ -394,21 +433,10 @@ async def test_clone_published_dataset_to_editable_draft_and_republish(tmp_path)
             dataset_embedding_model_dir=tmp_path / "missing-model",
         )
         async with session_factory() as session:
+            await _seed_app_db_reviews(session, settings, outcomes=["Meets", "Does Not Meet"])
             repository = DatasetRepository(session, settings)
-            population = await repository.create_population(
-                DatasetPopulationCreate(
-                    name="Original draft",
-                    form_id="tfr_default",
-                    form_version="v0.1",
-                )
-            )
-            await repository.fetch_source(
-                population.id,
-                DatasetSourceFetchRequest(
-                    source_id="sister_app_placeholder",
-                    params={"count": 2},
-                ),
-            )
+            population = await _create_population(repository, "Original draft")
+            await _add_app_db_reviews(repository, population.id, limit=2)
             published = await repository.publish_population(
                 population.id,
                 DatasetPublishRequest(name="Original dataset"),
@@ -446,9 +474,7 @@ async def test_clone_published_dataset_to_editable_draft_and_republish(tmp_path)
 
 
 @pytest.mark.anyio
-async def test_code_owned_source_materializes_selected_reviews_and_skips_duplicates(
-    tmp_path,
-) -> None:
+async def test_app_db_source_skips_duplicate_selected_reviews(tmp_path) -> None:
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     try:
         async with engine.begin() as connection:
@@ -456,36 +482,42 @@ async def test_code_owned_source_materializes_selected_reviews_and_skips_duplica
         session_factory = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
         settings = Settings(data_dir=tmp_path / "data")
         async with session_factory() as session:
+            await _seed_app_db_reviews(
+                session,
+                settings,
+                outcomes=["Meets", "Does Not Meet", "Meets"],
+            )
             repository = DatasetRepository(session, settings)
-            preview = await repository.browse_source(
+            population = await _create_population(repository, "Duplicate app DB population")
+            preview = await repository.browse_app_db_source(
                 "tfr_default",
                 "v0.1",
-                DatasetSourceBrowseRequest(
-                    source_id="sister_app_placeholder",
-                    params={"count": 3},
-                ),
+                DatasetAppDbBrowseRequest(limit=3),
             )
-            request = DatasetSourceAddRequest(
-                source_id="sister_app_placeholder",
-                params={"count": 3},
-                source_record_ids=[preview[0].source_record_id, preview[2].source_record_id],
-            )
+            review_ids = [preview[0].review_id, preview[2].review_id]
 
-            first = await repository.materialize_source_reviews("tfr_default", "v0.1", request)
-            second = await repository.materialize_source_reviews("tfr_default", "v0.1", request)
+            first = await _add_app_db_reviews(
+                repository,
+                population.id,
+                review_ids=review_ids,
+            )
+            second = await _add_app_db_reviews(
+                repository,
+                population.id,
+                review_ids=review_ids,
+            )
             reviews = await ReviewRepository(session).list_reviews()
-            app_rows = await repository.browse_app_db_source(
-                "tfr_default",
-                "v0.1",
-                DatasetAppDbBrowseRequest(search=preview[0].claim_number),
-            )
+            detail = await repository.get_population(population.id)
 
-            assert first.created_count == 2
+            assert first.added_count == 2
             assert first.skipped_count == 0
-            assert second.created_count == 0
+            assert second.added_count == 0
             assert second.skipped_count == 2
-            assert len(reviews) == 2
-            assert all(review.source.startswith("dataset:") for review in reviews)
-            assert app_rows[0].claim_number == preview[0].claim_number
+            assert len(reviews) == 3
+            assert detail.candidate_count == 2
+            assert {candidate.source_record_id for candidate in detail.candidates} == {
+                preview[0].source_record_id,
+                preview[2].source_record_id,
+            }
     finally:
         await engine.dispose()

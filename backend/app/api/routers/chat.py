@@ -27,11 +27,8 @@ from app.core.llm import (
 from app.db.session import AsyncSessionLocal
 from app.models.chat_state import TFRChatState
 from app.schemas.chat import (
-    ChatMessage,
     ChatModelCatalogResponse,
     ChatModelOption,
-    ChatRequest,
-    ChatResponse,
     ChatThreadRecord,
     ChatThreadSummary,
 )
@@ -48,19 +45,6 @@ from app.services.chat_threads import (
 router = APIRouter()
 
 MODEL_SELECTION_CONTEXT_DESCRIPTION = "TFR chat model selection"
-
-
-@router.post("", response_model=ChatResponse)
-async def chat(request: ChatRequest) -> ChatResponse:
-    last_user_message = next(
-        (message.content for message in reversed(request.messages) if message.role == "user"),
-        "",
-    )
-    content = (
-        "Chat agent scaffold is ready. CopilotKit AG-UI wiring will attach here. "
-        f"Last user message: {last_user_message}"
-    )
-    return ChatResponse(message=ChatMessage(role="assistant", content=content))
 
 
 @router.get("/models", response_model=ChatModelCatalogResponse)

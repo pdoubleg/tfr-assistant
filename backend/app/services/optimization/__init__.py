@@ -5,7 +5,6 @@ from app.services.optimization.artifacts import (
     OptimizationRunCallback,
 )
 from app.services.optimization.components import AuditPromptProgram
-from app.services.optimization.demo import DEMO_FORM_ID, DEMO_FORM_VERSION, ensure_demo_fixture
 from app.services.optimization.models import (
     OptimizationDataInstance,
     OptimizationRolloutOutput,
@@ -24,8 +23,6 @@ from app.services.optimization.splits import apply_split_helper
 from app.services.optimization.traces import serialize_messages
 
 __all__ = [
-    "DEMO_FORM_ID",
-    "DEMO_FORM_VERSION",
     "AuditPromptProgram",
     "CancelFileStopper",
     "OptimizationArtifactWriter",
@@ -41,7 +38,6 @@ __all__ = [
     "UpdatedComponent",
     "apply_split_helper",
     "build_reflection_input",
-    "ensure_demo_fixture",
     "propose_new_texts",
     "run_optimization_job",
     "serialize_messages",

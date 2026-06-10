@@ -30,19 +30,15 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   addDatasetAppDbRows,
-  addDatasetSourceRows,
   browseDatasetAppDbRows,
-  browseDatasetSourceRows,
   clusterDatasetPopulation,
   clonePublishedDataset,
   createDatasetPopulation,
   getDatasetPopulation,
   listDatasetPopulations,
-  listDatasetSources,
   listFormCatalog,
   listPublishedDatasetRows,
   listPublishedDatasets,
-  materializeDatasetSourceRows,
   publishDatasetPopulation,
   sampleDatasetPopulation,
   updateDatasetCandidate,
@@ -55,7 +51,6 @@ import type {
   DatasetPopulationRecord,
   DatasetReferenceRecord,
   DatasetSampleMode,
-  DatasetSourceRecord,
   DatasetSourceRowRecord,
   EvalDatasetRecord,
   FormCatalogEntry,
@@ -259,8 +254,6 @@ export default function DatasetsPage() {
   const [forms, setForms] = useState<FormCatalogEntry[]>([]);
   const [formKeyValue, setFormKeyValue] = useState("");
   const [includeFeedbackSignals, setIncludeFeedbackSignals] = useState(false);
-  const [sources, setSources] = useState<DatasetSourceRecord[]>([]);
-  const [selectedSourceId, setSelectedSourceId] = useState("");
   const [population, setPopulation] = useState<DatasetPopulationRecord | null>(null);
   const [draftPopulations, setDraftPopulations] = useState<DatasetPopulationRecord[]>([]);
   const [draftDrawerOpen, setDraftDrawerOpen] = useState(false);
@@ -270,11 +263,6 @@ export default function DatasetsPage() {
   const [selectedPublishedDatasetId, setSelectedPublishedDatasetId] = useState("");
   const [publishedRows, setPublishedRows] = useState<PublishedDatasetRow[]>([]);
   const [publishedDrawerOpen, setPublishedDrawerOpen] = useState(false);
-
-  const [externalRows, setExternalRows] = useState<DatasetSourceRowRecord[]>([]);
-  const [selectedExternalIds, setSelectedExternalIds] = useState<Set<string>>(() => new Set());
-  const [externalCount, setExternalCount] = useState(12);
-  const [externalSort, setExternalSort] = useState<SourceSort>("updated_desc");
 
   const [appDbRows, setAppDbRows] = useState<DatasetSourceRowRecord[]>([]);
   const [selectedReviewIds, setSelectedReviewIds] = useState<Set<string>>(() => new Set());
@@ -305,11 +293,9 @@ export default function DatasetsPage() {
 
   const [formId, formVersion] = formKeyValue.split("@");
   const selectedForm = forms.find((form) => formKey(form) === formKeyValue);
-  const selectedSource = sources.find((source) => source.id === selectedSourceId);
   const selectedPublishedDataset = publishedDatasets.find((dataset) => dataset.id === selectedPublishedDatasetId);
   const candidates = population?.candidates ?? [];
   const includedCandidates = candidates.filter((candidate) => candidate.included);
-  const sortedExternalRows = useMemo(() => sortRows(externalRows, externalSort), [externalRows, externalSort]);
   const sortedAppDbRows = useMemo(() => sortRows(appDbRows, appDbSort), [appDbRows, appDbSort]);
   const sourceOptions = useMemo(
     () => Array.from(new Set(appDbRows.map((row) => row.source).filter(Boolean))).sort(),
@@ -350,8 +336,7 @@ export default function DatasetsPage() {
     setLoading(true);
     setError("");
     try {
-      const [nextSources, nextPopulations, nextPublished] = await Promise.all([
-        listDatasetSources(formId, formVersion),
+      const [nextPopulations, nextPublished] = await Promise.all([
         listDatasetPopulations(formId, formVersion),
         listPublishedDatasets(),
       ]);
@@ -364,13 +349,7 @@ export default function DatasetsPage() {
           ? population.id
           : drafts[0]?.id;
 
-      setSources(nextSources);
       setDraftPopulations(drafts);
-      setSelectedSourceId((current) =>
-        current && nextSources.some((source) => source.id === current)
-          ? current
-          : nextSources[0]?.id ?? "",
-      );
       setPublishedDatasets(scopedPublished);
       setSelectedPublishedDatasetId((current) =>
         current && scopedPublished.some((dataset) => dataset.id === current)
@@ -378,9 +357,7 @@ export default function DatasetsPage() {
           : scopedPublished[0]?.id ?? "",
       );
       setAppDbRows([]);
-      setExternalRows([]);
       setSelectedReviewIds(new Set());
-      setSelectedExternalIds(new Set());
       if (currentDraft) {
         await refreshPopulation(currentDraft);
       } else {
@@ -509,59 +486,6 @@ export default function DatasetsPage() {
       await refreshPopulation(populationId);
       setDraftDrawerOpen(false);
     }, "Draft resumed.");
-  };
-
-  const refreshExternalRows = async () => {
-    if (!formId || !formVersion || !selectedSourceId) return;
-    await run(async () => {
-      const rows = await browseDatasetSourceRows(formId, formVersion, {
-        source_id: selectedSourceId,
-        params: { count: externalCount },
-        limit: externalCount,
-      });
-      setExternalRows(rows);
-      setSelectedExternalIds(new Set());
-    }, "Code-owned source rows loaded.");
-  };
-
-  const addExternalRows = async () => {
-    if (!selectedSourceId) return;
-    await run(async () => {
-      const draft = await ensureDraft();
-      if (!draft) return;
-      const response = await addDatasetSourceRows(draft.id, {
-        source_id: selectedSourceId,
-        params: { count: externalCount },
-        source_record_ids: Array.from(selectedExternalIds),
-        add_all_filtered: false,
-        limit: externalCount,
-      });
-      await refreshPopulation(response.population.id);
-      setSelectedExternalIds(new Set());
-    }, "Selected source rows added.");
-  };
-
-  const materializeExternalRows = async () => {
-    if (!formId || !formVersion || !selectedSourceId || selectedExternalIds.size === 0) return;
-    setWorking(true);
-    setError("");
-    setNotice("");
-    try {
-      const result = await materializeDatasetSourceRows(formId, formVersion, {
-        source_id: selectedSourceId,
-        params: { count: externalCount },
-        source_record_ids: Array.from(selectedExternalIds),
-        add_all_filtered: false,
-        limit: externalCount,
-      });
-      setNotice(
-        `Imported ${result.created_count} source row${result.created_count === 1 ? "" : "s"} to Reviews; skipped ${result.skipped_count} already imported.`,
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to import source rows to Reviews.");
-    } finally {
-      setWorking(false);
-    }
   };
 
   const refreshAppDbRows = async () => {
@@ -758,7 +682,7 @@ export default function DatasetsPage() {
                 onChange={(event) => {
                   setFormKeyValue(event.target.value);
                   setPopulation(null);
-                  setExternalRows([]);
+                  setAppDbRows([]);
                   setPublishedRows([]);
                 }}
                 className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -843,70 +767,7 @@ export default function DatasetsPage() {
       </Card>
 
       <section className="space-y-4">
-        <SectionTitle step="1" title="Source Candidates" detail="Load rows from code-owned queries or the application database, then add selected rows into the draft pool." />
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Database className="h-4 w-4 text-primary" />
-              Code-Owned Source
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid gap-2 lg:grid-cols-[minmax(240px,1fr)_120px_150px_auto]">
-              <select
-                value={selectedSourceId}
-                onChange={(event) => {
-                  setSelectedSourceId(event.target.value);
-                  setExternalRows([]);
-                  setSelectedExternalIds(new Set());
-                }}
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm outline-none"
-              >
-                {sources.length === 0 ? <option value="">No sources for form</option> : null}
-                {sources.map((source) => (
-                  <option key={source.id} value={source.id}>
-                    {source.label}
-                  </option>
-                ))}
-              </select>
-              <Input
-                type="number"
-                min={1}
-                max={100}
-                value={externalCount}
-                onChange={(event) => setExternalCount(Number(event.target.value) || 1)}
-              />
-              <SortSelect value={externalSort} onChange={setExternalSort} />
-              <Button type="button" variant="outline" onClick={() => void refreshExternalRows()} disabled={working || !selectedSourceId}>
-                Load Rows
-              </Button>
-            </div>
-            {selectedSource ? (
-              <p className="text-xs text-muted-foreground">{selectedSource.description}</p>
-            ) : null}
-            <SourceRowsTable
-              rows={sortedExternalRows}
-              emptyText="Load a code-owned source to preview rows."
-              selection={selectedExternalIds}
-              selectionKey={(row) => row.source_record_id}
-              onSelectionChange={setSelectedExternalIds}
-              visibleColumns={sourceVisibleColumns}
-              onVisibleColumnsChange={setSourceVisibleColumns}
-              includeFeedback={false}
-            />
-            <SourceActions
-              selectedCount={selectedExternalIds.size}
-              totalCount={externalRows.length}
-              disabled={working || !selectedSourceId}
-              onSelectAll={() => setSelectedExternalIds(new Set(externalRows.map((row) => row.source_record_id)))}
-              onClearSelection={() => setSelectedExternalIds(new Set())}
-              onAddSelected={() => void addExternalRows()}
-              secondaryLabel="Import Selected to Reviews"
-              onSecondarySelected={() => void materializeExternalRows()}
-            />
-          </CardContent>
-        </Card>
+        <SectionTitle step="1" title="Source Candidates" detail="Load completed application reviews, then add selected rows into the draft pool." />
 
         <Card>
           <CardHeader className="pb-3">

@@ -18,34 +18,7 @@ class ReviewAgentToolName(StrEnum):
     GET_IMAGE_ANALYSIS = "get_image_analysis"
 
 
-CLAIM_DOCUMENT_TOOLS = (
-    ReviewAgentToolName.GET_CLAIM_DOCUMENTS_METADATA,
-    ReviewAgentToolName.GET_CLAIM_DOCUMENT_CONTENT,
-)
-POLICY_DOCUMENT_TOOLS = (
-    ReviewAgentToolName.GET_POLICY_DOCUMENTS_METADATA,
-    ReviewAgentToolName.GET_POLICY_DOCUMENT_CONTENT,
-)
 ALL_REVIEW_AGENT_TOOLS = tuple(tool for tool in ReviewAgentToolName)
-
-_TOOL_ALIASES: dict[str, tuple[ReviewAgentToolName, ...]] = {
-    "claim_summary": (ReviewAgentToolName.GET_CLAIM_SUMMARY,),
-    "summary": (ReviewAgentToolName.GET_CLAIM_SUMMARY,),
-    "notes": (ReviewAgentToolName.GET_CLAIM_NOTES,),
-    "claim_notes": (ReviewAgentToolName.GET_CLAIM_NOTES,),
-    "documents": CLAIM_DOCUMENT_TOOLS,
-    "docs": CLAIM_DOCUMENT_TOOLS,
-    "claim_documents": CLAIM_DOCUMENT_TOOLS,
-    "claim_docs": CLAIM_DOCUMENT_TOOLS,
-    "policy_documents": POLICY_DOCUMENT_TOOLS,
-    "policy_docs": POLICY_DOCUMENT_TOOLS,
-    "images": (ReviewAgentToolName.GET_IMAGE_ANALYSIS,),
-    "image_analysis": (ReviewAgentToolName.GET_IMAGE_ANALYSIS,),
-}
-
-
-def _tool_lookup_key(value: str) -> str:
-    return "_".join("".join(char.lower() if char.isalnum() else " " for char in value).split())
 
 
 def normalize_review_agent_tool_names(value: Any) -> Any:
@@ -66,7 +39,7 @@ def normalize_review_agent_tool_names(value: Any) -> Any:
             try:
                 tools = (ReviewAgentToolName(raw),)
             except ValueError:
-                tools = _TOOL_ALIASES.get(_tool_lookup_key(raw), (raw,))
+                tools = (raw,)
         else:
             normalized.append(item)
             continue

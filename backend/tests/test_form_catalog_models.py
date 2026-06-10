@@ -11,7 +11,13 @@ def test_form_catalog_preserves_generation_model_metadata(tmp_path) -> None:
         title="Demo Review",
         model_name="gpt-5.4-mini",
         description="Demo form.",
-        tools=["Documents", "Policy Docs", "Notes"],
+        tools=[
+            ReviewAgentToolName.GET_CLAIM_DOCUMENTS_METADATA,
+            ReviewAgentToolName.GET_CLAIM_DOCUMENT_CONTENT,
+            ReviewAgentToolName.GET_POLICY_DOCUMENTS_METADATA,
+            ReviewAgentToolName.GET_POLICY_DOCUMENT_CONTENT,
+            ReviewAgentToolName.GET_CLAIM_NOTES,
+        ],
         include_state_compliance=True,
         canonical=AuditFormResult(
             form_id="demo_review",

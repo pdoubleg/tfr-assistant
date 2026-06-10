@@ -196,11 +196,3 @@ class OptimizationRunRecord(BaseModel):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     candidates: list[OptimizationCandidateRecord] = Field(default_factory=list)
     events: list[OptimizationEventRecord] = Field(default_factory=list)
-
-
-class OptimizationDemoFixtureRecord(BaseModel):
-    dataset_id: str
-    form_id: str
-    form_version: str
-    case_count: int
-    created: bool

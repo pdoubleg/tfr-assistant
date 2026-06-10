@@ -256,11 +256,10 @@ class SQLDatabaseCapability(AbstractCapability[TFRChatDeps]):
         ) -> ToolReturn:
             """Execute a safe read-only SQL query.
 
-            Use this for SELECT or WITH queries after inspecting schema. The SQL
-            should include its own WHERE/LIMIT clauses when needed for correctness
-            or performance. Python repl variables and handles created by
-            python_repl_execute are not SQL tables and cannot be referenced
-            here.
+            Use this for SELECT or WITH queries after inspecting schema.
+            Persist the result as a dataset handle for downstream Python repl.
+            Python repl variables and handles created by python_repl_execute
+            are not SQL tables and cannot be referenced here.
 
             Args:
                 sql: A read-only SELECT or WITH query. Do not include write,

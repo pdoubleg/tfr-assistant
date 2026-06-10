@@ -1,7 +1,7 @@
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
-import pytest
 from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
 from pydantic_ai.ui.ag_ui import AGUIAdapter as PydanticAGUIAdapter
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine

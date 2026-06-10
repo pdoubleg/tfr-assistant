@@ -84,7 +84,7 @@ class RLMCollection(ToolCollection):
         max_rows: int = 1000,
         skip_empty: bool = True,
     ) -> list[str]:
-        """Convert one dataset column into one text string per row.
+        """Convert one dataset column into a list of one text string per row.
 
         Use this before llm_query_batched() when a SQL result or transformed
         dataset contains many rows of notes, descriptions, claim text, or other

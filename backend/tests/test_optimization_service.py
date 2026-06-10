@@ -20,9 +20,7 @@ from app.schemas.optimizations import (
     OptimizationRunCreate,
     OptimizationTraceConfig,
 )
-from app.services.optimization.runner import auto_budget, estimate_metric_budget
-from app.services.optimization.utils import llm_visible_dump, usage_to_dict
-from app.services.optimization_service import (
+from app.services.optimization import (
     AuditPromptProgram,
     OptimizationDataInstance,
     OptimizationRolloutOutput,
@@ -31,9 +29,13 @@ from app.services.optimization_service import (
     ReflectionInput,
     TFRGepaAdapter,
     UpdatedComponent,
-    _serialize_messages,
     build_reflection_input,
 )
+from app.services.optimization import (
+    serialize_messages as _serialize_messages,
+)
+from app.services.optimization.runner import auto_budget, estimate_metric_budget
+from app.services.optimization.utils import llm_visible_dump, usage_to_dict
 
 
 def _sub_question(subquestion_id: str, *, answer: bool) -> FormSubQuestion:

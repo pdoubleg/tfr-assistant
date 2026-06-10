@@ -650,15 +650,6 @@ export interface OptimizationRunRecord {
   events: OptimizationEventRecord[];
 }
 
-export interface OptimizationDemoFixtureRecord {
-  dataset_id: string;
-  form_id: string;
-  form_version: string;
-  case_count: number;
-  created: boolean;
-}
-
-export type DatasetSourceKind = "external_named_query" | "app_db_reviews";
 export type DatasetPopulationStatus = "draft" | "published";
 export type DatasetSampleMode =
   | "all"
@@ -667,16 +658,6 @@ export type DatasetSampleMode =
   | "stratified_outcome_issues"
   | "cluster_balanced"
   | "diversity";
-
-export interface DatasetSourceRecord {
-  id: string;
-  label: string;
-  kind: DatasetSourceKind;
-  form_id: string;
-  form_versions: string[];
-  description: string;
-  params_schema: Record<string, unknown>;
-}
 
 export interface DatasetReferenceRecord {
   reference_kind: EvalReferenceKind;
@@ -738,13 +719,6 @@ export interface DatasetAddCandidatesResponse {
   added_count: number;
   skipped_count: number;
   candidate_ids: string[];
-}
-
-export interface DatasetMaterializeResponse {
-  created_count: number;
-  skipped_count: number;
-  review_ids: string[];
-  skipped_source_record_ids: string[];
 }
 
 export interface DatasetSourceRowRecord {

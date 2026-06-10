@@ -5,7 +5,6 @@ from pydantic import BaseModel, Field, model_validator
 
 from app.models.audit import AuditResult, FormKind
 
-DatasetSourceKind = Literal["external_named_query", "app_db_reviews"]
 DatasetPopulationStatus = Literal["draft", "published"]
 DatasetFeedbackFilter = Literal["all", "with_feedback", "without_feedback", "low_score"]
 DatasetSampleMode = Literal[
@@ -16,16 +15,6 @@ DatasetSampleMode = Literal[
     "cluster_balanced",
     "diversity",
 ]
-
-
-class DatasetSourceRecord(BaseModel):
-    id: str
-    label: str
-    kind: DatasetSourceKind
-    form_id: str
-    form_versions: list[str] = Field(default_factory=list)
-    description: str = ""
-    params_schema: dict[str, Any] = Field(default_factory=dict)
 
 
 class DatasetReference(BaseModel):
@@ -130,32 +119,11 @@ class DatasetCandidateReferenceUpdate(BaseModel):
     source_metadata: dict[str, Any] | None = None
 
 
-class DatasetSourceFetchRequest(BaseModel):
-    source_id: str
-    params: dict[str, Any] = Field(default_factory=dict)
-
-
-class DatasetSourceBrowseRequest(DatasetSourceFetchRequest):
-    limit: int = Field(default=100, ge=1, le=1000)
-
-
-class DatasetSourceAddRequest(DatasetSourceBrowseRequest):
-    source_record_ids: list[str] = Field(default_factory=list)
-    add_all_filtered: bool = False
-
-
 class DatasetAddCandidatesResponse(BaseModel):
     population: DatasetPopulationRecord
     added_count: int
     skipped_count: int
     candidate_ids: list[str] = Field(default_factory=list)
-
-
-class DatasetMaterializeResponse(BaseModel):
-    created_count: int
-    skipped_count: int
-    review_ids: list[str] = Field(default_factory=list)
-    skipped_source_record_ids: list[str] = Field(default_factory=list)
 
 
 class DatasetAppDbBrowseRequest(BaseModel):

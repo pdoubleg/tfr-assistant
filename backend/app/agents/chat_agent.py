@@ -111,7 +111,10 @@ def _published_forms_markdown(catalog: FormCatalog) -> str:
         [
             "### Published Audit Forms",
             "",
-            f"{len(definitions)} published form{'s' if len(definitions) != 1 else ''} can be used by chat audit generation.",
+            (
+                f"{len(definitions)} published form"
+                f"{'s' if len(definitions) != 1 else ''} can be used by chat audit generation."
+            ),
             "",
             *rows,
         ]

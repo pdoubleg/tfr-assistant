@@ -889,8 +889,3 @@ def merge_with_canonical(
         require_yes_question_evidence=require_yes_question_evidence,
     )
     return AuditFormResult.model_validate(payload)
-
-
-# Backwards-compatible aliases used by older imports.
-merge_payload_with_canonical = merge_standard_payload_with_canonical
-TFRAnalysisResult = AuditResult

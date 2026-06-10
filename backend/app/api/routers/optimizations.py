@@ -11,13 +11,11 @@ from app.core.config import get_settings
 from app.db.session import get_session
 from app.schemas.optimizations import (
     OptimizationCaseRecord,
-    OptimizationDemoFixtureRecord,
     OptimizationRunCreate,
     OptimizationRunRecord,
 )
-from app.services.optimization_service import (
+from app.services.optimization import (
     OptimizationRepository,
-    ensure_demo_fixture,
     run_optimization_job,
 )
 
@@ -30,19 +28,12 @@ async def list_optimization_cases(
     form_id: Annotated[str, Query()],
     form_version: Annotated[str, Query()],
     search: Annotated[str, Query()] = "",
-    include_demo: Annotated[bool, Query()] = True,
 ) -> list[OptimizationCaseRecord]:
     return await OptimizationRepository(session).list_cases(
         form_id=form_id,
         form_version=form_version,
         search=search,
-        include_demo=include_demo,
     )
-
-
-@router.post("/demo-fixture", response_model=OptimizationDemoFixtureRecord, status_code=201)
-async def create_demo_fixture() -> OptimizationDemoFixtureRecord:
-    return await ensure_demo_fixture()
 
 
 @router.get("/runs", response_model=list[OptimizationRunRecord])

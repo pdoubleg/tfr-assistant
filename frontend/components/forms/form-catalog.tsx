@@ -90,16 +90,6 @@ const FORM_TOOL_OPTIONS: FormToolOption[] = [
   { id: "images", label: "Images", tools: ["get_image_analysis"] },
 ];
 const FORM_TOOL_NAMES = FORM_TOOL_OPTIONS.flatMap((option) => option.tools);
-const LEGACY_TOOL_LABELS: Record<string, ReviewAgentToolName[]> = {
-  "Claim Summary": ["get_claim_summary"],
-  Notes: ["get_claim_notes"],
-  Documents: ["get_claim_documents_metadata", "get_claim_document_content"],
-  "Claim Docs": ["get_claim_documents_metadata", "get_claim_document_content"],
-  "Claim Documents": ["get_claim_documents_metadata", "get_claim_document_content"],
-  "Policy Docs": ["get_policy_documents_metadata", "get_policy_document_content"],
-  "Policy Documents": ["get_policy_documents_metadata", "get_policy_document_content"],
-  Images: ["get_image_analysis"],
-};
 const CANONICAL_PLACEHOLDER = "Canonical template placeholder.";
 const DEFAULT_AUDIT_MODEL_NAME = "gpt-5.4-nano";
 
@@ -283,8 +273,9 @@ function normalizeList(values: string[]): string[] | null {
 function normalizeToolList(values?: Array<string | ReviewAgentToolName> | null): ReviewAgentToolName[] {
   const selected = new Set<ReviewAgentToolName>();
   for (const value of values ?? []) {
-    const mapped = LEGACY_TOOL_LABELS[value] ?? (FORM_TOOL_NAMES.includes(value as ReviewAgentToolName) ? [value as ReviewAgentToolName] : []);
-    for (const tool of mapped) selected.add(tool);
+    if (FORM_TOOL_NAMES.includes(value as ReviewAgentToolName)) {
+      selected.add(value as ReviewAgentToolName);
+    }
   }
   return FORM_TOOL_NAMES.filter((tool) => selected.has(tool));
 }

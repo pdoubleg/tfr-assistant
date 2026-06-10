@@ -740,41 +740,6 @@ function buildHierarchyRows(items: EvalRunItemRecord[]): HierarchyMetricRow[] {
         addMatch(questionRow.subquestionStats, agreementItem.matched);
         addDetection(questionRow.subquestionDetectionStats, boolAnswer(agreementItem.generated_answer), boolAnswer(agreementItem.reference_answer));
       }
-
-      if ((comparison.agreement_items ?? []).length > 0) {
-        continue;
-      }
-
-      const legacyQuestionMetrics = comparison.metrics.questions;
-      if (!Array.isArray(legacyQuestionMetrics)) continue;
-      for (const question of legacyQuestionMetrics) {
-        const questionRecord = question as Record<string, unknown>;
-        const questionId = typeof questionRecord.id === "string" ? questionRecord.id : "Question";
-        const questionText = typeof questionRecord.text === "string" ? questionRecord.text : questionId;
-        const questionRow = ensure("question", comparison.reference_kind, questionId, "", questionText);
-        questionRow.total += 1;
-        if (questionRecord.answer_match === true) questionRow.matches += 1;
-        addMatch(questionRow.questionStats, questionRecord.answer_match === true);
-
-        const legacyDrivers = questionRecord.drivers;
-        if (!Array.isArray(legacyDrivers)) continue;
-        for (const driver of legacyDrivers) {
-          const driverRecord = driver as Record<string, unknown>;
-          const driverId = typeof driverRecord.id === "string" ? driverRecord.id : "Driver";
-          const driverText = typeof driverRecord.text === "string" ? driverRecord.text : driverId;
-          const driverRow = ensure(
-            "subquestion",
-            comparison.reference_kind,
-            driverId,
-            questionId,
-            driverText,
-          );
-          driverRow.total += 1;
-          if (driverRecord.match === true) driverRow.matches += 1;
-          addMatch(driverRow.subquestionStats, driverRecord.match === true);
-          addMatch(questionRow.subquestionStats, driverRecord.match === true);
-        }
-      }
     }
   }
 
