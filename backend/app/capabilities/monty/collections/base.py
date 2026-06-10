@@ -31,9 +31,6 @@ LAYOUT_KWARGS_HELP = (
     "xaxis_title, yaxis_title, showlegend, legend, margin, hovermode, template, "
     "height, and width."
 )
-DEFAULT_RLM_BATCH_SIZE = 12
-DEFAULT_RLM_PROMPT_CHARS = 200_000
-DEFAULT_RLM_MAX_LLM_CALLS = 24
 
 
 def _allowed_plotly_kwargs(
@@ -203,8 +200,6 @@ class MontyRuntimeContext:
             call_count = self.rlm_call_count
         return {
             "call_count": call_count,
-            "max_llm_calls": int(
-                getattr(self.settings, "monty_rlm_max_llm_calls", DEFAULT_RLM_MAX_LLM_CALLS)
-            ),
+            "max_llm_calls": self.settings.monty_rlm_max_llm_calls,
             "usage": self.rlm_usage.as_dict(),
         }

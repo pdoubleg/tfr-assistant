@@ -7,6 +7,8 @@ from app.agents.chat_agent import build_chat_agent
 from app.capabilities.deps import TFRChatDeps
 from app.capabilities.monty import MontyPythonCapability
 from app.capabilities.monty.collections import PLOTLY_COLORWAY, PLOTLY_CONTINUOUS_SCALE
+from app.capabilities.monty.collections.base import MontyRuntimeContext
+from app.capabilities.monty.collections.rlm import RLMCollection
 from app.capabilities.monty.interpreter import DEFAULT_RESOURCE_LIMITS, MontyReplInterpreter
 from app.capabilities.monty.runtime import MontyPythonRuntime
 from app.core.config import Settings
@@ -192,6 +194,7 @@ def test_monty_rlm_help_lists_async_tools(tmp_path) -> None:
     help_text = runtime.help("rlm")
 
     assert "dataset_texts" in help_text
+    assert "dataset_chunks" in help_text
     assert "llm_query" in help_text
     assert "llm_query_batched" in help_text
     assert "await" in help_text
@@ -748,6 +751,147 @@ print(len(answers))
     assert blocked["rlm"]["call_count"] == 2
     assert after_restart["status"] == "success"
     assert after_restart["rlm"]["call_count"] == 1
+
+
+def _rlm_collection_with_dataset(
+    tmp_path,
+    rows: list[list[str]],
+    *,
+    columns: list[str] | None = None,
+) -> tuple[RLMCollection, str]:
+    """Build an RLMCollection plus a saved dataset handle for chunking tests."""
+    settings = Settings(
+        data_dir=tmp_path / "data",
+        chat_artifacts_dir=tmp_path / "data" / "chat_artifacts",
+    )
+    state = TFRChatState()
+    handle = (
+        ChatArtifactStore(settings)
+        .save_dataset(
+            state,
+            columns=columns or ["claim", "note"],
+            rows=rows,
+            label="Claim notes",
+            source="test",
+        )
+        .handle
+    )
+    collection = RLMCollection(MontyRuntimeContext(state=state, settings=settings))
+    return collection, handle
+
+
+def test_dataset_chunks_packs_records_with_metadata_and_banners(tmp_path) -> None:
+    rows = [
+        ["A1", "a" * 200],
+        ["B2", "b" * 200],
+        ["C3", ""],  # skipped by skip_empty
+        ["D4", "d" * 200],
+        ["E5", "e" * 200],
+        ["F6", "f" * 200],
+    ]
+    collection, handle = _rlm_collection_with_dataset(tmp_path, rows)
+
+    chunks = collection.dataset_chunks(
+        handle,
+        "note",
+        metadata_columns=["claim"],
+        max_chars=1000,
+    )
+
+    assert len(chunks) == 2
+    assert f"[chunk 1/2 | source {handle} | records 1-4 of 5 | text column: note]" in chunks[0]
+    assert f"[chunk 2/2 | source {handle} | records 5-5 of 5 | text column: note]" in chunks[1]
+    assert "=== record 1 | claim=A1 ===" in chunks[0]
+    assert "=== record 4 | claim=E5 ===" in chunks[0]
+    assert "=== record 5 | claim=F6 ===" in chunks[1]
+    assert "claim=C3" not in chunks[0] + chunks[1]
+    assert "a" * 200 in chunks[0]
+    assert "f" * 200 in chunks[1]
+
+
+def test_dataset_chunks_keeps_oversized_records_whole_in_own_chunk(tmp_path) -> None:
+    rows = [["A1", "a" * 200], ["B2", "y" * 2000], ["C3", "c" * 200]]
+    collection, handle = _rlm_collection_with_dataset(tmp_path, rows)
+
+    chunks = collection.dataset_chunks(
+        handle,
+        "note",
+        metadata_columns=["claim"],
+        max_chars=1000,
+    )
+
+    # The oversized record is never split; it lands alone in its own chunk.
+    assert len(chunks) == 3
+    assert "records 2-2 of 3" in chunks[1]
+    assert "y" * 2000 in chunks[1]
+    assert "(part" not in "".join(chunks)
+
+
+def test_dataset_chunks_respects_max_records_per_chunk(tmp_path) -> None:
+    rows = [["A1", "alpha note"], ["B2", "beta note"], ["C3", "gamma note"]]
+    collection, handle = _rlm_collection_with_dataset(tmp_path, rows)
+
+    chunks = collection.dataset_chunks(handle, "note", max_records=1, max_chars=5000)
+
+    assert len(chunks) == 3
+    assert "records 1-1 of 3" in chunks[0]
+    assert "records 3-3 of 3" in chunks[2]
+
+
+def test_dataset_chunks_validates_arguments(tmp_path) -> None:
+    collection, handle = _rlm_collection_with_dataset(tmp_path, [["A1", "note text"]])
+
+    with pytest.raises(ValueError, match="Unknown dataset column"):
+        collection.dataset_chunks(handle, "missing")
+    with pytest.raises(ValueError, match="max_chars must be at least 1"):
+        collection.dataset_chunks(handle, "note", max_chars=0)
+    with pytest.raises(ValueError, match="cannot also be a metadata column"):
+        collection.dataset_chunks(handle, "note", metadata_columns=["note"])
+    with pytest.raises(ValueError, match="max_records must be at least 1"):
+        collection.dataset_chunks(handle, "note", max_records=0)
+    # An over-large max_chars is clamped to the prompt limit, not rejected.
+    chunks = collection.dataset_chunks(handle, "note", max_chars=10_000_000)
+    assert len(chunks) == 1
+
+
+@pytest.mark.anyio
+async def test_monty_rlm_dataset_chunks_runs_in_repl(tmp_path) -> None:
+    settings = Settings(
+        chat_model="test",
+        monty_rlm_model="test",
+        data_dir=tmp_path / "data",
+        chat_artifacts_dir=tmp_path / "data" / "chat_artifacts",
+    )
+    state = TFRChatState()
+    dataset_handle = (
+        ChatArtifactStore(settings)
+        .save_dataset(
+            state,
+            columns=["claim", "note"],
+            rows=[
+                ["A1", "The roof was damaged by hail."],
+                ["B2", "The window seal failed over time."],
+            ],
+            label="Claim notes",
+            source="test",
+        )
+        .handle
+    )
+    runtime = MontyPythonRuntime(state, settings)
+
+    result = await runtime.execute(
+        f"""
+chunks = dataset_chunks({dataset_handle!r}, "note", metadata_columns=["claim"])
+print(len(chunks))
+prompts = ["Summarize each record: " + chunk for chunk in chunks]
+answers = await llm_query_batched(prompts)
+print(answers[0])
+"""
+    )
+
+    assert result["status"] == "success"
+    assert result["stdout"] == "1\nRLM test response\n"
+    assert result["rlm"]["call_count"] == 1
 
 
 @pytest.mark.anyio

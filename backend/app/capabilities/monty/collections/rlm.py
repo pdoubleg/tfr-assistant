@@ -3,19 +3,67 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 import pandas as pd
 from pydantic_ai import Agent
 
 from app.capabilities.monty.collections.base import (
-    DEFAULT_RLM_BATCH_SIZE,
-    DEFAULT_RLM_MAX_LLM_CALLS,
-    DEFAULT_RLM_PROMPT_CHARS,
     MontyRuntimeContext,
     _dataset_handle,
+    _require_columns,
 )
 from app.capabilities.monty.registry import ToolCollection, tool
 from app.core.llm import LLMModelConfig, build_llm_model
+
+
+def _cell_text(value: Any) -> str:
+    """Convert a dataframe cell to clean text, treating None/NaN as empty.
+
+    Args:
+        value: Raw cell value from a pandas dataframe.
+
+    Returns:
+        str: Stripped string form of the value, or "" for missing values.
+    """
+    if value is None:
+        return ""
+    # pandas represents missing values in object columns as float NaN.
+    if isinstance(value, float) and pd.isna(value):
+        return ""
+    return str(value).strip()
+
+
+def _meta_value(value: Any, *, max_chars: int) -> str:
+    """Render a metadata cell as a single-line, length-capped string.
+
+    Args:
+        value: Raw cell value from a pandas dataframe.
+        max_chars: Maximum rendered length before truncation.
+
+    Returns:
+        str: Whitespace-collapsed value truncated to a safe header length.
+    """
+    # Collapse newlines/extra whitespace so the value stays on one header line.
+    text = " ".join(_cell_text(value).split())
+    if len(text) > max_chars:
+        suffix = f"...truncated {len(text) - max_chars} chars"
+        text = text[: max_chars - len(suffix)] + suffix
+    return text
+
+
+def _record_header(record_number: int, meta: list[tuple[str, str]]) -> str:
+    """Build the delimiter header line that precedes one record's text.
+
+    Args:
+        record_number: 1-based number of the record among included rows.
+        meta: Ordered (column, value) pairs rendered into the header.
+
+    Returns:
+        str: A header line like "=== record 3 | claim_number=CLM-42 ===".
+    """
+    fields = [f"record {record_number}"] + [f"{name}={value}" for name, value in meta]
+    return "=== " + " | ".join(fields) + " ==="
 
 
 class RLMCollection(ToolCollection):
@@ -43,21 +91,27 @@ class RLMCollection(ToolCollection):
 
     @property
     def _max_batch_size(self) -> int:
-        return int(
-            getattr(self.context.settings, "monty_rlm_max_batch_size", DEFAULT_RLM_BATCH_SIZE)
-        )
+        return self.context.settings.monty_rlm_max_batch_size
 
     @property
     def _max_prompt_chars(self) -> int:
-        return int(
-            getattr(self.context.settings, "monty_rlm_max_prompt_chars", DEFAULT_RLM_PROMPT_CHARS)
-        )
+        return self.context.settings.monty_rlm_max_prompt_chars
 
     @property
     def _max_llm_calls(self) -> int:
-        return int(
-            getattr(self.context.settings, "monty_rlm_max_llm_calls", DEFAULT_RLM_MAX_LLM_CALLS)
-        )
+        return self.context.settings.monty_rlm_max_llm_calls
+
+    @property
+    def _chunk_max_chars(self) -> int:
+        return self.context.settings.monty_rlm_chunk_max_chars
+
+    @property
+    def _prompt_headroom_chars(self) -> int:
+        return self.context.settings.monty_rlm_prompt_headroom_chars
+
+    @property
+    def _meta_value_max_chars(self) -> int:
+        return self.context.settings.monty_rlm_meta_value_max_chars
 
     def _build_agent(self) -> Agent[None, str]:
         return Agent(
@@ -91,7 +145,9 @@ class RLMCollection(ToolCollection):
         free-form fields. Store the returned list in a REPL variable, then build
         prompts from it without printing the whole list. For multiple text
         columns, call this tool once per column and assign each list its own
-        variable name.
+        variable name. When you plan to send many rows per sub-LLM call, prefer
+        dataset_chunks(), which packs rows into prompt-ready chunks with record
+        delimiters and metadata headers.
 
         Args:
             dataset_handle: Input dataset handle.
@@ -126,6 +182,141 @@ class RLMCollection(ToolCollection):
             if text or not skip_empty:
                 texts.append(text)
         return texts
+
+    @tool
+    def dataset_chunks(
+        self,
+        dataset_handle: str,
+        text_column: str,
+        *,
+        metadata_columns: list[str] | None = None,
+        max_chars: int | None = None,
+        max_records: int | None = None,
+        max_rows: int = 1000,
+        skip_empty: bool = True,
+    ) -> list[str]:
+        """Pack dataset rows into sub-LLM-ready text chunks with record delimiters.
+
+        Each chunk is a single self-contained string that starts with a banner
+        describing which records it covers, followed by one delimited block per
+        row ("=== record N | claim_number=... ==="). Metadata column values are
+        rendered into each record's header so a sub-LLM can attribute findings
+        to the right record. Prefer this over dataset_texts() plus manual
+        joining when sending many rows per sub-LLM call. Records are packed
+        greedily in row order and are never split across chunks. If metadata
+        columns you need do not exist yet, compute them first (e.g. with SQL
+        tools) and pass the new dataset handle here. Check len(chunks) against
+        the llm_query_batched() batch limit; raise max_chars to reduce the
+        chunk count.
+
+        Args:
+            dataset_handle: Input dataset handle.
+            text_column: Column containing the free-form text to analyze.
+            metadata_columns: Optional columns rendered into each record header,
+                e.g. ["claim_number", "form_date"].
+            max_chars: Approximate maximum characters of record text per chunk.
+                Defaults to the configured chunk size and is silently clamped
+                so chunks always leave headroom for your task instructions
+                under the sub-LLM prompt limit.
+            max_records: Optional cap on records per chunk (useful when the
+                sub-LLM task is per-record, like "score each form").
+            max_rows: Maximum number of dataset rows to include.
+            skip_empty: Whether to omit rows whose text value is empty.
+
+        Returns:
+            list[str]: Prompt-ready chunk strings, in dataset row order.
+
+        Examples:
+            ```python
+            chunks = dataset_chunks(
+                "ds_1",
+                "form_text",
+                metadata_columns=["claim_number", "form_date"],
+                max_chars=15000,
+            )
+            print(len(chunks))
+            print(chunks[0][:120])
+            task = "Summarize key damage findings per record. Cite claim numbers."
+            answers = await llm_query_batched([task + "\\n\\n" + c for c in chunks])
+            print(answers[0])
+            # Prints
+            # 3
+            # [chunk 1/3 | source ds_1 | records 1-25 of 64 | text column: form_text]
+            # ...
+            # Claim CLM-0042 reports wind damage to the roof ridge ...
+            ```
+        """
+        if max_rows < 1:
+            raise ValueError("max_rows must be at least 1.")
+        if max_records is not None and max_records < 1:
+            raise ValueError("max_records must be at least 1 when provided.")
+        if max_chars is None:
+            max_chars = self._chunk_max_chars
+        if max_chars < 1:
+            raise ValueError("max_chars must be at least 1.")
+        if not isinstance(text_column, str) or not text_column:
+            raise ValueError("dataset_chunks requires exactly one text column name.")
+        metadata_columns = list(metadata_columns or [])
+        if any(not isinstance(column, str) or not column for column in metadata_columns):
+            raise ValueError("metadata_columns must be non-empty column names.")
+        if text_column in metadata_columns:
+            raise ValueError(f"text_column {text_column!r} cannot also be a metadata column.")
+
+        handle = _dataset_handle(dataset_handle)
+        dataframe = self._load(handle)
+        _require_columns(dataframe, [text_column, *metadata_columns])
+
+        # Clamp instead of raising so chunks always leave headroom for the
+        # caller's task instructions under the sub-LLM prompt limit.
+        effective_max = min(max_chars, self._max_prompt_chars - self._prompt_headroom_chars)
+
+        # Render one delimited block per included row. Records are expected to
+        # be short (a few paragraphs); a block longer than effective_max is not
+        # split and simply ends up in its own chunk during packing below.
+        blocks: list[tuple[int, str]] = []  # (record_number, block_text)
+        record_number = 0
+        for _, row in dataframe.head(max_rows).iterrows():
+            text = _cell_text(row[text_column])
+            if not text and skip_empty:
+                continue
+            record_number += 1
+            meta = [
+                (column, _meta_value(row[column], max_chars=self._meta_value_max_chars))
+                for column in metadata_columns
+            ]
+            blocks.append((record_number, f"{_record_header(record_number, meta)}\n{text}"))
+
+        # Greedily pack blocks into chunks, keeping dataset row order.
+        groups: list[list[tuple[int, str]]] = []
+        current: list[tuple[int, str]] = []
+        current_size = 0
+        for number, block in blocks:
+            added = len(block) + (2 if current else 0)  # +2 for the "\n\n" joiner
+            over_chars = current_size + added > effective_max
+            over_records = max_records is not None and len(current) >= max_records
+            if current and (over_chars or over_records):
+                groups.append(current)
+                current = []
+                current_size = 0
+                added = len(block)
+            current.append((number, block))
+            current_size += added
+        if current:
+            groups.append(current)
+
+        # Second pass: prepend a banner now that the total chunk count is known.
+        total_records = record_number
+        chunks: list[str] = []
+        for chunk_index, group in enumerate(groups, start=1):
+            first, last = group[0][0], group[-1][0]
+            banner = (
+                f"[chunk {chunk_index}/{len(groups)} | source {handle} | "
+                f"records {first}-{last} of {total_records} | "
+                f"text column: {text_column}]"
+            )
+            body = "\n\n".join(block for _, block in group)
+            chunks.append(f"{banner}\n\n{body}")
+        return chunks
 
     @tool
     async def llm_query(self, prompt: str) -> str:
