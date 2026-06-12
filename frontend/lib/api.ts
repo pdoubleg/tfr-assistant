@@ -11,9 +11,11 @@ import type {
   DatasetAddCandidatesResponse,
   DatasetCandidateRecord,
   DatasetClusterResult,
+  DatasetMaterializeResponse,
   DatasetPopulationRecord,
   DatasetSampleMode,
   DatasetSampleResult,
+  DatasetSourceRecord,
   DatasetSourceRowRecord,
   EvalDatasetRecord,
   EvalRunItemRecord,
@@ -538,6 +540,103 @@ export async function getDatasetPopulation(
     cache: "no-store",
   });
   return parseJsonResponse<DatasetPopulationRecord>(response);
+}
+
+export async function listDatasetSources(
+  formId: string,
+  formVersion: string,
+): Promise<DatasetSourceRecord[]> {
+  const params = new URLSearchParams({ form_id: formId, form_version: formVersion });
+  const response = await fetch(`${apiBaseUrl}/api/datasets/sources?${params.toString()}`, {
+    cache: "no-store",
+  });
+  return parseJsonResponse<DatasetSourceRecord[]>(response);
+}
+
+export async function fetchDatasetSource(
+  populationId: string,
+  payload: { source_id: string; params?: Record<string, unknown> },
+): Promise<DatasetAddCandidatesResponse> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/datasets/populations/${populationId}/fetch-source`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source_id: payload.source_id, params: payload.params ?? {} }),
+    },
+  );
+  return parseJsonResponse<DatasetAddCandidatesResponse>(response);
+}
+
+export async function browseDatasetSourceRows(
+  formId: string,
+  formVersion: string,
+  payload: { source_id: string; params?: Record<string, unknown>; limit?: number },
+): Promise<DatasetSourceRowRecord[]> {
+  const params = new URLSearchParams({ form_id: formId, form_version: formVersion });
+  const response = await fetch(`${apiBaseUrl}/api/datasets/source-preview?${params.toString()}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      source_id: payload.source_id,
+      params: payload.params ?? {},
+      limit: payload.limit ?? 100,
+    }),
+  });
+  return parseJsonResponse<DatasetSourceRowRecord[]>(response);
+}
+
+export async function addDatasetSourceRows(
+  populationId: string,
+  payload: {
+    source_id: string;
+    params?: Record<string, unknown>;
+    source_record_ids?: string[];
+    add_all_filtered?: boolean;
+    limit?: number;
+  },
+): Promise<DatasetAddCandidatesResponse> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/datasets/populations/${populationId}/source-candidates`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        source_id: payload.source_id,
+        params: payload.params ?? {},
+        source_record_ids: payload.source_record_ids ?? [],
+        add_all_filtered: payload.add_all_filtered ?? false,
+        limit: payload.limit ?? 100,
+      }),
+    },
+  );
+  return parseJsonResponse<DatasetAddCandidatesResponse>(response);
+}
+
+export async function materializeDatasetSourceRows(
+  formId: string,
+  formVersion: string,
+  payload: {
+    source_id: string;
+    params?: Record<string, unknown>;
+    source_record_ids?: string[];
+    add_all_filtered?: boolean;
+    limit?: number;
+  },
+): Promise<DatasetMaterializeResponse> {
+  const params = new URLSearchParams({ form_id: formId, form_version: formVersion });
+  const response = await fetch(`${apiBaseUrl}/api/datasets/source-materialize?${params.toString()}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      source_id: payload.source_id,
+      params: payload.params ?? {},
+      source_record_ids: payload.source_record_ids ?? [],
+      add_all_filtered: payload.add_all_filtered ?? false,
+      limit: payload.limit ?? 100,
+    }),
+  });
+  return parseJsonResponse<DatasetMaterializeResponse>(response);
 }
 
 export async function browseDatasetAppDbRows(

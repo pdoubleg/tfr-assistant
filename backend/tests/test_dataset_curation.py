@@ -12,6 +12,8 @@ from app.schemas.datasets import (
     DatasetPopulationCreate,
     DatasetPublishRequest,
     DatasetSampleRequest,
+    DatasetSourceAddRequest,
+    DatasetSourceBrowseRequest,
 )
 from app.schemas.evaluations import FeedbackCreate
 from app.services.catalog import FormCatalog
@@ -221,6 +223,59 @@ async def test_app_db_source_can_preview_and_add_selected_rows(tmp_path) -> None
 
 
 @pytest.mark.anyio
+async def test_code_owned_source_template_can_preview_and_add_selected_rows(tmp_path) -> None:
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    try:
+        async with engine.begin() as connection:
+            await connection.run_sync(Base.metadata.create_all)
+        session_factory = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
+        settings = Settings(
+            data_dir=tmp_path / "data",
+            dataset_embedding_model_dir=tmp_path / "missing-model",
+        )
+        async with session_factory() as session:
+            repository = DatasetRepository(session, settings)
+            population = await _create_population(repository, "Code-owned source population")
+            sources = repository.list_sources("tfr_default", "v0.1")
+            source_id = "example_code_owned_query"
+
+            preview = await repository.browse_source(
+                "tfr_default",
+                "v0.1",
+                DatasetSourceBrowseRequest(
+                    source_id=source_id,
+                    params={"count": 4},
+                    limit=4,
+                ),
+            )
+
+            assert sources[0].id == source_id
+            assert len(preview) == 4
+            assert preview[0].source_id == source_id
+
+            added = await repository.add_source_candidates(
+                population.id,
+                DatasetSourceAddRequest(
+                    source_id=source_id,
+                    params={"count": 4},
+                    source_record_ids=[preview[1].source_record_id, preview[3].source_record_id],
+                    limit=4,
+                ),
+            )
+            detail = await repository.get_population(population.id)
+
+            assert added.added_count == 2
+            assert detail.candidate_count == 2
+            assert {candidate.source_record_id for candidate in detail.candidates} == {
+                preview[1].source_record_id,
+                preview[3].source_record_id,
+            }
+            assert detail.candidates[0].source_label == "Example Code-Owned Query"
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.anyio
 async def test_outcome_sampling_preserves_candidate_outcome_split(tmp_path) -> None:
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     try:
@@ -254,6 +309,55 @@ async def test_outcome_sampling_preserves_candidate_outcome_split(tmp_path) -> N
 
             assert sample.selected_count == 3
             assert outcome_counts == {"Does Not Meet": 1, "Meets": 2}
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.anyio
+async def test_code_owned_source_materializes_selected_reviews_and_skips_duplicates(
+    tmp_path,
+) -> None:
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    try:
+        async with engine.begin() as connection:
+            await connection.run_sync(Base.metadata.create_all)
+        session_factory = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
+        settings = Settings(data_dir=tmp_path / "data")
+        async with session_factory() as session:
+            repository = DatasetRepository(session, settings)
+            source_id = "example_code_owned_query"
+            preview = await repository.browse_source(
+                "tfr_default",
+                "v0.1",
+                DatasetSourceBrowseRequest(
+                    source_id=source_id,
+                    params={"count": 3},
+                    limit=3,
+                ),
+            )
+            request = DatasetSourceAddRequest(
+                source_id=source_id,
+                params={"count": 3},
+                source_record_ids=[preview[0].source_record_id, preview[2].source_record_id],
+                limit=3,
+            )
+
+            first = await repository.materialize_source_reviews("tfr_default", "v0.1", request)
+            second = await repository.materialize_source_reviews("tfr_default", "v0.1", request)
+            reviews = await ReviewRepository(session).list_reviews()
+            app_rows = await repository.browse_app_db_source(
+                "tfr_default",
+                "v0.1",
+                DatasetAppDbBrowseRequest(search=preview[0].claim_number),
+            )
+
+            assert first.created_count == 2
+            assert first.skipped_count == 0
+            assert second.created_count == 0
+            assert second.skipped_count == 2
+            assert len(reviews) == 2
+            assert all(review.source.startswith("dataset:") for review in reviews)
+            assert app_rows[0].claim_number == preview[0].claim_number
     finally:
         await engine.dispose()
 

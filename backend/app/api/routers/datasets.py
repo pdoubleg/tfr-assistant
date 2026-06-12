@@ -14,6 +14,7 @@ from app.schemas.datasets import (
     DatasetCloneRequest,
     DatasetClusterRequest,
     DatasetClusterResult,
+    DatasetMaterializeResponse,
     DatasetPopulationCreate,
     DatasetPopulationDetail,
     DatasetPopulationRecord,
@@ -21,6 +22,10 @@ from app.schemas.datasets import (
     DatasetPublishRequest,
     DatasetSampleRequest,
     DatasetSampleResult,
+    DatasetSourceAddRequest,
+    DatasetSourceBrowseRequest,
+    DatasetSourceFetchRequest,
+    DatasetSourceRecord,
     DatasetSourceRowRecord,
     PublishedDatasetRow,
 )
@@ -28,6 +33,18 @@ from app.schemas.evaluations import EvalDatasetDetail, EvalDatasetRecord
 from app.services.datasets import DatasetRepository
 
 router = APIRouter()
+
+
+@router.get("/sources", response_model=list[DatasetSourceRecord])
+async def list_dataset_sources(
+    session: Annotated[AsyncSession, Depends(get_session)],
+    form_id: Annotated[str, Query()],
+    form_version: Annotated[str, Query()],
+) -> list[DatasetSourceRecord]:
+    try:
+        return DatasetRepository(session).list_sources(form_id, form_version)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/populations", response_model=list[DatasetPopulationRecord])
@@ -73,6 +90,74 @@ async def get_dataset_population(
         return await DatasetRepository(session).get_population(population_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post(
+    "/populations/{population_id}/fetch-source",
+    response_model=DatasetAddCandidatesResponse,
+)
+async def fetch_dataset_source(
+    population_id: str,
+    request: DatasetSourceFetchRequest,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> DatasetAddCandidatesResponse:
+    try:
+        return await DatasetRepository(session).fetch_source(population_id, request)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/source-preview", response_model=list[DatasetSourceRowRecord])
+async def browse_dataset_source(
+    request: DatasetSourceBrowseRequest,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    form_id: Annotated[str, Query()],
+    form_version: Annotated[str, Query()],
+) -> list[DatasetSourceRowRecord]:
+    try:
+        return await DatasetRepository(session).browse_source(form_id, form_version, request)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/source-materialize", response_model=DatasetMaterializeResponse)
+async def materialize_dataset_source_reviews(
+    request: DatasetSourceAddRequest,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    form_id: Annotated[str, Query()],
+    form_version: Annotated[str, Query()],
+) -> DatasetMaterializeResponse:
+    try:
+        return await DatasetRepository(session).materialize_source_reviews(
+            form_id,
+            form_version,
+            request,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post(
+    "/populations/{population_id}/source-candidates",
+    response_model=DatasetAddCandidatesResponse,
+)
+async def add_dataset_source_candidates(
+    population_id: str,
+    request: DatasetSourceAddRequest,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> DatasetAddCandidatesResponse:
+    try:
+        return await DatasetRepository(session).add_source_candidates(population_id, request)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/app-db/browse", response_model=list[DatasetSourceRowRecord])

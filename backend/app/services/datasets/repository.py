@@ -37,6 +37,7 @@ from app.schemas.datasets import (
     DatasetCloneRequest,
     DatasetClusterRequest,
     DatasetClusterResult,
+    DatasetMaterializeResponse,
     DatasetPopulationCreate,
     DatasetPopulationDetail,
     DatasetPopulationRecord,
@@ -45,6 +46,10 @@ from app.schemas.datasets import (
     DatasetReference,
     DatasetSampleRequest,
     DatasetSampleResult,
+    DatasetSourceAddRequest,
+    DatasetSourceBrowseRequest,
+    DatasetSourceFetchRequest,
+    DatasetSourceRecord,
     DatasetSourceRowRecord,
     PublishedDatasetRow,
 )
@@ -56,8 +61,10 @@ from app.services.datasets.clustering import (
     _sample_candidates,
     _sample_reason,
 )
+from app.services.datasets.sources import fetch_source_candidates, list_for_form
 from app.services.evaluation_service import EvaluationRepository
 from app.services.optimization.metrics import driver_count, issue_count
+from app.services.review_repository import ReviewRepository
 
 
 def _now() -> datetime:
@@ -139,11 +146,19 @@ def _reference_payload(reference: DatasetReference) -> dict[str, Any]:
     }
 
 
+def _materialized_source_for(source_key: str) -> str:
+    source = f"dataset:{source_key}"
+    return source if len(source) <= 32 else source[:32]
+
+
 class DatasetRepository:
     def __init__(self, session: AsyncSession, settings: Settings | None = None) -> None:
         self.session = session
         self.settings = settings or get_settings()
         self.catalog = FormCatalog(self.settings.form_catalog_dir)
+
+    def list_sources(self, form_id: str, form_version: str) -> list[DatasetSourceRecord]:
+        return list_for_form(self.catalog, form_id, form_version)
 
     async def create_population(self, request: DatasetPopulationCreate) -> DatasetPopulationRecord:
         form = self.catalog.get_form(request.form_id, request.form_version)
@@ -197,6 +212,131 @@ class DatasetRepository:
         return DatasetPopulationDetail(
             **base.model_dump(),
             candidates=[self._candidate_to_schema(candidate) for candidate in candidates],
+        )
+
+    async def fetch_source(
+        self,
+        population_id: str,
+        request: DatasetSourceFetchRequest,
+    ) -> DatasetAddCandidatesResponse:
+        population = await self._get_population_orm(population_id)
+        self._require_draft_population(population)
+        candidates = self._fetch_source_candidates(
+            request.source_id,
+            form_id=population.form_id,
+            form_version=population.form_version,
+            params=request.params,
+        )
+        population.source_config_json = {
+            "last_source_id": request.source_id,
+            "last_params": request.params,
+            "last_fetched_at": _now().isoformat(),
+        }
+        return await self._add_canonical_candidates(population, candidates)
+
+    async def browse_source(
+        self,
+        form_id: str,
+        form_version: str,
+        request: DatasetSourceBrowseRequest,
+    ) -> list[DatasetSourceRowRecord]:
+        candidates = self._fetch_source_candidates(
+            request.source_id,
+            form_id=form_id,
+            form_version=form_version,
+            params=request.params,
+        )
+        return [
+            self._candidate_to_source_row(candidate) for candidate in candidates[: request.limit]
+        ]
+
+    async def add_source_candidates(
+        self,
+        population_id: str,
+        request: DatasetSourceAddRequest,
+    ) -> DatasetAddCandidatesResponse:
+        population = await self._get_population_orm(population_id)
+        self._require_draft_population(population)
+        candidates = self._fetch_source_candidates(
+            request.source_id,
+            form_id=population.form_id,
+            form_version=population.form_version,
+            params=request.params,
+        )[: request.limit]
+        if not request.add_all_filtered:
+            selected_ids = set(request.source_record_ids)
+            if not selected_ids:
+                raise ValueError("Select at least one source row before adding candidates.")
+            candidates = [
+                candidate for candidate in candidates if candidate.source_record_id in selected_ids
+            ]
+        population.source_config_json = {
+            "last_source_id": request.source_id,
+            "last_params": request.params,
+            "last_added_at": _now().isoformat(),
+            "last_selected_count": len(candidates),
+            "last_add_all_filtered": request.add_all_filtered,
+        }
+        return await self._add_canonical_candidates(population, candidates)
+
+    async def materialize_source_reviews(
+        self,
+        form_id: str,
+        form_version: str,
+        request: DatasetSourceAddRequest,
+    ) -> DatasetMaterializeResponse:
+        self.catalog.get_form(form_id, form_version)
+        candidates = self._fetch_source_candidates(
+            request.source_id,
+            form_id=form_id,
+            form_version=form_version,
+            params=request.params,
+        )[: request.limit]
+        if not request.add_all_filtered:
+            selected_ids = set(request.source_record_ids)
+            if not selected_ids:
+                raise ValueError("Select at least one source row before importing reviews.")
+            candidates = [
+                candidate for candidate in candidates if candidate.source_record_id in selected_ids
+            ]
+
+        created_ids: list[str] = []
+        skipped_ids: list[str] = []
+        repository = ReviewRepository(self.session)
+        for candidate in candidates:
+            if await self._materialized_review_exists(candidate):
+                skipped_ids.append(candidate.source_record_id)
+                continue
+            reference = next(
+                (item for item in candidate.references if item.reference_kind == "R2"),
+                candidate.references[0],
+            )
+            input_json = {
+                **candidate.input,
+                "claim_number": candidate.claim_number,
+                "effective_date": candidate.effective_date,
+                "instructions": candidate.instructions,
+                "dataset_materialized": True,
+                "dataset_source_key": candidate.source_key,
+                "dataset_source_kind": candidate.source_kind,
+                "dataset_source_label": candidate.source_label,
+                "dataset_source_record_id": candidate.source_record_id,
+                "dataset_source_metadata": candidate.metadata or {},
+                "dataset_reference_kind": reference.reference_kind,
+                "dataset_reference_source_metadata": reference.source_metadata or {},
+            }
+            review = await repository.create_from_agent_output(
+                reference.result,
+                source=_materialized_source_for(candidate.source_key),
+                input_json=input_json,
+            )
+            created_ids.append(review.id)
+
+        return DatasetMaterializeResponse(
+            created_count=len(created_ids),
+            skipped_count=len(skipped_ids),
+            review_ids=created_ids,
+            skipped_source_record_ids=skipped_ids,
         )
 
     async def browse_app_db_source(
@@ -728,6 +868,66 @@ class DatasetRepository:
             )
         return output
 
+    def _fetch_source_candidates(
+        self,
+        source_id: str,
+        *,
+        form_id: str,
+        form_version: str,
+        params: dict[str, Any] | None,
+    ) -> list[CanonicalDatasetCandidate]:
+        form = self.catalog.get_form(form_id, form_version)
+        candidates = fetch_source_candidates(
+            source_id,
+            catalog=self.catalog,
+            form_id=form_id,
+            form_version=form_version,
+            params=params,
+        )
+        population_shape = DatasetPopulationORM(
+            id="validation-only",
+            name="validation-only",
+            description="",
+            form_id=form_id,
+            form_version=form_version,
+            form_kind=form.form_kind,
+            status="draft",
+        )
+        for candidate in candidates:
+            self._validate_candidate(candidate, population_shape)
+        return candidates
+
+    def _candidate_to_source_row(
+        self,
+        candidate: CanonicalDatasetCandidate,
+    ) -> DatasetSourceRowRecord:
+        preferred = next(
+            (
+                reference.result
+                for reference in candidate.references
+                if reference.reference_kind == "R2"
+            ),
+            candidate.references[0].result,
+        )
+        metrics = _candidate_metrics(preferred)
+        return DatasetSourceRowRecord(
+            source_record_id=candidate.source_record_id,
+            review_id=candidate.source_record_id,
+            source_id=candidate.source_key,
+            source_kind=candidate.source_kind,
+            source_label=candidate.source_label,
+            source=candidate.source_label or candidate.source_key,
+            claim_number=candidate.claim_number,
+            effective_date=candidate.effective_date,
+            title=preferred.title,
+            outcome=preferred.overall_outcome,
+            issue_count=int(metrics["issue_count"]),
+            driver_count=int(metrics["driver_count"]),
+            total_amount_reviewed_dollars=metrics["total_amount_reviewed_dollars"],
+            total_overwrite_dollars=metrics["total_overwrite_dollars"],
+            total_underwrite_dollars=metrics["total_underwrite_dollars"],
+        )
+
     async def _add_canonical_candidates(
         self,
         population: DatasetPopulationORM,
@@ -868,6 +1068,28 @@ class DatasetRepository:
 
         population.updated_at = _now()
         self.session.add(population)
+
+    async def _materialized_review_exists(self, candidate: CanonicalDatasetCandidate) -> bool:
+        source = _materialized_source_for(candidate.source_key)
+        records = (
+            await self.session.scalars(
+                select(AuditReviewORM).where(
+                    AuditReviewORM.form_id == candidate.references[0].result.form_id,
+                    AuditReviewORM.form_version == candidate.references[0].result.form_version,
+                    AuditReviewORM.status == "completed",
+                    AuditReviewORM.source == source,
+                )
+            )
+        ).all()
+        for record in records:
+            input_json = record.input_json or {}
+            if (
+                input_json.get("dataset_materialized") is True
+                and input_json.get("dataset_source_key") == candidate.source_key
+                and input_json.get("dataset_source_record_id") == candidate.source_record_id
+            ):
+                return True
+        return False
 
     async def _app_db_review_rows(
         self,
