@@ -36,7 +36,7 @@ OptimizationCandidateSelectionStrategy = Literal[
     "top_k_pareto",
 ]
 OptimizationFrontierType = Literal["instance", "objective", "hybrid", "cartesian"]
-OptimizationBatchSampler = Literal["epoch_shuffled"]
+OptimizationBatchSampler = Literal["audit_balanced", "epoch_shuffled"]
 OptimizationValEvaluationPolicy = Literal["full_eval"]
 
 
@@ -52,7 +52,7 @@ class OptimizationGepaParams(BaseModel):
 
     candidate_selection_strategy: OptimizationCandidateSelectionStrategy = "pareto"
     frontier_type: OptimizationFrontierType = "instance"
-    batch_sampler: OptimizationBatchSampler = "epoch_shuffled"
+    batch_sampler: OptimizationBatchSampler = "audit_balanced"
     module_selector: str = "all"
 
     use_merge: bool = False

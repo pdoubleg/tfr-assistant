@@ -4,6 +4,7 @@ from app.services.optimization.artifacts import (
     OptimizationArtifactWriter,
     OptimizationRunCallback,
 )
+from app.services.optimization.batch_samplers import AuditBalancedBatchSampler
 from app.services.optimization.components import AuditPromptProgram
 from app.services.optimization.models import (
     OptimizationDataInstance,
@@ -24,6 +25,7 @@ from app.services.optimization.traces import serialize_messages
 
 __all__ = [
     "AuditPromptProgram",
+    "AuditBalancedBatchSampler",
     "CancelFileStopper",
     "OptimizationArtifactWriter",
     "OptimizationDataInstance",

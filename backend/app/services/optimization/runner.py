@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import math
+import random
 from datetime import datetime
 from typing import Any
 from uuid import uuid4
@@ -33,6 +34,7 @@ from app.services.optimization.artifacts import (
     OptimizationArtifactWriter,
     OptimizationRunCallback,
 )
+from app.services.optimization.batch_samplers import AuditBalancedBatchSampler
 from app.services.optimization.components import seed_candidate_from_instructions
 from app.services.optimization.models import OptimizationDataInstance, OptimizationRolloutOutput
 from app.services.optimization.repository import prompt_from_case
@@ -202,6 +204,7 @@ class OptimizationRunService:
             },
         )
         asyncio.run(self._save_seed(run_id, seed_candidate))
+        batch_sampler, reflection_minibatch_size = self._batch_sampler_for(request)
         raw_result: GEPAResult[OptimizationRolloutOutput, Any] = gepa.api.optimize(
             adapter=adapter,
             seed_candidate=seed_candidate,
@@ -211,8 +214,8 @@ class OptimizationRunService:
             candidate_selection_strategy=request.gepa_params.candidate_selection_strategy,  # type: ignore[arg-type]
             frontier_type="instance",
             skip_perfect_score=True,
-            batch_sampler=request.gepa_params.batch_sampler,  # type: ignore[arg-type]
-            reflection_minibatch_size=request.gepa_params.reflection_minibatch_size,
+            batch_sampler=batch_sampler,  # type: ignore[arg-type]
+            reflection_minibatch_size=reflection_minibatch_size,
             perfect_score=1.0,
             module_selector=module_selector,
             use_merge=request.gepa_params.use_merge,
@@ -318,6 +321,22 @@ class OptimizationRunService:
         if model_name and model_name.strip():
             config.model_name = model_name.strip()
         return config
+
+    def _batch_sampler_for(
+        self,
+        request: OptimizationRunCreate,
+    ) -> tuple[str | AuditBalancedBatchSampler, int | None]:
+        minibatch_size = request.gepa_params.reflection_minibatch_size or 3
+        if request.gepa_params.batch_sampler == "audit_balanced":
+            return (
+                AuditBalancedBatchSampler(
+                    minibatch_size=minibatch_size,
+                    reference_policy=request.reference_policy,
+                    rng=random.Random(request.gepa_params.seed),
+                ),
+                None,
+            )
+        return request.gepa_params.batch_sampler, minibatch_size
 
     async def _load_instances(
         self,

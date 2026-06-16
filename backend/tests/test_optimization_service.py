@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from gepa.core.adapter import EvaluationBatch
+from gepa.core.data_loader import ListDataLoader
 from pydantic import ValidationError
 from pydantic_ai import Agent
 from pydantic_ai.messages import (
@@ -21,9 +22,11 @@ from app.schemas.optimizations import (
     OptimizationTraceConfig,
 )
 from app.services.optimization import (
+    AuditBalancedBatchSampler,
     AuditPromptProgram,
     OptimizationDataInstance,
     OptimizationRolloutOutput,
+    OptimizationRunService,
     OptimizationTrajectory,
     ProposalOutput,
     ReflectionInput,
@@ -88,6 +91,21 @@ def _result(
         ],
         overall_outcome=outcome,  # type: ignore[arg-type]
         outcome_justification=f"{outcome} rationale",
+    )
+
+
+def _instance(case_id: str, result: AuditFormResult) -> OptimizationDataInstance:
+    return OptimizationDataInstance(
+        case_id=case_id,
+        claim_number=case_id,
+        effective_date=None,
+        instructions="",
+        user_prompt="",
+        form_path="",
+        tools=[],
+        knowledge_docs=[],
+        references=[("R2", result)],
+        split="train",
     )
 
 
@@ -286,8 +304,80 @@ def test_reflective_dataset_uses_shared_trace_bucket(tmp_path) -> None:
     assert dataset["traces"][0]["feedback"] == "Q2 mismatch"
 
 
+def test_audit_balanced_sampler_prioritizes_outcome_spread() -> None:
+    instances = [
+        _instance("meet-1", _result(outcome="Meets")),
+        _instance("meet-2", _result(q1_answer="No", outcome="Meets")),
+        _instance("dnm-1", _result(q2_answer="No", outcome="Does Not Meet")),
+        _instance("dnm-2", _result(q3_answer="No", outcome="Does Not Meet")),
+    ]
+    sampler = AuditBalancedBatchSampler(minibatch_size=2, reference_policy="prefer_r2")
+
+    ids = sampler.next_minibatch_ids(ListDataLoader(instances), _SamplerState(i=0))
+    outcomes = {instances[item_id].references[0][1].overall_outcome for item_id in ids}
+
+    assert outcomes == {"Meets", "Does Not Meet"}
+
+
+def test_audit_balanced_sampler_uses_question_mix_after_outcome_spread() -> None:
+    instances = [
+        _instance("all-yes", _result(outcome="Meets")),
+        _instance("q1-no", _result(q1_answer="No", outcome="Meets")),
+        _instance("q2-no", _result(q2_answer="No", outcome="Meets")),
+    ]
+    sampler = AuditBalancedBatchSampler(minibatch_size=2, reference_policy="prefer_r2")
+
+    ids = sampler.next_minibatch_ids(ListDataLoader(instances), _SamplerState(i=0))
+    question_values: dict[str, set[str]] = {}
+    for item_id in ids:
+        result = instances[item_id].references[0][1]
+        for question in result.questions:
+            question_values.setdefault(question.id, set()).add(question.answer)
+
+    assert any(question_values.get(question_id) == {"Yes", "No"} for question_id in ("Q1", "Q2"))
+
+
+def test_audit_balanced_sampler_rotates_when_labels_do_not_help() -> None:
+    instances = [_instance(f"case-{index}", _result(outcome="Meets")) for index in range(6)]
+    sampler = AuditBalancedBatchSampler(minibatch_size=3, reference_policy="prefer_r2")
+    loader = ListDataLoader(instances)
+
+    first_ids = set(sampler.next_minibatch_ids(loader, _SamplerState(i=0)))
+    second_ids = set(sampler.next_minibatch_ids(loader, _SamplerState(i=1)))
+
+    assert first_ids.isdisjoint(second_ids)
+
+
+def test_runner_translates_audit_balanced_sampler_minibatch_size() -> None:
+    request = OptimizationRunCreate(
+        name="sampler translation",
+        form_id="demo",
+        form_version="v0.1",
+        gepa_params=OptimizationGepaParams(
+            max_metric_calls=10,
+            batch_sampler="audit_balanced",
+            reflection_minibatch_size=5,
+        ),
+        case_splits=[
+            {"case_id": "case-1", "split": "train"},
+            {"case_id": "case-2", "split": "val"},
+        ],
+    )
+
+    sampler, reflection_minibatch_size = OptimizationRunService()._batch_sampler_for(request)
+
+    assert isinstance(sampler, AuditBalancedBatchSampler)
+    assert sampler.minibatch_size == 5
+    assert reflection_minibatch_size is None
+
+
 def test_gepa_budget_modes_are_mutually_exclusive() -> None:
     assert OptimizationGepaParams(max_metric_calls=10).max_metric_calls == 10
+    assert OptimizationGepaParams(max_metric_calls=10).batch_sampler == "audit_balanced"
+    assert (
+        OptimizationGepaParams(max_metric_calls=10, batch_sampler="epoch_shuffled").batch_sampler
+        == "epoch_shuffled"
+    )
     assert OptimizationGepaParams(max_metric_calls=None, max_full_evals=2).max_full_evals == 2
     assert OptimizationGepaParams(max_metric_calls=None, auto="light").auto == "light"
 
@@ -332,6 +422,11 @@ class _Writer:
 
     def append_trace(self, _trace) -> None:
         return None
+
+
+class _SamplerState:
+    def __init__(self, i: int) -> None:
+        self.i = i
 
 
 def _test_model_config():

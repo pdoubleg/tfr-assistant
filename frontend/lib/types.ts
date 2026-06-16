@@ -524,7 +524,7 @@ export type OptimizationReferencePolicy = "prefer_r2" | "r1" | "r2" | "all";
 export type OptimizationAutoBudget = "light" | "medium" | "heavy";
 export type OptimizationCandidateSelectionStrategy = "pareto" | "current_best" | "epsilon_greedy" | "top_k_pareto";
 export type OptimizationFrontierType = "instance" | "objective" | "hybrid" | "cartesian";
-export type OptimizationBatchSampler = "epoch_shuffled";
+export type OptimizationBatchSampler = "audit_balanced" | "epoch_shuffled";
 export type OptimizationValEvaluationPolicy = "full_eval";
 
 export interface OptimizationCaseRecord {

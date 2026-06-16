@@ -123,7 +123,7 @@ const defaultGepaParams: GepaParamsState = {
   skip_perfect_score: true,
   candidate_selection_strategy: "pareto",
   frontier_type: "instance",
-  batch_sampler: "epoch_shuffled",
+  batch_sampler: "audit_balanced",
   module_selector: "all",
   use_merge: false,
   max_merge_invocations: 5,
@@ -1487,6 +1487,17 @@ function RunConfig(props: {
                 onChange={(event) => props.setGepaParams({ ...props.gepaParams, reflection_minibatch_size: Number(event.target.value) })}
                 className="mt-1"
               />
+            </label>
+            <label className="text-sm font-medium">
+              Batch Sampler
+              <select
+                value={props.gepaParams.batch_sampler}
+                onChange={(event) => props.setGepaParams({ ...props.gepaParams, batch_sampler: event.target.value as GepaParamsState["batch_sampler"] })}
+                className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm"
+              >
+                <option value="audit_balanced">Audit Balanced</option>
+                <option value="epoch_shuffled">Epoch Shuffled</option>
+              </select>
             </label>
             <label className="text-sm font-medium">
               Candidate Selector
