@@ -30,6 +30,10 @@ ReasoningSummary = Literal["auto", "concise", "detailed"]
 
 DEFAULT_CHAT_MODEL_NAME = "gpt-5.4-mini"
 DEFAULT_AUDIT_MODEL_NAME = "gpt-5.4-nano"
+DEFAULT_POLICY_SUMMARY_FILTER_MODEL_NAME = "gpt-5.4-nano"
+DEFAULT_POLICY_SUMMARY_EXTRACTION_MODEL_NAME = "gpt-5.4-mini"
+DEFAULT_POLICY_SUMMARY_SYNTHESIS_MODEL_NAME = "gpt-5.4-mini"
+DEFAULT_POLICY_SUMMARY_MODEL_NAME = DEFAULT_POLICY_SUMMARY_EXTRACTION_MODEL_NAME
 
 
 class AvailableLLMModel(BaseModel):
@@ -43,6 +47,9 @@ class AvailableLLMModel(BaseModel):
     default_reasoning_effort: ReasoningEffort | None = None
     default_for_chat: bool = False
     default_for_audit: bool = False
+    default_for_policy_summary_filter: bool = False
+    default_for_policy_summary_extraction: bool = False
+    default_for_policy_summary_synthesis: bool = False
 
     @property
     def supports_reasoning_effort(self) -> bool:
@@ -77,6 +84,8 @@ AVAILABLE_LLM_MODELS: tuple[AvailableLLMModel, ...] = (
         reasoning_efforts=["minimal", "low", "medium", "high"],
         default_reasoning_effort="low",
         default_for_chat=True,
+        default_for_policy_summary_extraction=True,
+        default_for_policy_summary_synthesis=True,
     ),
     AvailableLLMModel(
         name=DEFAULT_AUDIT_MODEL_NAME,
@@ -87,6 +96,7 @@ AVAILABLE_LLM_MODELS: tuple[AvailableLLMModel, ...] = (
         reasoning_efforts=["none", "minimal", "low"],
         default_reasoning_effort="low",
         default_for_audit=True,
+        default_for_policy_summary_filter=True,
     ),
 )
 
@@ -222,6 +232,43 @@ def default_audit_model_name() -> str:
         (option.name for option in AVAILABLE_LLM_MODELS if option.default_for_audit),
         DEFAULT_AUDIT_MODEL_NAME,
     )
+
+
+def default_policy_summary_filter_model_name() -> str:
+    return next(
+        (
+            option.name
+            for option in AVAILABLE_LLM_MODELS
+            if option.default_for_policy_summary_filter
+        ),
+        DEFAULT_POLICY_SUMMARY_FILTER_MODEL_NAME,
+    )
+
+
+def default_policy_summary_extraction_model_name() -> str:
+    return next(
+        (
+            option.name
+            for option in AVAILABLE_LLM_MODELS
+            if option.default_for_policy_summary_extraction
+        ),
+        DEFAULT_POLICY_SUMMARY_EXTRACTION_MODEL_NAME,
+    )
+
+
+def default_policy_summary_synthesis_model_name() -> str:
+    return next(
+        (
+            option.name
+            for option in AVAILABLE_LLM_MODELS
+            if option.default_for_policy_summary_synthesis
+        ),
+        DEFAULT_POLICY_SUMMARY_SYNTHESIS_MODEL_NAME,
+    )
+
+
+def default_policy_summary_model_name() -> str:
+    return default_policy_summary_extraction_model_name()
 
 
 def resolve_llm_model_option(

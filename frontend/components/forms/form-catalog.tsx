@@ -87,6 +87,7 @@ const FORM_TOOL_OPTIONS: FormToolOption[] = [
     label: "Policy Docs",
     tools: ["get_policy_documents_metadata", "get_policy_document_content"],
   },
+  { id: "policy-summary", label: "Policy Summary", tools: ["get_policy_summary_extract"] },
   { id: "images", label: "Images", tools: ["get_image_analysis"] },
 ];
 const FORM_TOOL_NAMES = FORM_TOOL_OPTIONS.flatMap((option) => option.tools);

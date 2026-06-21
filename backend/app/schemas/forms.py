@@ -15,6 +15,7 @@ class ReviewAgentToolName(StrEnum):
     GET_CLAIM_DOCUMENT_CONTENT = "get_claim_document_content"
     GET_POLICY_DOCUMENTS_METADATA = "get_policy_documents_metadata"
     GET_POLICY_DOCUMENT_CONTENT = "get_policy_document_content"
+    GET_POLICY_SUMMARY_EXTRACT = "get_policy_summary_extract"
     GET_IMAGE_ANALYSIS = "get_image_analysis"
 
 

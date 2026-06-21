@@ -10,6 +10,11 @@ from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext, ToolDefinition
 from pydantic_ai.capabilities import AgentCapability, PrepareTools
 
+from app.agents.tools.policy_summary import (
+    async_build_policy_summary_report,
+    discover_workspace_pdf_paths,
+    resolve_workspace_dir,
+)
 from app.core.config import Settings, get_settings
 from app.core.llm import LLMModelConfig, LLMRunCostTracker, build_llm_model
 from app.models.audit import (
@@ -33,6 +38,8 @@ DEFAULT_REVIEW_INSTRUCTIONS = (
     "You are a file review worker. Your only job is to complete audit form "
     "questionnaires from file evidence. Use the registered audit form and runtime "
     "context provided in the additional instructions to guide your focus and output.\n"
+    "When policy-summary extraction is enabled and policy terms matter to the review, "
+    "call get_policy_summary_extract with an effective_date and optional focus_area.\n"
     "If user requests an example audit, create a fictitious result as a demonstration.\n"
     "Output must validate exactly as the registered audit form result schema. Use only "
     "Yes or No for question answers. If the canonical standard question lists "
@@ -251,6 +258,35 @@ def build_file_review_agent(
     async def get_policy_document_content(ctx: RunContext[FileReviewAgentDeps]) -> str:
         """Placeholder tool to get the documents for the policy."""
         return "Policy document content"
+
+    @agent.tool
+    async def get_policy_summary_extract(
+        ctx: RunContext[FileReviewAgentDeps],
+        effective_date: str,
+        focus_area: str = "",
+    ) -> str:
+        """Build a policy summary extract from policy PDFs in the workspace.
+
+        Args:
+            effective_date: Policy as-of or effective date, preferably YYYY-MM-DD.
+            focus_area: Optional claim, peril, coverage, or audit focus area.
+        """
+
+        pdf_paths = discover_workspace_pdf_paths(active_settings.agent_workspace_dir)
+        if not pdf_paths:
+            workspace_dir = resolve_workspace_dir(active_settings.agent_workspace_dir)
+            return f"No policy PDFs found in workspace directory: {workspace_dir}"
+
+        requested_date = effective_date.strip() or ctx.deps.effective_date
+        return await async_build_policy_summary_report(
+            pdf_paths,
+            effective_date=requested_date,
+            focus_area=focus_area,
+            model_config=active_settings.policy_summary_extraction_llm_config(),
+            filter_model_config=active_settings.policy_summary_filter_llm_config(),
+            synthesis_model_config=active_settings.policy_summary_synthesis_llm_config(),
+            cost_tracker=ctx.deps.cost_tracker,
+        )
 
     @agent.tool
     async def get_image_analysis(ctx: RunContext[FileReviewAgentDeps]) -> str:

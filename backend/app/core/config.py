@@ -6,6 +6,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from app.core.llm import (
     DEFAULT_AUDIT_MODEL_NAME,
     DEFAULT_CHAT_MODEL_NAME,
+    DEFAULT_POLICY_SUMMARY_EXTRACTION_MODEL_NAME,
+    DEFAULT_POLICY_SUMMARY_FILTER_MODEL_NAME,
+    DEFAULT_POLICY_SUMMARY_SYNTHESIS_MODEL_NAME,
     LLMModelAPI,
     LLMModelConfig,
     ReasoningEffort,
@@ -120,6 +123,45 @@ class Settings(BaseSettings):
     """Per-request timeout for audit model calls; None uses the client default."""
 
     # ------------------------------------------------------------------
+    # Policy summary sub-LLMs
+    # ------------------------------------------------------------------
+    policy_summary_filter_model: str = DEFAULT_POLICY_SUMMARY_FILTER_MODEL_NAME
+    """Model name used for policy-summary focus chunk filtering."""
+
+    policy_summary_filter_model_base_name: str = ""
+    """Base model name override when policy_summary_filter_model is a deployment alias."""
+
+    policy_summary_filter_model_api: LLMModelAPI = LLMModelAPI.CHAT
+    """API flavor used to call the policy-summary focus filter model."""
+
+    policy_summary_filter_model_timeout_seconds: float | None = None
+    """Per-request timeout for policy-summary focus filter calls."""
+
+    policy_summary_extraction_model: str = DEFAULT_POLICY_SUMMARY_EXTRACTION_MODEL_NAME
+    """Model name used for policy-summary PDF chunk extraction."""
+
+    policy_summary_extraction_model_base_name: str = ""
+    """Base model name override when policy_summary_extraction_model is a deployment alias."""
+
+    policy_summary_extraction_model_api: LLMModelAPI = LLMModelAPI.CHAT
+    """API flavor used to call the policy-summary extraction model."""
+
+    policy_summary_extraction_model_timeout_seconds: float | None = None
+    """Per-request timeout for policy-summary extraction calls; None uses the client default."""
+
+    policy_summary_synthesis_model: str = DEFAULT_POLICY_SUMMARY_SYNTHESIS_MODEL_NAME
+    """Model name used for final policy-summary synthesis/compression."""
+
+    policy_summary_synthesis_model_base_name: str = ""
+    """Base model name override when policy_summary_synthesis_model is a deployment alias."""
+
+    policy_summary_synthesis_model_api: LLMModelAPI = LLMModelAPI.CHAT
+    """API flavor used to call the policy-summary synthesis model."""
+
+    policy_summary_synthesis_model_timeout_seconds: float | None = None
+    """Per-request timeout for policy-summary synthesis calls."""
+
+    # ------------------------------------------------------------------
     # Monty sub-LLM (RLM tools in the Python repl)
     # ------------------------------------------------------------------
     monty_rlm_model: str = DEFAULT_AUDIT_MODEL_NAME
@@ -184,6 +226,55 @@ class Settings(BaseSettings):
             base_model_name=(self.audit_model_base_name or None) if model_name is None else None,
             timeout_seconds=self.audit_model_timeout_seconds,
         )
+
+    def policy_summary_filter_llm_config(
+        self,
+        *,
+        test_output_text: str | None = None,
+    ) -> LLMModelConfig:
+        return llm_model_config_for(
+            self.policy_summary_filter_model,
+            api=self.policy_summary_filter_model_api,
+            deployment_overrides=self.llm_deployments,
+            base_model_name=self.policy_summary_filter_model_base_name or None,
+            timeout_seconds=self.policy_summary_filter_model_timeout_seconds,
+            test_output_text=test_output_text,
+        )
+
+    def policy_summary_extraction_llm_config(
+        self,
+        *,
+        test_output_text: str | None = None,
+    ) -> LLMModelConfig:
+        return llm_model_config_for(
+            self.policy_summary_extraction_model,
+            api=self.policy_summary_extraction_model_api,
+            deployment_overrides=self.llm_deployments,
+            base_model_name=self.policy_summary_extraction_model_base_name or None,
+            timeout_seconds=self.policy_summary_extraction_model_timeout_seconds,
+            test_output_text=test_output_text,
+        )
+
+    def policy_summary_synthesis_llm_config(
+        self,
+        *,
+        test_output_text: str | None = None,
+    ) -> LLMModelConfig:
+        return llm_model_config_for(
+            self.policy_summary_synthesis_model,
+            api=self.policy_summary_synthesis_model_api,
+            deployment_overrides=self.llm_deployments,
+            base_model_name=self.policy_summary_synthesis_model_base_name or None,
+            timeout_seconds=self.policy_summary_synthesis_model_timeout_seconds,
+            test_output_text=test_output_text,
+        )
+
+    def policy_summary_llm_config(
+        self,
+        *,
+        test_output_text: str | None = None,
+    ) -> LLMModelConfig:
+        return self.policy_summary_extraction_llm_config(test_output_text=test_output_text)
 
     def monty_rlm_llm_config(self, *, test_output_text: str | None = None) -> LLMModelConfig:
         return llm_model_config_for(

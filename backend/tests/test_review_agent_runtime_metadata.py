@@ -78,3 +78,16 @@ def test_prepare_review_agent_tools_filters_to_enabled_pairs() -> None:
         ReviewAgentToolName.GET_POLICY_DOCUMENTS_METADATA.value,
         ReviewAgentToolName.GET_POLICY_DOCUMENT_CONTENT.value,
     ]
+
+
+def test_prepare_review_agent_tools_can_enable_policy_summary_extract() -> None:
+    ctx = SimpleNamespace(
+        deps=SimpleNamespace(tools=[ReviewAgentToolName.GET_POLICY_SUMMARY_EXTRACT.value])
+    )
+    tool_defs = [ToolDefinition(name=tool.value) for tool in ALL_REVIEW_AGENT_TOOLS]
+
+    prepared = asyncio.run(_prepare_review_agent_tools(ctx, tool_defs))
+
+    assert [tool_def.name for tool_def in prepared or []] == [
+        ReviewAgentToolName.GET_POLICY_SUMMARY_EXTRACT.value
+    ]

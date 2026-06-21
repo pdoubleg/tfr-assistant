@@ -9,6 +9,7 @@ export type ReviewAgentToolName =
   | "get_claim_document_content"
   | "get_policy_documents_metadata"
   | "get_policy_document_content"
+  | "get_policy_summary_extract"
   | "get_image_analysis";
 
 export interface ChatModelOption {
