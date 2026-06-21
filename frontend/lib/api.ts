@@ -1,6 +1,11 @@
 import type {
   AuditFormDefinition,
   AuditFormResult,
+  AuditArtifactRecord,
+  AuditObservabilityFacets,
+  AuditTraceDetail,
+  AuditTraceListResponse,
+  AuditTraceTreeNode,
   BatchRecord,
   BatchSummary,
   BatchTemplatePayload,
@@ -28,6 +33,7 @@ import type {
   OptimizationDagArtifact,
   OptimizationRunPayload,
   OptimizationRunRecord,
+  ObservabilityTraceSearchParams,
   PromptActivationRecord,
   PromptAliasRecord,
   PromptFamilyRecord,
@@ -925,6 +931,71 @@ export function chatArtifactFileUrl(
   role: string,
 ): string {
   return `${apiBaseUrl}/api/chat/artifacts/${encodeURIComponent(sessionId)}/${encodeURIComponent(handle)}/files/${encodeURIComponent(role)}`;
+}
+
+function buildObservabilitySearchParams(
+  params: ObservabilityTraceSearchParams = {},
+): URLSearchParams {
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+    search.set(key, String(value));
+  });
+  return search;
+}
+
+export async function listObservabilityTraces(
+  params: ObservabilityTraceSearchParams = {},
+): Promise<AuditTraceListResponse> {
+  const search = buildObservabilitySearchParams(params);
+  const query = search.toString();
+  const response = await fetch(
+    `${apiBaseUrl}/api/observability/traces${query ? `?${query}` : ""}`,
+    { cache: "no-store" },
+  );
+  return parseJsonResponse<AuditTraceListResponse>(response);
+}
+
+export async function getObservabilityFacets(): Promise<AuditObservabilityFacets> {
+  const response = await fetch(`${apiBaseUrl}/api/observability/facets`, {
+    cache: "no-store",
+  });
+  return parseJsonResponse<AuditObservabilityFacets>(response);
+}
+
+export async function getObservabilityTrace(traceId: string): Promise<AuditTraceDetail> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/observability/traces/${encodeURIComponent(traceId)}`,
+    { cache: "no-store" },
+  );
+  return parseJsonResponse<AuditTraceDetail>(response);
+}
+
+export async function getObservabilityTraceTree(traceId: string): Promise<AuditTraceTreeNode[]> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/observability/traces/${encodeURIComponent(traceId)}/tree`,
+    { cache: "no-store" },
+  );
+  return parseJsonResponse<AuditTraceTreeNode[]>(response);
+}
+
+export async function listObservabilityArtifacts(
+  traceId: string,
+  options: { span_id?: string; artifact_type?: string; include_content?: boolean } = {},
+): Promise<AuditArtifactRecord[]> {
+  const search = new URLSearchParams();
+  Object.entries(options).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+    search.set(key, String(value));
+  });
+  const query = search.toString();
+  const response = await fetch(
+    `${apiBaseUrl}/api/observability/traces/${encodeURIComponent(traceId)}/artifacts${
+      query ? `?${query}` : ""
+    }`,
+    { cache: "no-store" },
+  );
+  return parseJsonResponse<AuditArtifactRecord[]>(response);
 }
 
 export function getUserVersion(review: ReviewRecord): AuditFormResult | null {

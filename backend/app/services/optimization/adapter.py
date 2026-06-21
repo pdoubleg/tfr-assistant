@@ -14,6 +14,7 @@ from app.agents.review_agent import (
 )
 from app.core.llm import LLMModelConfig, build_llm_model
 from app.models.audit import AuditFormResult, AuditFormWithFinancialsResult, AuditResult
+from app.observability.context import observed_audit_generation
 from app.schemas.optimizations import OptimizationRunCreate, OptimizationTraceConfig
 from app.services.optimization.artifacts import OptimizationArtifactWriter
 from app.services.optimization.components import AuditPromptProgram
@@ -83,25 +84,49 @@ class TFRGepaAdapter:
         usage: dict[str, int] = {}
         result_model: AuditResult | None = None
         error_message: str | None = None
+        candidate_hash = json_hash(candidate)
         try:
-            deps = FileReviewAgentDeps(
-                path_to_questionnaire=instance.form_path,
+            with observed_audit_generation(
+                name="optimization_audit_generation",
+                source="optimization",
+                source_run_id=self.artifact_writer.run_id,
+                optimization_run_id=self.artifact_writer.run_id,
+                case_id=instance.case_id,
                 claim_number=instance.claim_number,
-                effective_date=instance.effective_date or "",
-                runtime_context="",
-                tools=list(instance.tools),
-                knowledge_docs=list(instance.knowledge_docs),
-            )
-            output_type = (
-                AuditFormWithFinancialsResult
-                if deps.canonical.form_kind == "financial"
-                else AuditFormResult
-            )
-            result = self.agent.run_sync(
-                user_prompt=REVIEW_USER_PROMPT,
-                deps=deps,
-                output_type=output_type,
-            )
+                form_id=self.config.form_id,
+                form_version=self.config.form_version,
+            ):
+                try:
+                    from opentelemetry import trace
+
+                    trace.get_current_span().set_attribute(
+                        "audit.optimization_candidate_hash",
+                        candidate_hash,
+                    )
+                    trace.get_current_span().set_attribute(
+                        "audit.optimization_split", instance.split
+                    )
+                except Exception:
+                    pass
+
+                deps = FileReviewAgentDeps(
+                    path_to_questionnaire=instance.form_path,
+                    claim_number=instance.claim_number,
+                    effective_date=instance.effective_date or "",
+                    runtime_context="",
+                    tools=list(instance.tools),
+                    knowledge_docs=list(instance.knowledge_docs),
+                )
+                output_type = (
+                    AuditFormWithFinancialsResult
+                    if deps.canonical.form_kind == "financial"
+                    else AuditFormResult
+                )
+                result = self.agent.run_sync(
+                    user_prompt=REVIEW_USER_PROMPT,
+                    deps=deps,
+                    output_type=output_type,
+                )
             messages = result.new_messages()
             tool_calls = count_tool_calls(messages)
             merge_usage(self.token_usage, result.usage(), tool_calls=tool_calls)
@@ -131,7 +156,7 @@ class TFRGepaAdapter:
             "case_id": instance.case_id,
             "claim_number": instance.claim_number,
             "prompt": REVIEW_USER_PROMPT,
-            "candidate_hash": json_hash(candidate),
+            "candidate_hash": candidate_hash,
             "generated_output": final_output,
             "error": error_message,
             "elapsed_seconds": elapsed,

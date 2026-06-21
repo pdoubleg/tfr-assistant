@@ -41,3 +41,6 @@ Thumbs.db
 .vscode/
 backend/uvicorn.err.log
 backend/uvicorn.log
+backend/uvicorn.err.log
+backend/uvicorn.err.log
+backend/uvicorn.log

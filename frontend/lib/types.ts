@@ -1011,3 +1011,162 @@ export type OutputComponent =
       props: Record<string, unknown>;
       collapsed?: boolean;
     };
+
+export interface AuditTraceRecord {
+  trace_id: string;
+  audit_run_id?: string | null;
+  review_id?: string | null;
+  source: string;
+  source_run_id?: string | null;
+  batch_id?: string | null;
+  eval_run_id?: string | null;
+  eval_dataset_id?: string | null;
+  optimization_run_id?: string | null;
+  case_id?: string | null;
+  claim_number: string;
+  form_id: string;
+  form_version: string;
+  form_kind: string;
+  status_code: string;
+  error_type?: string | null;
+  span_count: number;
+  error_count: number;
+  started_at?: string | null;
+  ended_at?: string | null;
+  duration_ms?: number | null;
+  agent_names: string[];
+  model_names: string[];
+  tool_names: string[];
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  estimated_cost_usd?: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AuditTraceListResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  traces: AuditTraceRecord[];
+}
+
+export interface AuditObservabilityFacets {
+  sources: string[];
+  agent_names: string[];
+  model_names: string[];
+  status_codes: string[];
+}
+
+export interface AuditSpanRecord {
+  trace_id: string;
+  span_id: string;
+  parent_span_id?: string | null;
+  name: string;
+  kind: string;
+  span_type: string;
+  status_code: string;
+  error_type?: string | null;
+  error_message?: string | null;
+  agent_name: string;
+  model_name: string;
+  provider_name: string;
+  tool_name: string;
+  source: string;
+  audit_run_id?: string | null;
+  review_id?: string | null;
+  batch_id?: string | null;
+  eval_run_id?: string | null;
+  optimization_run_id?: string | null;
+  case_id?: string | null;
+  claim_number: string;
+  started_at?: string | null;
+  ended_at?: string | null;
+  duration_ms?: number | null;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  estimated_cost_usd?: number | null;
+  attributes: Record<string, unknown>;
+}
+
+export interface AuditSpanEventRecord {
+  trace_id: string;
+  span_id: string;
+  event_index: number;
+  name: string;
+  event_time?: string | null;
+  exception_type?: string | null;
+  exception_message?: string | null;
+  attributes: Record<string, unknown>;
+}
+
+export interface AuditArtifactRecord {
+  id: string;
+  trace_id: string;
+  span_id?: string | null;
+  audit_run_id?: string | null;
+  review_id?: string | null;
+  source: string;
+  source_run_id?: string | null;
+  claim_number: string;
+  artifact_type: string;
+  artifact_key: string;
+  name: string;
+  content_format: string;
+  content_preview: string;
+  content_text?: string | null;
+  content_sha256: string;
+  content_size: number;
+  redaction_state: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface AuditAgentDelegationRecord {
+  trace_id: string;
+  parent_span_id?: string | null;
+  child_span_id: string;
+  parent_agent_name: string;
+  child_agent_name: string;
+  tool_name: string;
+  confidence: number;
+  attributes: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface AuditTraceTreeNode {
+  span: AuditSpanRecord;
+  children: AuditTraceTreeNode[];
+}
+
+export interface AuditTraceDetail {
+  trace: AuditTraceRecord;
+  spans: AuditSpanRecord[];
+  events: AuditSpanEventRecord[];
+  delegations: AuditAgentDelegationRecord[];
+}
+
+export interface ObservabilityTraceSearchParams {
+  claim_number?: string;
+  audit_run_id?: string;
+  source?: string;
+  source_run_id?: string;
+  batch_id?: string;
+  eval_run_id?: string;
+  optimization_run_id?: string;
+  case_id?: string;
+  agent_name?: string;
+  model_name?: string;
+  provider_name?: string;
+  tool_name?: string;
+  span_type?: string;
+  status_code?: string;
+  error_type?: string;
+  started_at_from?: string;
+  started_at_to?: string;
+  text_query?: string;
+  limit?: number;
+  offset?: number;
+}

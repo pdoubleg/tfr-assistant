@@ -6,7 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import api_router
 from app.core.config import get_settings
-from app.db.session import init_db
+from app.db.session import engine, init_db
+from app.observability.setup import configure_observability
 
 
 @asynccontextmanager
@@ -33,6 +34,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(api_router, prefix="/api")
+    configure_observability(app, settings=settings, engine=engine)
     return app
 
 

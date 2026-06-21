@@ -18,6 +18,7 @@ from app.core.config import Settings, get_settings
 from app.db.session import AsyncSessionLocal
 from app.models.audit import AuditResult, merge_with_canonical
 from app.models.chat_state import TFRChatState
+from app.observability.context import observed_audit_generation
 from app.schemas.forms import AuditFormDefinition
 from app.schemas.reviews import (
     BatchCreateRequest,
@@ -261,45 +262,58 @@ class AuditGenerationService:
         reporter = reporter or NullStatusReporter()
         try:
             request = await self._with_resolved_prompt(request)
-            await self.repository.merge_review_input_json(
+            review_snapshot = await self.repository.merge_review_input_json(
                 review_id,
                 request.model_dump(mode="json"),
             )
             reporter.in_progress("Loading canonical audit form...", progress=25)
             canonical = self.catalog.get_form(request.form_id, request.form_version)
-            await self.repository.mark_review_running(review_id)
+            with observed_audit_generation(
+                audit_run_id=review_id,
+                review_id=review_id,
+                source=review_snapshot.source,
+                batch_id=review_snapshot.batch_id,
+                eval_run_id=request.eval_run_id or None,
+                eval_dataset_id=request.eval_dataset_id or None,
+                claim_number=request.claim_number,
+                form_id=request.form_id,
+                form_version=request.form_version,
+                form_kind=canonical.form_kind,
+                model_name=request.model_name,
+            ):
+                await self.repository.mark_review_running(review_id)
 
-            reporter.in_progress("Running audit form generator...", progress=45)
-            generator = self._generator_for(
-                request,
-                review_tool_status_reporter=review_tool_status_reporter,
-            )
-            generated = await generator.generate(request, canonical)
-            if generated.input_json_updates:
-                await self.repository.merge_review_input_json(
-                    review_id,
-                    generated.input_json_updates,
+                reporter.in_progress("Running audit form generator...", progress=45)
+                generator = self._generator_for(
+                    request,
+                    review_tool_status_reporter=review_tool_status_reporter,
+                )
+                generated = await generator.generate(request, canonical)
+                if generated.input_json_updates:
+                    await self.repository.merge_review_input_json(
+                        review_id,
+                        generated.input_json_updates,
+                    )
+
+                reporter.in_progress("Validating generated audit output...", progress=75)
+                manual_entry = request.input_mode == "manual_entry"
+                aligned = self.validator.align_to_canonical(
+                    generated.result,
+                    canonical,
+                    require_citations=not manual_entry,
+                    require_yes_question_evidence=not manual_entry,
                 )
 
-            reporter.in_progress("Validating generated audit output...", progress=75)
-            manual_entry = request.input_mode == "manual_entry"
-            aligned = self.validator.align_to_canonical(
-                generated.result,
-                canonical,
-                require_citations=not manual_entry,
-                require_yes_question_evidence=not manual_entry,
-            )
-
-            reporter.in_progress(
-                "Saving immutable original and editable user version...",
-                progress=90,
-            )
-            created_by = "user" if request.input_mode == "manual_entry" else "agent"
-            review = await self.repository.complete_review_with_result(
-                review_id,
-                aligned,
-                created_by=created_by,
-            )
+                reporter.in_progress(
+                    "Saving immutable original and editable user version...",
+                    progress=90,
+                )
+                created_by = "user" if request.input_mode == "manual_entry" else "agent"
+                review = await self.repository.complete_review_with_result(
+                    review_id,
+                    aligned,
+                    created_by=created_by,
+                )
             reporter.completed("Audit review saved.", progress=100)
             return review
         except Exception as exc:

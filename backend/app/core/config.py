@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.llm import (
@@ -29,8 +29,53 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     """Application version string."""
 
-    environment: str = "local"
+    environment: str = Field(
+        default="local",
+        validation_alias=AliasChoices("APP_ENV", "ENVIRONMENT", "environment"),
+    )
     """Deployment environment label (e.g. "local", "dev", "prod")."""
+
+    # ------------------------------------------------------------------
+    # Observability
+    # ------------------------------------------------------------------
+    observability_enabled: bool = True
+    """Enable OpenTelemetry setup and local audit trace persistence."""
+
+    observability_capture_all: bool = False
+    """Persist non-audit spans too. Defaults off to keep the trace explorer focused."""
+
+    observability_local_export_enabled: bool = True
+    """Persist captured spans into the application database."""
+
+    observability_otlp_enabled: bool = False
+    """Also export traces to the configured OTLP endpoint."""
+
+    otel_service_name: str = "tfr-assistant"
+    """OpenTelemetry service.name resource value."""
+
+    otel_exporter_otlp_traces_endpoint: str = "http://localhost:4318/v1/traces"
+    """OTLP HTTP traces endpoint used when observability_otlp_enabled is true."""
+
+    otel_exporter_otlp_endpoint: str = ""
+    """Optional generic OTLP endpoint for collectors that infer signal paths."""
+
+    pydantic_ai_otel_include_content: bool = True
+    """Include prompt/completion/tool content in Pydantic AI OTel spans for dev visibility."""
+
+    pydantic_ai_include_binary_content: bool = False
+    """Include binary content in Pydantic AI OTel spans."""
+
+    pydantic_ai_instrumentation_version: int = 2
+    """Pydantic AI instrumentation data format version."""
+
+    observability_persist_raw_content: bool = True
+    """Store full text artifacts in the database rather than previews only."""
+
+    observability_artifact_preview_chars: int = 1000
+    """Preview length for long prompt/completion/tool artifacts."""
+
+    observability_max_inline_attribute_chars: int = 1000
+    """Maximum string length retained directly on span attributes."""
 
     # ------------------------------------------------------------------
     # CORS

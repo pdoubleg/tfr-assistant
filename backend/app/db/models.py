@@ -10,6 +10,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     MetaData,
     Numeric,
@@ -667,6 +668,233 @@ class OptimizationEventORM(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     run: Mapped[OptimizationRunORM] = relationship(back_populates="events")
+
+
+class AuditTraceORM(Base):
+    __tablename__ = "audit_traces"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    trace_id: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    audit_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    review_id: Mapped[str | None] = mapped_column(
+        ForeignKey("audit_reviews.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    source: Mapped[str] = mapped_column(String(32), default="", index=True)
+    source_run_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    batch_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    eval_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    eval_dataset_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    optimization_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    case_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    claim_number: Mapped[str] = mapped_column(String(128), default="", index=True)
+    form_id: Mapped[str] = mapped_column(String(128), default="", index=True)
+    form_version: Mapped[str] = mapped_column(String(64), default="", index=True)
+    form_kind: Mapped[str] = mapped_column(String(24), default="", index=True)
+    tenant_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    user_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    status_code: Mapped[str] = mapped_column(String(24), default="UNSET", index=True)
+    error_type: Mapped[str | None] = mapped_column(String(256), nullable=True, index=True)
+    span_count: Mapped[int] = mapped_column(Integer, default=0)
+    error_count: Mapped[int] = mapped_column(Integer, default=0)
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+    )
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    agent_names_json: Mapped[list[str]] = mapped_column(PortableJSON, default=list, nullable=False)
+    model_names_json: Mapped[list[str]] = mapped_column(PortableJSON, default=list, nullable=False)
+    tool_names_json: Mapped[list[str]] = mapped_column(PortableJSON, default=list, nullable=False)
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    total_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    estimated_cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    attributes_json: Mapped[dict[str, Any]] = mapped_column(
+        PortableJSON, default=dict, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+    spans: Mapped[list["AuditSpanORM"]] = relationship(back_populates="trace")
+    artifacts: Mapped[list["AuditArtifactORM"]] = relationship(back_populates="trace")
+
+
+class AuditSpanORM(Base):
+    __tablename__ = "audit_spans"
+    __table_args__ = (
+        UniqueConstraint("trace_id", "span_id", name="uq_audit_spans_trace_span"),
+        Index("ix_audit_spans_trace_parent_started", "trace_id", "parent_span_id", "started_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    trace_id: Mapped[str] = mapped_column(
+        ForeignKey("audit_traces.trace_id", ondelete="CASCADE"),
+        index=True,
+    )
+    span_id: Mapped[str] = mapped_column(String(16), index=True)
+    parent_span_id: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(512), default="", index=True)
+    kind: Mapped[str] = mapped_column(String(32), default="")
+    span_type: Mapped[str] = mapped_column(String(32), default="", index=True)
+    status_code: Mapped[str] = mapped_column(String(24), default="UNSET", index=True)
+    error_type: Mapped[str | None] = mapped_column(String(256), nullable=True, index=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    agent_name: Mapped[str] = mapped_column(String(256), default="", index=True)
+    model_name: Mapped[str] = mapped_column(String(256), default="", index=True)
+    provider_name: Mapped[str] = mapped_column(String(128), default="", index=True)
+    tool_name: Mapped[str] = mapped_column(String(256), default="", index=True)
+    audit_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    review_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    source: Mapped[str] = mapped_column(String(32), default="", index=True)
+    source_run_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    batch_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    eval_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    eval_dataset_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    optimization_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    case_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    claim_number: Mapped[str] = mapped_column(String(128), default="", index=True)
+    form_id: Mapped[str] = mapped_column(String(128), default="", index=True)
+    form_version: Mapped[str] = mapped_column(String(64), default="", index=True)
+    form_kind: Mapped[str] = mapped_column(String(24), default="", index=True)
+    tenant_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    user_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+    )
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    total_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    estimated_cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    attributes_json: Mapped[dict[str, Any]] = mapped_column(
+        PortableJSON, default=dict, nullable=False
+    )
+    resource_json: Mapped[dict[str, Any]] = mapped_column(
+        PortableJSON, default=dict, nullable=False
+    )
+    raw_span_json: Mapped[dict[str, Any]] = mapped_column(
+        PortableJSON, default=dict, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+    trace: Mapped[AuditTraceORM] = relationship(back_populates="spans")
+
+
+class AuditSpanEventORM(Base):
+    __tablename__ = "audit_span_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "trace_id",
+            "span_id",
+            "event_index",
+            name="uq_audit_span_events_trace_span_index",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    trace_id: Mapped[str] = mapped_column(String(32), index=True)
+    span_id: Mapped[str] = mapped_column(String(16), index=True)
+    event_index: Mapped[int] = mapped_column(Integer, default=0)
+    name: Mapped[str] = mapped_column(String(256), default="", index=True)
+    event_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    exception_type: Mapped[str | None] = mapped_column(String(256), nullable=True, index=True)
+    exception_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attributes_json: Mapped[dict[str, Any]] = mapped_column(
+        PortableJSON, default=dict, nullable=False
+    )
+    raw_event_json: Mapped[dict[str, Any]] = mapped_column(
+        PortableJSON, default=dict, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class AuditArtifactORM(Base):
+    __tablename__ = "audit_artifacts"
+    __table_args__ = (
+        UniqueConstraint(
+            "trace_id",
+            "span_id",
+            "artifact_key",
+            "content_sha256",
+            name="uq_audit_artifacts_span_key_hash",
+        ),
+        Index("ix_audit_artifacts_trace_type_created", "trace_id", "artifact_type", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    trace_id: Mapped[str] = mapped_column(
+        ForeignKey("audit_traces.trace_id", ondelete="CASCADE"),
+        index=True,
+    )
+    span_id: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
+    audit_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    review_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    source: Mapped[str] = mapped_column(String(32), default="", index=True)
+    source_run_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    batch_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    eval_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    optimization_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    case_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    claim_number: Mapped[str] = mapped_column(String(128), default="", index=True)
+    artifact_type: Mapped[str] = mapped_column(String(64), default="", index=True)
+    artifact_key: Mapped[str] = mapped_column(String(256), default="", index=True)
+    name: Mapped[str] = mapped_column(String(256), default="")
+    content_format: Mapped[str] = mapped_column(String(64), default="text")
+    content_preview: Mapped[str] = mapped_column(Text, default="")
+    content_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content_sha256: Mapped[str] = mapped_column(String(64), default="", index=True)
+    content_size: Mapped[int] = mapped_column(Integer, default=0)
+    blob_uri: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    redaction_state: Mapped[str] = mapped_column(String(32), default="raw", index=True)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        PortableJSON, default=dict, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    trace: Mapped[AuditTraceORM] = relationship(back_populates="artifacts")
+
+
+class AuditAgentDelegationORM(Base):
+    __tablename__ = "audit_agent_delegations"
+    __table_args__ = (
+        UniqueConstraint(
+            "trace_id",
+            "parent_span_id",
+            "child_span_id",
+            name="uq_audit_agent_delegations_edge",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    trace_id: Mapped[str] = mapped_column(
+        ForeignKey("audit_traces.trace_id", ondelete="CASCADE"),
+        index=True,
+    )
+    parent_span_id: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
+    child_span_id: Mapped[str] = mapped_column(String(16), index=True)
+    parent_agent_name: Mapped[str] = mapped_column(String(256), default="")
+    child_agent_name: Mapped[str] = mapped_column(String(256), default="", index=True)
+    tool_name: Mapped[str] = mapped_column(String(256), default="", index=True)
+    confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    attributes_json: Mapped[dict[str, Any]] = mapped_column(
+        PortableJSON, default=dict, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
 class PromptFamilyORM(Base):

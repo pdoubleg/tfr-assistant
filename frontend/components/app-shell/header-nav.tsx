@@ -3,7 +3,19 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Fragment } from "react";
-import { BarChart3, Database, FileCheck2, Files, Home, Info, Moon, Rows3, Settings2, Sun } from "lucide-react";
+import {
+  Activity,
+  BarChart3,
+  Database,
+  FileCheck2,
+  Files,
+  Home,
+  Info,
+  Moon,
+  Rows3,
+  Settings2,
+  Sun,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -17,6 +29,7 @@ const navItems = [
   { href: "/datasets", label: "Datasets", icon: Database, section: "modeling" },
   { href: "/evaluation", label: "Evaluation", icon: FileCheck2, section: "modeling" },
   { href: "/optimization", label: "Optimization", icon: Settings2, section: "modeling" },
+  { href: "/observability", label: "Observability", icon: Activity, section: "modeling" },
 ];
 
 export function HeaderNav({

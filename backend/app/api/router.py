@@ -7,6 +7,7 @@ from app.api.routers import (
     evaluations,
     forms,
     health,
+    observability,
     optimizations,
     prompts,
     reviews,
@@ -22,3 +23,4 @@ api_router.include_router(prompts.router, prefix="/prompts", tags=["prompts"])
 api_router.include_router(reviews.router, prefix="/reviews", tags=["reviews"])
 api_router.include_router(evaluations.router, prefix="/evaluations", tags=["evaluations"])
 api_router.include_router(optimizations.router, prefix="/optimizations", tags=["optimizations"])
+api_router.include_router(observability.router, prefix="/observability", tags=["observability"])
