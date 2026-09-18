@@ -7,9 +7,9 @@ All examples below run from the repository's `backend` directory.
 ## Setup and offline walkthrough
 
 ```powershell
-uv sync --group notebook
-uv run python -m ad_hoc.hover_supplements demo data/hover_research/demo --claims 400 --bootstrap 40
-uv run --group notebook jupyter lab ad_hoc/hover_supplements/walkthrough.ipynb
+uv sync --group notebook --group explainability
+uv run --group explainability python -m ad_hoc.hover_supplements demo data/hover_research/demo --claims 400 --bootstrap 40
+uv run --group notebook --group explainability jupyter lab ad_hoc/hover_supplements/walkthrough.ipynb
 ```
 
 The demo and notebook use explicit Pydantic AI test models with fictional outputs. They
@@ -177,11 +177,73 @@ field-level evidence examples, and the complete feature dictionary. Returned pre
 objects retain fitted sklearn pipelines in memory; reports omit executable model objects.
 Private research output under `backend/data/hover_research` is git-ignored.
 
+## Business questions and explainability
+
+Open `business_report.html` after `write_report` or any analysis/demo CLI run. This is a
+self-contained, offline Plotly report organized around eight questions: outcomes, claim
+mix and estimate quality, supplement drivers, potential avoidability, segments, prediction
+drivers, individual claim explanations, and confidence/coverage. Charts separate dollars,
+percentages, and percentage-point differences. Expandable tables retain exact estimates,
+denominators, unknown counts, and interpretable GLM coefficient contrasts. The companion
+`business_answers.csv`, `.json`, and `.md` provide concise question-level findings.
+
+```python
+from ad_hoc.hover_supplements import (
+    business_question_answers, build_business_figures,
+    claim_explanation_figure, render_business_report,
+)
+
+display(business_question_answers(report))
+figures = build_business_figures(report)
+figures["dollar_decomposition"].show()
+explanations = report["predictive"]["explanations"]
+if explanations["status"] == "success":
+    claim_id = explanations["predictions"].claim_id.iloc[0]
+    claim_explanation_figure(explanations, claim_id).show()
+render_business_report(report, "data/hover_research/business")
+```
+
+Both rendering helpers also accept the deserialized `research.json`, so reports can be
+rebuilt without models, credentials, extraction, or refitting. `build_business_figures`
+returns ordinary Plotly figures for notebook display or custom exports. All displayed
+claim/evidence text is HTML-escaped. Reports contain supplied claim data; keep exported
+artifacts within the study's authorized audience.
+
+SHAP is optional: install the `explainability` dependency group to enable it. Configure
+`shap_enabled` (default true), `shap_max_claims` (200), and `shap_background_size` (100)
+in `ResearchConfig` or the CLI configuration JSON. Missing SHAP, unsupported cohorts,
+and explanation failures appear explicitly in the report; ordinary analysis still runs.
+
+Held-out Tree SHAP explains the random forest's incidence probability in percentage
+points and positive severity in dollars. Background samples come only from training
+claims, sampled proportional to study weights; severity uses positive training claims.
+One-hot categories and missingness indicators are grouped back to their original fields.
+Every local explanation is checked to reconstruct the exact pipeline prediction. Global
+charts show weighted mean absolute contributions, which measure magnitude, not direction;
+signed contribution charts and claim waterfalls supply direction. Background IDs, method,
+coverage, and reconstruction error remain in the exported explanation data.
+
+The combined expected-dollar waterfall uses an exact symmetric product allocation of
+the separate probability and severity contributions. It is **not joint SHAP** and its
+baseline is the product of the two model reference predictions. It does not allocate
+observed claim dollars to causes or identify recoverable savings. Evidence tables connect
+baseline inputs to extraction citations and structured inputs to caller-supplied metadata.
+Representative prediction examples include high/middle/low risk and the largest dollar
+error, rather than selecting only favorable cases.
+
+Interpret importance alongside held-out accuracy and the training-mean benchmark.
+Correlated inputs can share or obscure importance; partial dependence can evaluate
+implausible feature combinations. Segment rules use original units and compare held-out
+cohorts only when both raw and effective counts meet the configured minimum. These are
+exploratory associations. Supplement mechanism features never enter cutoff prediction.
+See [TreeExplainer documentation](https://shap.readthedocs.io/en/latest/generated/shap.TreeExplainer.html)
+and [permutation importance guidance](https://scikit-learn.org/stable/modules/permutation_importance.html).
+
 ## Validation
 
 ```powershell
-uv run pytest tests/test_hover_supplements.py tests/test_review_agent_runtime_metadata.py
-uv run ruff check ad_hoc tests/test_hover_supplements.py
+uv run --group explainability pytest tests/test_hover_supplements.py tests/test_hover_outputs.py tests/test_review_agent_runtime_metadata.py
+uv run ruff check ad_hoc tests/test_hover_supplements.py tests/test_hover_outputs.py
 ```
 
 These tests use synthetic data and test models. They do not establish accuracy on real

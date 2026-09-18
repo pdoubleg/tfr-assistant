@@ -7,7 +7,6 @@ from dataclasses import asdict
 from pathlib import Path
 
 import pandas as pd
-import plotly.express as px
 
 from .agents import BASELINE_INSTRUCTIONS, SUPPLEMENT_INSTRUCTIONS, extract_claim
 from .analysis import (
@@ -25,6 +24,7 @@ from .contracts import (
     SupplementOutput,
 )
 from .dataframes import build_feature_table, feature_dictionary
+from .explainability import explanation_evidence
 from .modeling import ResearchConfig, fit_statistical_models, run_predictive_research
 
 
@@ -108,6 +108,10 @@ def run_analysis(population, *, results=(), audited_metadata=None, config=None):
     stats = fit_statistical_models(population, structured_config)
     selected = fit_statistical_models(source, config) if config != structured_config else stats
     predictive = run_predictive_research(source, config)
+    if predictive.get("explanations", {}).get("status") == "success":
+        predictive["explanations"]["evidence"] = explanation_evidence(
+            predictive["explanations"], results
+        )
     return {
         "tables": tables,
         "population_decomposition": decompose_dollar_difference(population),
@@ -180,39 +184,7 @@ def write_report(report, output_dir):
         ]
     )
     (directory / "summary.md").write_text("\n".join(lines), encoding="utf-8")
-    scorecard = report["tables"]["population_scorecard"]
-    if not scorecard.empty:
-        px.bar(
-            scorecard,
-            x="metric",
-            y="estimate",
-            color="hover",
-            barmode="group",
-            title="Population outcomes (metric units differ)",
-        ).write_html(directory / "scorecard.html", include_plotlyjs=True)
-    predictive = report["predictive"]
-    if predictive["status"] == "success":
-        px.bar(
-            predictive["permutation_importance"],
-            x="importance",
-            y="feature",
-            title="Held-out permutation importance (incidence)",
-        ).write_html(directory / "importance.html")
-        px.scatter(
-            predictive["calibration"],
-            x="predicted",
-            y="observed",
-            size="n",
-            title="Held-out probability calibration",
-        ).write_html(directory / "calibration.html")
-        dependence = predictive["partial_dependence"].copy()
-        dependence["value"] = dependence.value.astype(str)
-        px.line(
-            dependence,
-            x="value",
-            y="incidence",
-            facet_col="feature",
-            facet_col_wrap=3,
-            title="Partial dependence; may extrapolate beyond observed combinations",
-        ).write_html(directory / "partial_dependence.html")
+    from .visualization import render_business_report
+
+    render_business_report(report, directory)
     return directory

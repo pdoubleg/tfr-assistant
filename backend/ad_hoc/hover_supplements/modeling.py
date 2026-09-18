@@ -34,6 +34,9 @@ class ResearchConfig:
     test_fraction: float = 0.25
     trees: int = 200
     min_segment_size: int = 20
+    shap_enabled: bool = True
+    shap_max_claims: int = 200
+    shap_background_size: int = 100
 
     def validate(self):
         if self.tier not in {"structured", "enriched", "secondary"}:
@@ -44,6 +47,8 @@ class ResearchConfig:
             raise ValueError("Invalid bootstrap count or test fraction")
         if self.trees < 1 or self.min_segment_size < 2:
             raise ValueError("Invalid tree or segment size")
+        if self.shap_max_claims < 1 or self.shap_background_size < 1:
+            raise ValueError("SHAP budgets must be positive")
         dictionary = feature_dictionary().set_index("field")
         for col in self.covariates:
             if col in {"claim_id", "hover", "sampling_weight", "inclusion_probability"} or (
@@ -214,6 +219,31 @@ def _fit_two_part(df, config):
             "severity_log_mean": severity.params.to_numpy(),
         }
     )
+    from .explainability import feature_label, transformed_feature_metadata
+
+    encoded_metadata = transformed_feature_metadata(prep)
+    contrasts, odds_ratios, severity_multipliers = ["Intercept"], [np.nan], [np.nan]
+    for position, index in enumerate(keep, 1):
+        meta = encoded_metadata[index]
+        step = 1.0
+        if meta["kind"] == "numeric":
+            if meta["missing_indicator"]:
+                contrast = f"{feature_label(meta['feature'])}: missing versus recorded"
+            else:
+                step = 1000 if meta["feature"].endswith(("_amount", "_dollars")) else 1
+                contrast = f"{feature_label(meta['feature'])}: increase of {step:g} original units"
+            factor = step / meta["scale"]
+        else:
+            contrast = (
+                f"{feature_label(meta['feature'])}: {meta['category']} versus {meta['reference']}"
+            )
+            factor = 1
+        contrasts.append(contrast)
+        odds_ratios.append(float(np.exp(np.asarray(incidence.params)[position] * factor)))
+        severity_multipliers.append(float(np.exp(np.asarray(severity.params)[position] * factor)))
+    coefficients["contrast"] = contrasts
+    coefficients["odds_ratio"] = odds_ratios
+    coefficients["severity_multiplier"] = severity_multipliers
     coefficients.attrs["redundant_columns"] = dropped
 
     def predict(reference):
@@ -447,6 +477,20 @@ def run_predictive_research(frame, config=None):
             ytest, test.supplement_approved_amount, p, s, test.sampling_weight
         )
     }
+    base_p = float(np.average(ytrain, weights=train.sampling_weight))
+    base_s = float(
+        np.average(
+            train.loc[positive, "supplement_approved_amount"],
+            weights=train.loc[positive, "sampling_weight"],
+        )
+    )
+    metrics["training_mean_baseline"] = _prediction_metrics(
+        ytest,
+        test.supplement_approved_amount,
+        np.full(len(test), base_p),
+        np.full(len(test), base_s),
+        test.sampling_weight,
+    )
     try:
         glm_predict, _ = _fit_two_part(train, config)
         gp, gs, _ = glm_predict(test)
@@ -501,6 +545,27 @@ def run_predictive_research(frame, config=None):
         segment_names = ["all_claims"]
         segment_train = np.zeros((len(train), 1))
         segment_test = np.zeros((len(test), 1))
+    from .explainability import (
+        explain_tree_predictions,
+        segment_definitions,
+        transformed_feature_metadata,
+    )
+
+    segment_metadata = [
+        m
+        for m in transformed_feature_metadata(classifier.named_steps["prepare"])
+        if m["feature"] != "hover"
+    ]
+    if not segment_metadata:
+        segment_metadata = [
+            {
+                "feature": "all_claims",
+                "kind": "numeric",
+                "mean": 0,
+                "scale": 1,
+                "missing_indicator": False,
+            }
+        ]
     segment_tree = DecisionTreeClassifier(
         max_depth=2, min_samples_leaf=config.min_segment_size, random_state=config.seed
     )
@@ -523,7 +588,11 @@ def run_predictive_research(frame, config=None):
     comparisons = []
     segment_frame = pd.DataFrame(segments)
     for leaf, group in segment_frame.groupby("segment"):
-        supported = group.hover.nunique() == 2 and group.n.min() >= config.min_segment_size
+        supported = (
+            group.hover.nunique() == 2
+            and group.n.min() >= config.min_segment_size
+            and group.effective_n.min() >= config.min_segment_size
+        )
         row = {
             "segment": leaf,
             "status": "exploratory" if supported else "insufficient_cohort_counts",
@@ -572,5 +641,21 @@ def run_predictive_research(frame, config=None):
         ),
         classifier=classifier,
         regressor=regressor,
+        segment_definitions=segment_definitions(segment_tree, segment_metadata),
+    )
+    result["explanations"] = (
+        explain_tree_predictions(
+            classifier,
+            regressor,
+            xtrain,
+            xtest,
+            train,
+            test,
+            seed=config.seed,
+            max_claims=config.shap_max_claims,
+            background_size=config.shap_background_size,
+        )
+        if config.shap_enabled
+        else {"status": "disabled", "reason": "Disabled in ResearchConfig"}
     )
     return result

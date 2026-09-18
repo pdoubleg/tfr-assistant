@@ -4,11 +4,24 @@ from .agents import extract_baseline, extract_claim, extract_supplement
 from .analysis import decompose_dollar_difference, mechanism_analysis, scorecards, stratified_sample
 from .contracts import ClaimBundle, Evidence, ExtractionResult
 from .dataframes import build_feature_table, concat_feature_frames, feature_dictionary
+from .explainability import explain_tree_predictions, explanation_evidence
 from .modeling import ResearchConfig, fit_statistical_models, run_predictive_research
 from .models import BaselineClaimFeatures, ClaimLLMFeatures, SupplementMechanismFeatures
 from .runner import extract_batch, run_analysis, write_report
+from .visualization import (
+    build_business_figures,
+    business_question_answers,
+    claim_explanation_figure,
+    render_business_report,
+)
 
 __all__ = [
+    "build_business_figures",
+    "business_question_answers",
+    "claim_explanation_figure",
+    "render_business_report",
+    "explain_tree_predictions",
+    "explanation_evidence",
     "BaselineClaimFeatures",
     "ClaimBundle",
     "ClaimLLMFeatures",
