@@ -31,6 +31,8 @@ backend/data/chat_artifacts/
 backend/data/intake_docs/
 backend/data/models/
 backend/data/optimization_runs/
+backend/data/hover_research/
+.ipynb_checkpoints/
 backend/data/tmp/
 backend/data/workspace/
 

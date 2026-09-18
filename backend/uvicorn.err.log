@@ -21,3 +21,4 @@ INFO:     Started server process [8428]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 WARNING:  WatchFiles detected changes in 'app\observability\repository.py'. Reloading...
+INFO:     Shutting down
