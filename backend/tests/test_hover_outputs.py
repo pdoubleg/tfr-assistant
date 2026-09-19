@@ -173,3 +173,47 @@ def test_report_escapes_evidence_text(tmp_path):
     html = render_business_report(report, tmp_path).read_text(encoding="utf-8")
     assert payload not in html
     assert "&lt;script&gt;" in html
+
+
+def test_synthetic_diversity_reproducibility_and_method_metadata():
+    from ad_hoc.hover_supplements.report_methods import methodology_details
+    from ad_hoc.hover_supplements.synthetic import synthetic_models
+
+    bundles = synthetic_bundles(400)
+    assert [b.model_dump() for b in bundles] == [b.model_dump() for b in synthetic_bundles(400)]
+    assert len({b.peril for b in bundles}) == 4
+    assert (max(b.dol for b in bundles) - min(b.dol for b in bundles)).days > 700
+    assert any(
+        b.supplement_activity == "yes" and b.supplement_approved_amount == 0 for b in bundles
+    )
+    assert any(
+        b.supplement_requested_amount > b.supplement_approved_amount + b.supplement_denied_amount
+        for b in bundles
+    )
+    primary, avoidability, quality = set(), set(), set()
+    for bundle in bundles:
+        baseline, supplement = synthetic_models(bundle)
+        quality.add(
+            baseline.custom_output_args["features"]["documentation"]["documentation_quality"]
+        )
+        if bundle.supplement_activity == "yes":
+            primary.add(supplement.custom_output_args["features"]["primary_mechanism"])
+            avoidability.add(supplement.custom_output_args["features"]["potentially_avoidable"])
+    assert len(primary) == 8
+    assert len(avoidability) == 5
+    assert quality == {"high", "moderate", "low", "unknown"}
+    html = methodology_details(
+        "explain",
+        {
+            "configuration": {"seed": 91, "covariates": ["<unsafe>"], "test_fraction": 0.3},
+            "predictive": {
+                "split": "chronological",
+                "train_claim_ids": ["a"],
+                "test_claim_ids": ["b"],
+                "model_parameters": {"classifier": {"n_estimators": 17}},
+            },
+        },
+    )
+    assert "Seed 91" in html and "17" in html
+    assert "train n=1" in html and "held-out n=1" in html
+    assert "&lt;unsafe&gt;" in html and "<unsafe>" not in html

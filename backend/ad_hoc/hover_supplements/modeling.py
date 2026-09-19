@@ -642,6 +642,11 @@ def run_predictive_research(frame, config=None):
         classifier=classifier,
         regressor=regressor,
         segment_definitions=segment_definitions(segment_tree, segment_metadata),
+        model_parameters={
+            "classifier": classifier.named_steps["forest"].get_params(),
+            "positive_severity_regressor": regressor.named_steps["forest"].get_params(),
+            "segment_tree": segment_tree.get_params(),
+        },
     )
     result["explanations"] = (
         explain_tree_predictions(

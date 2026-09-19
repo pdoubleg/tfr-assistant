@@ -11,8 +11,9 @@ import plotly.io as pio
 from plotly.subplots import make_subplots
 
 from .explainability import feature_label
+from .report_methods import methodology_details
 
-COLORS = {"Non-Hover": "#64748b", "Hover": "#2563eb"}
+COLORS = {"Non-Hover": "#707070", "Hover": "#06748C"}
 OUTCOMES = {
     "supplement_incidence": (
         "How often are additional dollars approved?",
@@ -75,9 +76,10 @@ def _style(fig, title, *, height=420):
         template="plotly_white",
         title=dict(text=title, x=0.02),
         height=height,
-        font=dict(family="Arial, sans-serif", size=13, color="#17243b"),
+        font=dict(family="Arial, sans-serif", size=13, color="#1A1446"),
         margin=dict(l=35, r=30, t=75, b=55),
         legend_title_text="",
+        colorway=["#06748C", "#1A1446", "#28A3AF", "#FFD000", "#707070"],
         paper_bgcolor="white",
         hoverlabel=dict(font_size=12),
     )
@@ -342,12 +344,12 @@ def claim_explanation_figure(explanations, claim_id, *, output="incidence", top_
             x=["Training reference", *labels, "Prediction"],
             y=[base, *contributions, prediction],
             measure=["absolute", *(["relative"] * len(contributions)), "total"],
-            increasing=dict(marker_color="#b45309"),
-            decreasing=dict(marker_color="#2563eb"),
-            totals=dict(marker_color="#17243b"),
+            increasing=dict(marker_color="#FFD000"),
+            decreasing=dict(marker_color="#06748C"),
+            totals=dict(marker_color="#1A1446"),
             text=[f"{x:,.2f}" for x in [base, *contributions, prediction]],
             textposition="outside",
-            connector=dict(line_color="#cbd5e1"),
+            connector=dict(line_color="#C0BFC0"),
         )
     )
     method = "Two-part allocation (not joint SHAP)" if output == "expected_dollars" else "Tree SHAP"
@@ -404,7 +406,7 @@ def build_business_figures(report):
                         x=[row.lower_95 * scale, row.upper_95 * scale],
                         y=[0, 0],
                         mode="lines",
-                        line=dict(width=4, color="#93c5fd"),
+                        line=dict(width=4, color="#78E1E1"),
                         name="95% bootstrap interval",
                         showlegend=i == 1,
                     ),
@@ -416,14 +418,14 @@ def build_business_figures(report):
                     x=[row.estimate * scale],
                     y=[0],
                     mode="markers",
-                    marker=dict(size=12, color="#2563eb"),
+                    marker=dict(size=12, color="#06748C"),
                     name="Adjusted difference",
                     showlegend=i == 1,
                 ),
                 row=1,
                 col=i,
             )
-            fig.add_vline(x=0, line_dash="dot", line_color="#64748b", row=1, col=i)
+            fig.add_vline(x=0, line_dash="dot", line_color="#707070", row=1, col=i)
         fig.update_yaxes(visible=False)
         figures["adjusted_differences"] = _style(
             fig, "Adjusted Hover minus Non-Hover · association, not causation", height=330
@@ -443,7 +445,7 @@ def build_business_figures(report):
                     decomposition["total_difference"],
                 ],
                 measure=["relative", "relative", "total"],
-                totals=dict(marker_color="#17243b"),
+                totals=dict(marker_color="#1A1446"),
             )
         )
         fig.update_yaxes(title="Hover minus Non-Hover approved dollars per claim ($)")
@@ -670,7 +672,9 @@ def _table(df, *, limit=30):
     return (
         note
         + '<div class="table-wrap">'
-        + df.head(limit).to_html(index=False, escape=True, float_format=lambda x: f"{x:,.4g}")
+        + df.head(limit).to_html(
+            index=False, escape=True, na_rep="Not available", float_format=lambda x: f"{x:,.4g}"
+        )
         + "</div>"
     )
 
@@ -712,7 +716,7 @@ def render_business_report(report, output_dir):
     def section(identifier, title, intro, body):
         sections.append(
             f'<section id="{identifier}"><h2>{escape(title)}</h2>'
-            f"<p>{escape(intro)}</p>{body}</section>"
+            f"<p>{escape(intro)}</p>{methodology_details(identifier, report)}{body}</section>"
         )
 
     outcome_answers = answers[answers.metric.isin(OUTCOMES)]
@@ -916,6 +920,12 @@ def render_business_report(report, output_dir):
         ]
     )
     html = (Path(__file__).parent / "templates" / "report_header.html").read_text(encoding="utf-8")
+    if report.get("synthetic"):
+        html += (
+            '<div class="scope"><strong>SYNTHETIC DEMONSTRATION</strong> · '
+            "Fictional claims and programmed extraction outputs. Patterns are designed "
+            "to exercise the workflow, not estimate Hover effectiveness.</div>"
+        )
     html += "<nav>" + nav + "</nav><main>" + "".join(sections) + "</main>"
     research_link = (
         'Full machine-readable results: <a href="research.json">research.json</a>; '

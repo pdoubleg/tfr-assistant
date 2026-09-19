@@ -114,6 +114,12 @@ def run_analysis(population, *, results=(), audited_metadata=None, config=None):
         )
     return {
         "tables": tables,
+        "synthetic": bool(results)
+        and all(
+            r.baseline.features is not None
+            and (r.baseline.features.baseline_summary or "").startswith("Fictional fixture")
+            for r in results
+        ),
         "population_decomposition": decompose_dollar_difference(population),
         "structured_model": stats,
         "selected_model": selected,

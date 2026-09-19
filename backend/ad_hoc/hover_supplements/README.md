@@ -241,6 +241,26 @@ and [permutation importance guidance](https://scikit-learn.org/stable/modules/pe
 
 ## Validation
 
+The report uses the supplied Liberty palette: blue `#1A1446`, dark teal `#06748C`,
+medium teal `#28A3AF`, and yellow `#FFD000`. Each section states its target or measure
+and provides an expandable methodology note. Statistical families/links, weighting,
+bootstrap rules, preprocessing, actual train/holdout counts, and captured fitted forest
+and segment-tree parameters remain available to technical reviewers. Older saved runs
+without parameter metadata are explicitly identified instead of inventing settings.
+
+The version-2 synthetic generator covers two years, four perils, heterogeneous property
+complexity, lognormal initial costs, Gamma supplement severity, partial denials and
+unresolved requests, eight primary mechanisms, overlapping drivers, varied avoidability,
+and missing initial evidence. Cohort selection and outcomes contain programmed associations;
+they are not calibrated to actual claims or evidence of Hover effectiveness. Offline test
+models read explicit fictional field records in the evidence. This validates workflow
+plumbing, not the accuracy of natural-language extraction. Demo reports carry a visible
+synthetic banner; the CLI demo uses enriched physical-property and damage covariates.
+
+```powershell
+uv run --group explainability python -m ad_hoc.hover_supplements demo data/hover_research/liberty-demo --claims 800 --bootstrap 40
+```
+
 ```powershell
 uv run --group explainability pytest tests/test_hover_supplements.py tests/test_hover_outputs.py tests/test_review_agent_runtime_metadata.py
 uv run ruff check ad_hoc tests/test_hover_supplements.py tests/test_hover_outputs.py

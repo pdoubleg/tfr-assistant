@@ -83,7 +83,19 @@ def main(argv=None):
             extract_batch(bundles, config, checkpoint_dir=args.output / "checkpoints", demo=True)
         )
         population = pd.DataFrame([b.metadata() for b in bundles])
-        research_config = ResearchConfig(covariates=["peril"], bootstrap_replicates=args.bootstrap)
+        research_config = ResearchConfig(
+            tier="enriched",
+            covariates=[
+                "peril",
+                "baseline__property_complexity__stories",
+                "baseline__damage__damage_extent",
+            ],
+            pretreatment_rationale={
+                "baseline__property_complexity__stories": "Fictional property predates capture.",
+                "baseline__damage__damage_extent": "Fictional damage generated before capture.",
+            },
+            bootstrap_replicates=args.bootstrap,
+        )
         report = run_analysis(population, results=results, config=research_config)
         args.output.mkdir(parents=True, exist_ok=True)
         population.to_csv(args.output / "population.csv", index=False)

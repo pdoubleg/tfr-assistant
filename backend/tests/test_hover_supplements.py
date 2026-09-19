@@ -270,6 +270,7 @@ def test_statistical_models_and_bootstrap_reproducibility():
 
 def test_predictive_holdout_and_preprocessing_isolation():
     frame = pd.DataFrame([b.metadata() for b in synthetic_bundles(150)])
+    frame = frame.sort_values("dol").reset_index(drop=True)
     frame.loc[frame.index[-30:], "peril"] = "ONLY_IN_TEST"
     config = ResearchConfig(covariates=["peril"], trees=10, bootstrap_replicates=0)
     result = run_predictive_research(frame, config)
