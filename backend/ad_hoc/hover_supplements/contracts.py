@@ -7,8 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .models import BaselineClaimFeatures, ClaimLLMFeatures, SupplementMechanismFeatures
 
-SCHEMA_VERSION = "2.0"
-PROMPT_VERSION = "2.0"
+SCHEMA_VERSION = "2.1"
+PROMPT_VERSION = "2.1"
 
 
 class StrictModel(BaseModel):
@@ -137,7 +137,7 @@ class ExtractionResult(StrictModel):
 
     @model_validator(mode="after")
     def correct_pass_types(self):
-        if self.schema_version not in {"1.0", SCHEMA_VERSION}:
+        if self.schema_version not in {"1.0", "2.0", SCHEMA_VERSION}:
             raise ValueError("Unsupported extraction schema version")
         if self.baseline.features is not None and not isinstance(
             self.baseline.features, BaselineClaimFeatures

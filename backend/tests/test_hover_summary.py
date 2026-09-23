@@ -439,5 +439,8 @@ def test_offline_report_contains_main_remaining_prevention_and_history(tmp_path)
         "Remaining supplements",
         "Prevention areas",
         "Claims with multiple supplements",
+        "What changed on roofing claims?",
+        "Measured roof area",
+        "Roof repair to replacement",
     ):
         assert text in html

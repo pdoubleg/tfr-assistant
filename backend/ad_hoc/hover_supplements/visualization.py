@@ -214,7 +214,7 @@ def business_question_answers(report):
 def _descriptive_answers(report):
     scope = (
         "main supplement"
-        if report.get("supplement_schema_version") == "2.0"
+        if report.get("supplement_schema_version") in {"2.0", "2.1"}
         else "aggregate history"
     )
     tables, predictive = report.get("tables", {}), report.get("predictive", {})
@@ -368,10 +368,11 @@ def build_business_figures(report):
     """Return named Plotly figures for notebook display or independent exports."""
     scope = (
         "Main supplement"
-        if report.get("supplement_schema_version") == "2.0"
+        if report.get("supplement_schema_version") in {"2.0", "2.1"}
         else "Legacy aggregate"
     )
     tables, figures = report.get("tables", {}), {}
+    figures.update(_derived_figures(tables))
     scores = _frame(tables.get("population_scorecard"))
     for metric, (question, label, unit, scale) in OUTCOMES.items():
         data = scores[scores.metric.eq(metric)].copy() if not scores.empty else pd.DataFrame()
@@ -742,6 +743,133 @@ def build_business_figures(report):
     return figures
 
 
+def _derived_figures(tables):
+    figures = {}
+
+    def bars(key, data, title, unit, scale=1):
+        if data.empty:
+            return
+        if data.estimate.notna().sum() == 0:
+            figures[key] = _empty(title, "No supported observations; see coverage below.")
+            return
+        data = _cohorts(data.copy())
+        data["value"] = pd.to_numeric(data.estimate) * scale
+        figures[key] = _style(
+            px.bar(
+                data,
+                y="label",
+                x="value",
+                color="cohort",
+                barmode="group",
+                color_discrete_map=COLORS,
+                hover_data=[
+                    "population",
+                    "known_n",
+                    "unknown_n",
+                    "denominator_weight",
+                    "effective_n",
+                ],
+            ),
+            title,
+            height=max(330, data.label.nunique() * 75),
+        )
+        figures[key].update_xaxes(title=unit)
+
+    derived = _frame(tables.get("derived_metrics"))
+    if not derived.empty:
+        bars(
+            "derived_timing",
+            derived[derived.unit.eq("days")],
+            "Reporting and estimating delays · weighted means",
+            "Days",
+        )
+        bars(
+            "derived_ratios",
+            derived[derived.unit.eq("ratio")],
+            "Financial ratios · weighted mean of claim ratios",
+            "Ratio",
+        )
+        bars(
+            "derived_indicators",
+            derived[derived.unit.eq("proportion")],
+            "Documentation and measurement addressability · known audited answers",
+            "Percent (%)",
+            100,
+        )
+    metrics = _frame(tables.get("roofing_metrics"))
+    if not metrics.empty:
+        bars(
+            "roof_sq_deltas",
+            metrics[metrics.unit.eq("SQ")],
+            "Roofing SQ changes · weighted means among comparable pairs",
+            "SQ change",
+        )
+        transitions = metrics[metrics.metric.str.contains("repair_to_replace", regex=False)]
+        bars(
+            "roof_repair_transitions",
+            transitions,
+            "Roof repair to replacement · request versus approval",
+            "Percent of known answers (%)",
+            100,
+        )
+    perils = _frame(tables.get("roofing_by_peril"))
+    if not perils.empty:
+        perils["label"] = perils.peril
+        bars(
+            "roofing_by_peril",
+            perils,
+            "Any approved supplement on roof claims · by peril",
+            "Percent of known claims (%)",
+            100,
+        )
+    roof = _frame(tables.get("roofing_claims"))
+    if not roof.empty:
+        for kind, initial, revised, title in (
+            ("measured", "roof_squares", "revised_roof_squares", "Measured roof area"),
+            (
+                "estimated",
+                "estimated_roof_squares",
+                "revised_estimated_roof_squares",
+                "Carrier repair/replacement scope",
+            ),
+        ):
+            before = "baseline__roof__" + initial
+            after = "supplement_mechanism__roofing__" + revised
+            delta = f"derived__roof_{kind}_sq_delta"
+            if any(c not in roof for c in (before, after, delta)):
+                continue
+            pairs = roof.loc[roof[delta].notna()].copy()
+            key = f"roof_{kind}_sq"
+            if pairs.empty:
+                figures[key] = _empty(title, "No comparable documented SQ pairs.")
+                continue
+            pairs = _cohorts(pairs)
+            hover = [c for c in ("claim_id", "peril", delta) if c in pairs]
+            fig = px.scatter(
+                pairs,
+                x=before,
+                y=after,
+                color="cohort",
+                hover_data=hover,
+                color_discrete_map=COLORS,
+                opacity=0.7,
+            )
+            upper = float(pairs[[before, after]].max().max()) * 1.05
+            fig.add_trace(
+                go.Scatter(
+                    x=[0, upper],
+                    y=[0, upper],
+                    mode="lines",
+                    line=dict(dash="dot", color="#707070"),
+                    name="Unchanged SQ",
+                )
+            )
+            figures[key] = _style(fig, f"{title} · initial versus latest carrier SQ")
+            figures[key].update_xaxes(title="Initial SQ")
+            figures[key].update_yaxes(title="Latest carrier SQ")
+    return figures
+
+
 def _table(df, *, limit=30):
     df = _frame(df)
     if df.empty:
@@ -836,7 +964,8 @@ def render_business_report(report, output_dir):
         "2. Were the claims different, and did estimate quality differ?",
         "Case-mix differences can explain raw outcome differences. Quality "
         "indicators use only initial evidence. Higher is better for some "
-        "indicators and worse for others; there is no composite score.",
+        "indicators and worse for others. The derived section also summarizes "
+        "observed documentation.",
         chart("case_mix")
         + chart("initial_quality")
         + chart("quality_unknowns")
@@ -885,8 +1014,40 @@ def render_business_report(report, output_dir):
         + _table(tables.get("classifications")),
     )
     section(
+        "roofing",
+        "5. What changed on roofing claims?",
+        "Measured roof area and carrier-estimated repair/replacement scope are separate SQ "
+        "measures (1 SQ = 100 square feet). Comparisons require documented comparable bases. "
+        "Roof involvement comes from claim evidence, not peril alone. Transition rates use "
+        "claims initially estimated for roof repair; requests and approvals are distinct.",
+        chart("roof_measured_sq")
+        + chart("roof_estimated_sq")
+        + chart("roof_sq_deltas")
+        + chart("roof_repair_transitions")
+        + chart("roofing_by_peril")
+        + "<details><summary>Roofing estimates, denominators and coverage</summary>"
+        + _table(tables.get("roofing_coverage"))
+        + _table(tables.get("roofing_metrics"), limit=10000)
+        + _table(tables.get("roofing_by_peril"), limit=10000)
+        + "</details><details><summary>Roofing claim details</summary>"
+        + _table(tables.get("roofing_claims"))
+        + "</details>",
+    )
+    section(
+        "derived",
+        "6. What do timing, financial ratios and documentation show?",
+        "Timing and financial ratios use structured claim metadata. The documentation index "
+        "is the share of observed initial indicators marked yes; unknown and not-applicable "
+        "answers are excluded. Its observed count shows how much evidence supports it. "
+        "These descriptive comparisons are not adjusted effects or savings estimates.",
+        chart("derived_timing")
+        + chart("derived_ratios")
+        + chart("derived_indicators")
+        + _table(tables.get("derived_metrics"), limit=10000),
+    )
+    section(
         "segments",
-        "5. Which kinds of claims behave differently?",
+        "7. Which kinds of claims behave differently?",
         "Segment rules are discovered in training data and evaluated on held-out "
         "claims. Only segments meeting the minimum raw and effective counts in "
         "both cohorts get an exploratory difference. Imputed feature values can "
@@ -899,7 +1060,7 @@ def render_business_report(report, output_dir):
     explanation = predictive.get("explanations", {})
     section(
         "explain",
-        "6. Why does the model predict supplementation?",
+        "8. Why does the model predict supplementation?",
         "Read accuracy before importance. Permutation importance measures held-"
         "out performance loss and its error bars show permutation variability, "
         "not confidence intervals. SHAP describes prediction contributions "
@@ -970,7 +1131,7 @@ def render_business_report(report, output_dir):
         )
     section(
         "claims",
-        "7. Can we inspect and substantiate individual explanations?",
+        "9. Can we inspect and substantiate individual explanations?",
         "Waterfalls reconcile to model predictions. The combined dollar bridge is"
         " a symmetric allocation of separate probability/severity SHAP "
         "contributions, not joint SHAP. Its reference is a product of two model "
@@ -992,7 +1153,7 @@ def render_business_report(report, output_dir):
     ]
     section(
         "coverage",
-        "8. How much confidence should we place in these results?",
+        "10. How much confidence should we place in these results?",
         "Review data coverage, calendar overlap, missingness, and model support. "
         "Study weights do not correct extraction failures or unmeasured "
         "confounding. Bootstrap intervals quantify claim sampling, not LLM error "
@@ -1017,6 +1178,8 @@ def render_business_report(report, output_dir):
             ("quality", "Quality & mix"),
             ("mechanisms", "Drivers"),
             ("avoidability", "Avoidability"),
+            ("roofing", "Roofing"),
+            ("derived", "Derived measures"),
             ("segments", "Segments"),
             ("explain", "Explainability"),
             ("claims", "Claim examples"),
@@ -1030,7 +1193,7 @@ def render_business_report(report, output_dir):
             "Fictional claims and programmed extraction outputs. Patterns are designed "
             "to exercise the workflow, not estimate Hover effectiveness.</div>"
         )
-    if report.get("supplement_schema_version") != "2.0":
+    if report.get("supplement_schema_version") not in {"2.0", "2.1"}:
         html += (
             '<div class="scope">Historical report: supplement classifications describe the '
             "aggregate history, not a selected main supplement. Main/remaining details require "

@@ -11,6 +11,7 @@ import pandas as pd
 from .agents import BASELINE_INSTRUCTIONS, SUPPLEMENT_INSTRUCTIONS, extract_claim
 from .analysis import (
     decompose_dollar_difference,
+    derived_analysis,
     diagnostics,
     mechanism_analysis,
     representative_claims,
@@ -95,11 +96,12 @@ def run_analysis(population, *, results=(), audited_metadata=None, config=None):
         "population_scorecard": scorecards(population),
         "feature_table": feature_table,
         "audited_scorecard": scorecards(audited),
-        "feature_dictionary": feature_dictionary(),
+        "feature_dictionary": feature_dictionary(include_derived=True),
         "representative_claims": representative_claims(results),
         **{f"population_{k}": v for k, v in diagnostics(population).items()},
         **{f"audit_{k}": v for k, v in diagnostics(feature_table).items()},
         **mechanism_analysis(audited),
+        **derived_analysis(population, audited),
     }
     structured_config = ResearchConfig(
         seed=config.seed, bootstrap_replicates=config.bootstrap_replicates

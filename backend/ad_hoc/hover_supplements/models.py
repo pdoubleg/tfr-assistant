@@ -243,6 +243,19 @@ class PropertyComplexityFeatures(BaseModel):
     )
 
 
+RoofRepairScope = Annotated[
+    Literal[
+        "repair",
+        "partial_replacement",
+        "full_replacement",
+        "mixed",
+        "unknown",
+        "not_applicable",
+    ],
+    Category,
+]
+
+
 class RoofFeatures(BaseModel):
     """
     Describe roof characteristics known at the time of the initial estimate.
@@ -270,6 +283,24 @@ class RoofFeatures(BaseModel):
         description=(
             "Initial documented roof area in roofing squares, where one square "
             "represents approximately 100 square feet."
+        ),
+    )
+
+    estimated_roof_squares: Number = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Roofing SQ included in the initial carrier repair/replacement estimate, not total "
+            "measured roof area. Record documented scope once; do not sum tear-off and install "
+            "line items or combine unrelated buildings/materials. "
+            "Null if no comparable SQ is stated."
+        ),
+    )
+    initial_repair_scope: RoofRepairScope = Field(
+        default="unknown",
+        description=(
+            "Initial carrier roof remedy: repair, partial replacement, full replacement, or mixed. "
+            "Use not_applicable only when roofing is not involved. Initial evidence only."
         ),
     )
 
@@ -909,6 +940,52 @@ class SupplementHistory(BaseModel):
         return self
 
 
+class RoofingSupplementFeatures(BaseModel):
+    """Whole-history roofing facts, separate from the selected main supplement."""
+
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+    revised_roof_squares: Number = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Latest documented carrier roof-area measurement in SQ, not contractor-requested or "
+            "repair/replacement scope SQ. Null when unsupported; do not copy initial area forward."
+        ),
+    )
+    measured_sq_comparable: YesNoUnknown = indicator_field(
+        "Whether initial and revised measured SQ cover the same roof/buildings and area basis. "
+        "No for different structures, partial versus whole roofs, or incompatible waste bases."
+    )
+    revised_estimated_roof_squares: Number = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Roofing repair/replacement SQ in the latest carrier-approved estimate. Exclude "
+            "unapproved contractor requests and duplicate removal/install line items. "
+            "Null if unknown."
+        ),
+    )
+    estimated_sq_comparable: YesNoUnknown = indicator_field(
+        "Whether initial and latest carrier scope SQ use comparable units, building/component "
+        "coverage and waste conventions. Expanded repair area on the same roof is comparable; "
+        "a newly included unrelated structure or incompatible waste basis is not."
+    )
+    final_repair_scope: RoofRepairScope = Field(
+        default="unknown",
+        description=(
+            "Latest documented carrier-approved roof remedy; not the contractor's desired remedy."
+        ),
+    )
+    repair_to_replace_requested: YesNoUnknown = indicator_field(
+        "Any supplement sought to change an initial carrier roof repair to partial/full "
+        "replacement. Include denied/pending requests. Do not infer from quantity growth alone."
+    )
+    repair_to_replace_approved: YesNoUnknown = indicator_field(
+        "Whether the carrier approved any roof repair-to-partial/full-replacement supplement. "
+        "Other approved dollars do not establish approval of this particular change."
+    )
+
+
 class SupplementMechanismFeatures(BaseModel):
     """One directly extracted claim summary; all primary fields refer to the same supplement.
 
@@ -1069,9 +1146,18 @@ class SupplementMechanismFeatures(BaseModel):
         default_factory=SupplementFinancialFeatures,
         description="Explicit claim-level incremental amounts for QA, never allocations.",
     )
+    roofing: RoofingSupplementFeatures = Field(
+        default_factory=RoofingSupplementFeatures,
+        description="Whole-history roof measurement/scope changes and request versus approval.",
+    )
 
     @model_validator(mode="after")
     def consistent_history(self):
+        if (
+            self.roofing.repair_to_replace_approved == "yes"
+            and self.roofing.repair_to_replace_requested == "no"
+        ):
+            raise ValueError("Approved repair-to-replacement conflicts with no such request")
         total = self.history.total_count
         outcome_count = {
             "approved_in_full": self.history.approved_count,
@@ -1103,6 +1189,10 @@ class SupplementMechanismFeatures(BaseModel):
         if self.supplement_present == "yes" and total == 0:
             raise ValueError("Supplement presence conflicts with zero total_count")
         if self.supplement_present == "no":
+            for name in ("repair_to_replace_requested", "repair_to_replace_approved"):
+                if getattr(self.roofing, name) == "yes":
+                    raise ValueError("No supplement conflicts with a roof replacement transition")
+                setattr(self.roofing, name, "no")
             if any(
                 (getattr(self.history, n) or 0) > 0
                 for n in (

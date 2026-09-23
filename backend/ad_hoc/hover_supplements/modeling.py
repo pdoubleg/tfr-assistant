@@ -69,6 +69,8 @@ class ResearchConfig:
                 ) or col in {
                     "baseline__roof__repairability_assessed_initially",
                     "baseline__roof__repairability_test_performed_initially",
+                    "baseline__roof__initial_repair_scope",
+                    "baseline__roof__estimated_roof_squares",
                 }
                 if process and self.tier != "secondary":
                     raise ValueError("Initial process/estimate features are secondary only")

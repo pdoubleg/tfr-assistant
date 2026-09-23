@@ -4,6 +4,7 @@ from .agents import extract_baseline, extract_claim, extract_supplement
 from .analysis import decompose_dollar_difference, mechanism_analysis, scorecards, stratified_sample
 from .contracts import ClaimBundle, Evidence, ExtractionResult
 from .dataframes import build_feature_table, concat_feature_frames, feature_dictionary
+from .derived import derive_claim_features
 from .explainability import explain_tree_predictions, explanation_evidence
 from .modeling import ResearchConfig, fit_statistical_models, run_predictive_research
 from .models import BaselineClaimFeatures, ClaimLLMFeatures, SupplementMechanismFeatures
@@ -32,6 +33,7 @@ __all__ = [
     "build_feature_table",
     "concat_feature_frames",
     "decompose_dollar_difference",
+    "derive_claim_features",
     "extract_baseline",
     "extract_batch",
     "extract_claim",

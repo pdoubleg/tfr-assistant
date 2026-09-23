@@ -15,7 +15,7 @@ from .models import (
     SupplementMechanismFeatures,
 )
 
-SYNTHETIC_VERSION = "3"
+SYNTHETIC_VERSION = "4"
 
 
 def _set(features, path, value):
@@ -325,6 +325,79 @@ def synthetic_bundles(n=400, seed=42):
                 supplement["mechanism_summary"] += (
                     " Individual amounts cannot establish ranking; materiality used."
                 )
+        # Independent stream adds roofing examples without changing existing cohorts/outcomes.
+        roof_rng = np.random.default_rng(seed + 100_000 + i)
+        area = float(baseline["roof.roof_squares"] or roof_rng.uniform(15, 55)) if roof else None
+        remedy = (
+            str(
+                roof_rng.choice(
+                    ["repair", "partial_replacement", "full_replacement"], p=[0.55, 0.15, 0.30]
+                )
+            )
+            if roof
+            else "not_applicable"
+        )
+        scope_sq = (
+            round(
+                area
+                * {"repair": 0.15, "partial_replacement": 0.5, "full_replacement": 1.1}[remedy],
+                2,
+            )
+            if roof
+            else None
+        )
+        baseline["roof.initial_repair_scope"] = remedy
+        baseline["roof.estimated_roof_squares"] = scope_sq
+        if activity and roof:
+            request_replace = remedy == "repair" and (
+                supplement["drivers.repair_versus_replace"] == "yes" or roof_rng.random() < 0.3
+            )
+            approve_replace = request_replace and approved > 0 and roof_rng.random() < 0.7
+            revised_area = round(
+                area * (1 + float(roof_rng.choice([-0.06, 0.03, 0.08, 0.15])))
+                if supplement["drivers.measurement_correction"] == "yes"
+                else area,
+                2,
+            )
+            revised_scope = round(
+                revised_area * 1.1 if approve_replace else scope_sq * revised_area / area, 2
+            )
+            if not approve_replace and approved and supplement["drivers.additional_area"] == "yes":
+                revised_scope = round(revised_scope * 1.3, 2)
+            supplement.update(
+                {
+                    "roofing.revised_roof_squares": revised_area if i % 13 else None,
+                    "roofing.measured_sq_comparable": str(
+                        roof_rng.choice(["yes", "no", "unknown"], p=[0.9, 0.05, 0.05])
+                    ),
+                    "roofing.revised_estimated_roof_squares": revised_scope if i % 11 else None,
+                    "roofing.estimated_sq_comparable": str(
+                        roof_rng.choice(["yes", "no", "unknown"], p=[0.85, 0.05, 0.1])
+                    ),
+                    "roofing.final_repair_scope": "full_replacement" if approve_replace else remedy,
+                    "roofing.repair_to_replace_requested": "yes" if request_replace else "no",
+                    "roofing.repair_to_replace_approved": "yes"
+                    if approve_replace
+                    else "unknown"
+                    if request_replace and pending
+                    else "no",
+                }
+            )
+            supplement["mechanism_summary"] += (
+                f" Initial roof strategy: {remedy}; repair-to-replacement requested "
+                f"{supplement['roofing.repair_to_replace_requested']}, approved "
+                f"{supplement['roofing.repair_to_replace_approved']}. "
+                "Some revised SQ values are intentionally undocumented. "
+                "SQ comparability is documented separately in the fictional field record."
+            )
+        elif activity:
+            supplement.update(
+                {
+                    "roofing.final_repair_scope": "not_applicable",
+                    "roofing.repair_to_replace_requested": "no",
+                    "roofing.repair_to_replace_approved": "no",
+                }
+            )
         initial = Evidence(
             id="initial",
             source="Fictional initial estimate",
@@ -383,7 +456,7 @@ def synthetic_models(bundle):
     baseline = unknown_features(BaselineClaimFeatures)
     supplement = unknown_features(SupplementMechanismFeatures)
     baseline.baseline_summary = (
-        "Fictional fixture v3 for local workflow validation; not an empirical claim."
+        "Fictional fixture v4 for local workflow validation; not an empirical claim."
     )
     refs = []
     for features, evidence in [

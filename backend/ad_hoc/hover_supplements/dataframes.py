@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from .pandas_types import pandas_kind
 
 
-def feature_dictionary(model_type=None, prefix="") -> pd.DataFrame:
+def feature_dictionary(model_type=None, prefix="", *, include_derived=False) -> pd.DataFrame:
     if model_type is None:
         from .models import ClaimLLMFeatures
 
@@ -31,7 +31,13 @@ def feature_dictionary(model_type=None, prefix="") -> pd.DataFrame:
                     "choices": list(get_args(typ)) if get_origin(typ) is Literal else [],
                 }
             )
-    return pd.DataFrame(rows)
+    frame = pd.DataFrame(rows)
+    if include_derived:
+        from .derived import derived_feature_dictionary
+
+        frame["source"] = "extracted"
+        frame = pd.concat([frame, derived_feature_dictionary()], ignore_index=True)
+    return frame
 
 
 def prepare_flat_dataframe(
@@ -201,4 +207,6 @@ def build_feature_table(results, metadata: pd.DataFrame | Sequence[Mapping], *, 
     joined["supplement_mechanism__financials__supplement_pct_of_initial_estimate"] = (
         joined.supplement_ratio
     )
-    return joined
+    from .derived import derive_claim_features
+
+    return derive_claim_features(joined)

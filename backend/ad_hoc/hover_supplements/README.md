@@ -92,7 +92,7 @@ means at least one pass failed; successful claims are still written.
 
 ## Feature tables and sampling
 
-Schema v2 contains 115 leaf features including seven targeted baseline additions: measurement
+Schema v2.1 contains 124 leaf features including targeted baseline additions: measurement
 scope and documented discrepancy, repairability assessment and testing, repair-versus-replace
 rationale, overview/close-up photographs, and coverage of damaged elevations/slopes.
 Pandas conversion metadata travels in `Annotated` types rather than LLM JSON-schema extras.
@@ -132,16 +132,69 @@ Use `drop_text=False` for sharing narratives; reports export that complete featu
 Model covariate selection excludes retrospective supplement fields. Added baseline
 measurement/process/repairability assessments are secondary adjustment features only.
 
-Schema/prompt versions are `2.0`, so v1 checkpoints are not reused. The result reader
+Schema/prompt versions are `2.1`, invalidating previous extraction checkpoints. Existing
+v2.0 main/remaining results remain readable; absent roofing fields stay unknown/missing.
+The result reader
 preserves v1 supplement payloads as legacy aggregates, exported under `legacy_supplement__`.
 They never populate main/remaining fields or new summary metrics. Reports retain them in
 `legacy_aggregate_claims` for inspection. Existing baseline findings remain usable.
 
-`feature_dictionary()` returns the complete inventory and descriptions; research reports
-export it as CSV and JSON. `to_pandas()` flattens nested features, preserves nullable
+`feature_dictionary()` returns the extraction inventory and descriptions;
+`feature_dictionary(include_derived=True)` also includes the 19 computed features, with a
+source column distinguishing extraction from computation. Research reports export all 143
+entries as CSV and JSON. `to_pandas()` flattens nested features, preserves nullable
 boolean distinctions, parses dates, and excludes narrative fields by default. Optional
 `drop_text=False`, `indicators_as_boolean=False`, and `unknown_as_na=False` retain the
 corresponding raw representations. `concat_feature_frames` handles multiple records.
+
+### Derived features and roofing
+
+`build_feature_table()` automatically calls `derive_claim_features()` without changing the
+one-row-per-claim interface. Structured metadata stays authoritative. Derived columns use
+the `derived__` prefix, nullable `Int64`, `Float64`, or `boolean`, and are reproducible without
+another LLM call. Calling the derivation again replaces the computed columns.
+
+- Timing: DOL (`dol`) to FNOL (`fnol_date`), FNOL to the initial-estimate cutoff, and DOL to
+  that cutoff. Metadata `initial_estimate_cutoff` takes precedence over the extracted
+  baseline date. Invalid, missing, or reversed intervals remain missing. The cutoff must
+  represent the initial estimate date for the latter two intervals to be interpretable.
+- Financials: structured incremental request / initial estimate and approved / requested.
+  The existing approved / initial estimate ratio remains available. Nonpositive denominators
+  produce missing ratios. No cumulative estimates are summed and no denied dollars inferred.
+- Documentation: mean of six observed initial documentation indicators plus observed count.
+  Unknown and not-applicable answers are excluded; no observations means a missing index.
+  This descriptive index is not a validated quality score. Main avoidability has a nullable
+  binary form and a medium/high-confidence usability flag. Whole-history measurement
+  addressability combines the accuracy/scope prevention flags using nullable OR.
+- Roofing: initial measured roof area and initial carrier-estimated repair/replacement SQ
+  are separate. Nine new extracted fields add initial estimated SQ/remedy and a compact
+  whole-history roofing group: latest carrier measured/estimated SQ, separate comparability
+  indicators, final carrier-approved remedy, and repair-to-replacement request/approval flags.
+  They use existing field citations and the same single supplement extraction pass.
+
+Roof SQ deltas and relative changes require documented roof involvement, both quantities,
+and an explicitly comparable basis (same structures, units, area/waste conventions).
+One SQ is 100 square feet. Never add tear-off and installation quantities or unrelated
+buildings/materials. Increased estimated replacement scope is not itself a measurement
+error or proof of a repair-to-replacement supplement. Requests include denied/pending
+transitions; approval requires explicit carrier acceptance of that transition. Peril alone
+does not establish roof involvement. Missing revised quantities are not filled with initial
+values, even for confirmed absence; absence does establish no supplement transition.
+
+The report adds measured/estimated SQ scatterplots, average changes, separate requested and
+approved repair-to-replacement rates among initially-repair claims, and approved supplement
+incidence by peril among documented roofing claims. Tables include relative SQ changes,
+associated approved claim dollars, coverage, unknown counts, weighted denominators, and
+effective sample sizes. Additional charts show timing, ratios, and documentation/addressability.
+These are descriptive comparisons; roofing claim dollars are not allocated roofing costs.
+New derived features are not automatically admitted to prediction or primary effect models;
+initial estimated scope/remedy are secondary-only process covariates. Existing adjusted plots
+retain their bootstrap intervals. No cohort-dependent complexity index, inspection dates,
+pricing-age measure, or Hover-delivery timing is fabricated from unavailable inputs.
+
+Synthetic fixture v4 includes unchanged measurements with replacement expansion, measurement
+corrections, denied/pending requests, and missing/incomparable SQ pairs. Before research use,
+review real-claim citations for comparable quantities and requested-versus-approved transitions.
 
 ```python
 from ad_hoc.hover_supplements import build_feature_table, stratified_sample

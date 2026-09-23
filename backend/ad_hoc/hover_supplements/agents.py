@@ -67,6 +67,14 @@ supported by initial evidence, without hindsight or vendor attribution. Do not e
 Distinguish cumulative estimate totals from incremental approved supplement dollars. Do not add
 successive cumulative revisions, allocate dollars to causes, or infer denials by subtraction.
 Financial QA fields require explicitly documented claim-level incremental totals, not arithmetic.
+Roofing fields describe the whole history, even when roofing is not the main supplement.
+Separate measured roof area SQ from carrier-estimated repair/replacement SQ. Record latest
+documented carrier values, not requested contractor quantities. Do not restate baseline SQ,
+calculate deltas, sum duplicate removal/install items, or assume waste conventions match.
+Mark each SQ comparison comparable only when roof/building coverage, units and conventions
+support it. Repair-to-replacement requests and approvals are separate facts: a denied or pending
+request is not an approved change; other approved dollars do not prove roofing approval.
+Explain material roofing changes or comparability limitations in the history summary.
 Leave supplement_pct_of_initial_estimate null; Python calculates it from authoritative amounts.
 """
 )

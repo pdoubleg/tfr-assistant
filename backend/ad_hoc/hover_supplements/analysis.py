@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 
 from .dataframes import derive_outcomes, feature_dictionary, validate_claim_ids
+from .derived import derive_claim_features
 
 
 def weighted_mean(values, weights):
@@ -341,3 +342,144 @@ def representative_claims(results, *, per_category=3):
             }
         )
     return pd.DataFrame(rows)
+
+
+def derived_analysis(population, audited):
+    """Descriptive cohort summaries with explicit populations and missingness counts."""
+    population = derive_claim_features(derive_outcomes(population))
+    audited = derive_claim_features(derive_outcomes(audited))
+    roof = audited.loc[audited.derived__roof_involved.fillna(False)].copy()
+
+    def summarize(frame, specifications, population_label):
+        rows = []
+        for hover, group in frame.groupby("hover"):
+            for metric, label, unit in specifications:
+                values = group[metric]
+                known = values.notna()
+                rows.append(
+                    {
+                        "hover": hover,
+                        "population": population_label,
+                        "metric": metric,
+                        "label": label,
+                        "unit": unit,
+                        "estimate": weighted_mean(values, group.sampling_weight),
+                        "known_n": int(known.sum()),
+                        "unknown_n": int((~known).sum()),
+                        "total_n": len(group),
+                        "denominator_weight": float(group.loc[known, "sampling_weight"].sum()),
+                        "effective_n": effective_sample_size(group.loc[known, "sampling_weight"]),
+                    }
+                )
+        return pd.DataFrame(rows)
+
+    timing = summarize(
+        population,
+        [
+            ("derived__days_loss_to_fnol", "Loss to FNOL", "days"),
+            ("derived__days_fnol_to_estimate", "FNOL to initial estimate", "days"),
+            ("derived__days_loss_to_estimate", "Loss to initial estimate", "days"),
+            ("derived__request_to_initial_ratio", "Requested / initial estimate", "ratio"),
+            ("supplement_ratio", "Approved / initial estimate", "ratio"),
+            ("derived__approval_rate_of_request", "Approved / requested", "ratio"),
+        ],
+        "structured population",
+    )
+    quality = summarize(
+        audited,
+        [
+            ("derived__documentation_index", "Initial documentation index", "proportion"),
+            (
+                "derived__documentation_observed_count",
+                "Observed documentation indicators (of 6)",
+                "count",
+            ),
+            ("derived__measurement_addressable", "Measurement-addressable history", "proportion"),
+        ],
+        "audited claims",
+    )
+    roof_metrics = summarize(
+        roof,
+        [
+            ("derived__roof_measured_sq_delta", "Measured roof-area SQ change", "SQ"),
+            ("derived__roof_estimated_sq_delta", "Estimated repair/replacement SQ change", "SQ"),
+            (
+                "derived__roof_measured_sq_pct_change",
+                "Measured roof-area relative change",
+                "proportion",
+            ),
+            (
+                "derived__roof_estimated_sq_pct_change",
+                "Estimated scope relative change",
+                "proportion",
+            ),
+            ("derived__roof_measured_sq_changed", "Measured roof area changed", "proportion"),
+            (
+                "derived__roof_estimated_sq_increased",
+                "Estimated repair/replacement SQ increased",
+                "proportion",
+            ),
+            ("supplement_incidence", "Any approved supplement on roof claims", "proportion"),
+            ("supplement_approved_amount", "Approved supplement dollars per roof claim", "$"),
+        ],
+        "audited claims with documented initial roof involvement",
+    )
+    scope = "baseline__roof__initial_repair_scope"
+    repairs = roof.loc[roof[scope].eq("repair").fillna(False)] if scope in roof else roof.iloc[:0]
+    transitions = summarize(
+        repairs,
+        [
+            (
+                "derived__roof_repair_to_replace_requested",
+                "Repair to replacement requested",
+                "proportion",
+            ),
+            (
+                "derived__roof_repair_to_replace_approved",
+                "Repair to replacement approved",
+                "proportion",
+            ),
+        ],
+        "audited roof claims initially estimated for repair",
+    )
+    by_peril = []
+    if "peril" in roof:
+        for peril, group in roof.groupby("peril", dropna=False):
+            table = summarize(
+                group,
+                [
+                    ("supplement_incidence", "Any approved supplement", "proportion"),
+                ],
+                "audited roof claims",
+            )
+            table["peril"] = str(peril) if pd.notna(peril) else "unknown"
+            by_peril.append(table)
+    columns = ["claim_id", "hover", "peril", "sampling_weight", "supplement_approved_amount"]
+    columns += [
+        c
+        for c in roof
+        if c.startswith(
+            (
+                "baseline__roof__",
+                "supplement_mechanism__roofing__",
+                "derived__roof_",
+            )
+        )
+    ]
+    coverage = []
+    for hover, group in audited.groupby("hover"):
+        coverage.append(
+            {
+                "hover": hover,
+                "audited_n": len(group),
+                "roof_n": int(group.derived__roof_involved.fillna(False).sum()),
+                "unknown_roof_n": int(group.derived__roof_involved.isna().sum()),
+            }
+        )
+    return {
+        "derived_metrics": pd.concat([timing, quality], ignore_index=True),
+        "roofing_metrics": pd.concat([roof_metrics, transitions], ignore_index=True),
+        "roofing_by_peril": pd.concat(by_peril, ignore_index=True) if by_peril else pd.DataFrame(),
+        "roofing_claims": roof[[c for c in columns if c in roof]],
+        "roofing_coverage": pd.DataFrame(coverage),
+    }

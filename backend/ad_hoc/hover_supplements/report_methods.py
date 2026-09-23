@@ -30,6 +30,14 @@ def methodology_details(section, report):
             "Tree target: approved-supplement incidence. Segment comparisons use "
             "held-out observed dollars."
         ),
+        "roofing": (
+            "Measures: documented roof-area and estimated-scope SQ changes, repair-to-replacement "
+            "requests and approvals, and claim-level supplement incidence by peril."
+        ),
+        "derived": (
+            "Measures: computed reporting/estimating delays, financial ratios and documentation "
+            "coverage, without asking the extraction model to perform arithmetic."
+        ),
         "explain": (
             "Prediction targets: approval incidence and positive approved "
             "dollars. Expected dollars = probability × positive severity."
@@ -53,6 +61,47 @@ def methodology_details(section, report):
         ),
     ]
     notes = {
+        "roofing": [
+            (
+                "Eligibility",
+                "Roof involvement must be documented in baseline evidence. Peril alone "
+                "does not establish roofing. Transitions use initially-repair claims "
+                "and known answers.",
+            ),
+            (
+                "SQ comparisons",
+                "Latest carrier minus initial quantities are computed only when the "
+                "LLM documents comparable structures, units and conventions. "
+                "Missing or incompatible "
+                "pairs stay missing. Measurement area and estimated work scope are separate.",
+            ),
+            (
+                "Interpretation",
+                "A request does not establish approval. Scatter points are individual "
+                "claims; summaries use study weights. Claim dollars are not roofing allocations. "
+                "Peril groups are descriptive; inspect counts and effective sample size.",
+            ),
+        ],
+        "derived": [
+            (
+                "Timing",
+                "Use DOL, FNOL and initial-estimate cutoff. Missing, invalid and reversed "
+                "dates produce missing intervals; no inspection or later request dates "
+                "are inferred.",
+            ),
+            (
+                "Financials",
+                "Use authoritative incremental claim amounts. Zero/missing denominators "
+                "produce missing ratios. Approved/requested is not a calculation "
+                "of denied dollars.",
+            ),
+            (
+                "Documentation",
+                "Average the six observed yes/no documentation indicators, excluding "
+                "unknown and N/A. All missing yields a missing index and observed count zero. "
+                "This descriptive index is not cohort-standardized or a validated quality score.",
+            ),
+        ],
         "impact": [
             (
                 "Estimands",

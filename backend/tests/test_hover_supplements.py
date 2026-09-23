@@ -62,7 +62,7 @@ def run_claim(bundle, **kwargs):
 
 def test_reference_schema_inventory_and_conversion():
     dictionary = feature_dictionary()
-    assert len(dictionary) == 115
+    assert len(dictionary) == 124
     assert dictionary.field.is_unique
     assert dictionary.description.notna().all()
     baseline = unknown_features(BaselineClaimFeatures)
