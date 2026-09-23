@@ -87,7 +87,7 @@ def run_analysis(population, *, results=(), audited_metadata=None, config=None):
     """Population scorecards always use the full structured frame; LLM analyses use audited data."""
     config = config or ResearchConfig()
     feature_table = build_feature_table(
-        results, audited_metadata if audited_metadata is not None else population
+        results, audited_metadata if audited_metadata is not None else population, drop_text=False
     )
     # Do not inflate the audited sample by silently using unaudited population rows.
     audited = feature_table[feature_table.extraction_status.ne("not_extracted")].copy()
@@ -114,6 +114,7 @@ def run_analysis(population, *, results=(), audited_metadata=None, config=None):
         )
     return {
         "tables": tables,
+        "supplement_schema_version": SCHEMA_VERSION,
         "synthetic": bool(results)
         and all(
             r.baseline.features is not None

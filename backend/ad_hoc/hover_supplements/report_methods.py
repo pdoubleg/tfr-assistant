@@ -19,12 +19,12 @@ def methodology_details(section, report):
             "quality features are secondary adjustment only."
         ),
         "mechanisms": (
-            "Measures: retrospective supplement mechanisms, including denied "
-            "requests in all-claim views."
+            "Measures: main and remaining classifications plus whole-history drivers. "
+            "All-claim views include denied requests."
         ),
         "avoidability": (
-            "Measure: evidence-based avoidability classification, not predicted "
-            "recoverable savings."
+            "Measure: main and remaining avoidability plus whole-history prevention areas; "
+            "not predicted recoverable savings."
         ),
         "segments": (
             "Tree target: approved-supplement incidence. Segment comparisons use "
@@ -162,6 +162,16 @@ def methodology_details(section, report):
                     "Each claim contributes its approved dollars to its single "
                     "avoidability class, divided by population weight in the chart. "
                     "Associated dollars are not a causal allocation or savings estimate."
+                ),
+            ),
+            (
+                "Prevention-area dollars",
+                (
+                    "Sum documented approved supplement dollars times study weights for claims "
+                    "with the prevention area marked yes, then divide by all audited cohort "
+                    "claim weight. Areas overlap, so claim dollars can appear in several bars. "
+                    "Missing classifications and positive-claim dollar amounts are reported; "
+                    "totals include only documented amounts and are not additive savings."
                 ),
             ),
         ],

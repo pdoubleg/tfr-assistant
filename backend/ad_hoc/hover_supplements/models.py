@@ -1,67 +1,125 @@
-"""Feature definitions ported from the user-supplied Hover planning conversation.
+"""Initial-evidence features and one claim-level main/remaining supplement summary.
 
-Source: https://chatgpt.com/share/6aac6fae-a418-83ea-bb97-b22e29431a0d
-Field descriptions and enums are retained; conversion is implemented in dataframes.py.
+Pandas hints live in Annotated types; conversion is implemented in dataframes.py.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import date
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 import pandas as pd
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .dataframes import prepare_flat_dataframe as _prepare_flat_dataframe
+from .pandas_types import Category, Count, Date, Indicator, Number, Text
 
 # ---------------------------------------------------------------------------
 # Shared types
 # ---------------------------------------------------------------------------
 
-YesNoUnknown = Literal["yes", "no", "unknown"]
-ComplexityLevel = Literal["low", "moderate", "high", "unknown"]
-ConfidenceLevel = Literal["low", "medium", "high", "unknown"]
+YesNoUnknown = Indicator
+ComplexityLevel = Annotated[Literal["low", "moderate", "high", "unknown"], Category]
+ConfidenceLevel = Annotated[Literal["low", "medium", "high", "unknown"], Category]
 
-InitialIdentifiability = Literal[
-    "clearly_no",
-    "probably_no",
-    "unclear",
-    "probably_yes",
-    "clearly_yes",
+InitialIdentifiability = Annotated[
+    Literal[
+        "clearly_no",
+        "probably_no",
+        "unclear",
+        "probably_yes",
+        "clearly_yes",
+    ],
+    Category,
 ]
 
-PotentialAvoidability = Literal[
-    "clearly_avoidable",
-    "probably_avoidable",
-    "unclear",
-    "probably_unavoidable",
-    "clearly_unavoidable",
-    "not_applicable",
+PotentialAvoidability = Annotated[
+    Literal[
+        "clearly_avoidable",
+        "probably_avoidable",
+        "unclear",
+        "probably_unavoidable",
+        "clearly_unavoidable",
+        "not_applicable",
+    ],
+    Category,
 ]
 
-PrimarySupplementMechanism = Literal[
-    "scope_expansion",
-    "quantity_change",
-    "pricing_change",
-    "hidden_damage",
-    "matching",
-    "code_or_ordinance",
-    "overhead_and_profit",
-    "contractor_disagreement",
-    "coverage_or_administrative",
-    "multiple",
-    "other",
-    "unclear",
-    "not_applicable",
+PrimarySupplementMechanism = Annotated[
+    Literal[
+        "scope_expansion_missed_item",
+        "scope_expansion_additional_area",
+        "quantity_or_measurement_correction",
+        "pricing_change",
+        "concealed_or_hidden_damage",
+        "matching",
+        "code_or_ordinance",
+        "overhead_and_profit",
+        "repairability_or_repair_versus_replace_dispute",
+        "contractor_scope_disagreement_other",
+        "coverage_or_administrative",
+        "new_loss_or_additional_event",
+        "multiple",
+        "other",
+        "unclear",
+        "not_applicable",
+    ],
+    Category,
+]
+
+SupplementOutcome = Annotated[
+    Literal[
+        "approved_in_full",
+        "approved_in_part",
+        "denied_in_full",
+        "withdrawn_by_requester",
+        "pending",
+        "unclear",
+        "not_applicable",
+    ],
+    Category,
+]
+
+PreventionArea = Annotated[
+    Literal[
+        "measurement_accuracy",
+        "measurement_scope",
+        "photo_documentation",
+        "damage_assessment_or_repairability",
+        "estimate_construction",
+        "pricing_currency",
+        "coverage_determination",
+        "contractor_expectation_setting",
+        "process_or_timing",
+        "not_preventable",
+        "unclear",
+        "not_applicable",
+    ],
+    Category,
+]
+
+UnavoidableReason = Annotated[
+    Literal[
+        "concealed_until_demolition",
+        "became_observable_later_without_demolition",
+        "new_loss_or_additional_event",
+        "physical_condition_changed",
+        "code_or_ordinance_determination",
+        "market_or_material_price_change",
+        "insured_elected_scope_change",
+        "third_party_information_required",
+        "other",
+        "not_applicable",
+        "unclear",
+    ],
+    Category,
 ]
 
 
 # ---------------------------------------------------------------------------
 # Field helpers
 #
-# pandas_kind is deliberately embedded in the Pydantic schema metadata so the
-# same schema that guides the LLM also tells to_pandas() how to prepare data.
+# Pandas types travel in Annotated metadata; descriptions guide the LLM.
 # ---------------------------------------------------------------------------
 
 
@@ -70,7 +128,6 @@ def indicator_field(description: str) -> Any:
     return Field(
         default="unknown",
         description=description,
-        json_schema_extra={"pandas_kind": "indicator"},
     )
 
 
@@ -79,7 +136,6 @@ def date_field(description: str) -> Any:
     return Field(
         default=None,
         description=description,
-        json_schema_extra={"pandas_kind": "date"},
     )
 
 
@@ -88,7 +144,6 @@ def text_field(description: str) -> Any:
     return Field(
         default=None,
         description=description,
-        json_schema_extra={"pandas_kind": "text"},
     )
 
 
@@ -114,7 +169,7 @@ class PropertyComplexityFeatures(BaseModel):
 
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
-    stories: int | None = Field(
+    stories: Count = Field(
         default=None,
         ge=1,
         description=(
@@ -123,7 +178,7 @@ class PropertyComplexityFeatures(BaseModel):
         ),
     )
 
-    structures_involved: int | None = Field(
+    structures_involved: Count = Field(
         default=None,
         ge=1,
         description=(
@@ -148,7 +203,7 @@ class PropertyComplexityFeatures(BaseModel):
         "known loss scope by the initial-estimate cutoff."
     )
 
-    rooms_affected: int | None = Field(
+    rooms_affected: Count = Field(
         default=None,
         ge=0,
         description=(
@@ -157,7 +212,7 @@ class PropertyComplexityFeatures(BaseModel):
         ),
     )
 
-    building_components_affected: int | None = Field(
+    building_components_affected: Count = Field(
         default=None,
         ge=0,
         description=(
@@ -198,11 +253,18 @@ class RoofFeatures(BaseModel):
 
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
+    repairability_assessed_initially: YesNoUnknown = indicator_field(
+        "Whether repairability was assessed by the initial-estimate cutoff."
+    )
+    repairability_test_performed_initially: YesNoUnknown = indicator_field(
+        "Whether an objective repairability test was performed before the cutoff."
+    )
+
     roof_present_in_scope: YesNoUnknown = indicator_field(
         "Whether the initial loss scope included repair or replacement of any roof component."
     )
 
-    roof_squares: float | None = Field(
+    roof_squares: Number = Field(
         default=None,
         ge=0,
         description=(
@@ -211,7 +273,7 @@ class RoofFeatures(BaseModel):
         ),
     )
 
-    roof_pitch: str | None = Field(
+    roof_pitch: Annotated[str | None, Category] = Field(
         default=None,
         description=(
             "Documented roof pitch or slope. Preserve the source representation "
@@ -220,7 +282,7 @@ class RoofFeatures(BaseModel):
         ),
     )
 
-    roof_facets_or_slopes: int | None = Field(
+    roof_facets_or_slopes: Count = Field(
         default=None,
         ge=0,
         description=(
@@ -389,6 +451,41 @@ class InitialDocumentationFeatures(BaseModel):
 
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
+    measurement_scope: Annotated[
+        Literal[
+            "roof_only",
+            "exterior_only",
+            "roof_and_exterior",
+            "roof_exterior_and_interior",
+            "interior_only",
+            "other",
+            "not_applicable",
+            "unknown",
+        ],
+        Category,
+    ] = Field(default="unknown", description="Scope actually measured by the cutoff.")
+    measurement_discrepancy_documented: YesNoUnknown = indicator_field(
+        "Whether a measurement discrepancy was documented before the initial cutoff."
+    )
+    overview_and_close_up_photos_present: YesNoUnknown = indicator_field(
+        "Whether initial supplied evidence documents both overview and close-up photographs."
+    )
+    all_damaged_elevations_or_slopes_photographed: Annotated[
+        Literal[
+            "yes",
+            "no",
+            "not_applicable",
+            "unknown",
+        ],
+        Category,
+    ] = Field(
+        default="unknown",
+        description=(
+            "Whether all initially known damaged elevations/slopes were photographed. "
+            "Use not_applicable when none were involved; unknown for insufficient evidence."
+        ),
+    )
+
     photo_documentation_adequate: YesNoUnknown = indicator_field(
         "Whether the initial photographic documentation appears sufficient to "
         "reasonably understand the major documented damaged areas and components."
@@ -436,12 +533,28 @@ class InitialEstimateFeatures(BaseModel):
 
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
-    initial_estimate_amount: float | None = Field(
+    initial_estimate_amount: Number = Field(
         default=None,
         ge=0,
         description=(
             "Total initial estimate amount when clearly supported by the file. "
             "Use the relevant total estimate value consistently across claims."
+        ),
+    )
+
+    repair_versus_replace_rationale_documented: Annotated[
+        Literal[
+            "yes",
+            "no",
+            "not_applicable",
+            "unknown",
+        ],
+        Category,
+    ] = Field(
+        default="unknown",
+        description=(
+            "Whether the initial repair-versus-replace rationale was documented. "
+            "Use not_applicable only when that decision did not arise."
         ),
     )
 
@@ -534,7 +647,7 @@ class BaselineClaimFeatures(BaseModel):
 
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
-    initial_estimate_cutoff_date: date | None = date_field(
+    initial_estimate_cutoff_date: Date = date_field(
         "Date representing the end of the information window allowed for "
         "baseline extraction, typically the date the initial estimate was "
         "completed or issued."
@@ -588,7 +701,7 @@ class BaselineClaimFeatures(BaseModel):
         ),
     )
 
-    baseline_summary: str | None = text_field(
+    baseline_summary: Text = text_field(
         "Concise factual summary of the claim as it appeared at the initial "
         "estimate cutoff. Do not mention or rely on later supplement outcomes."
     )
@@ -627,394 +740,6 @@ class BaselineClaimFeatures(BaseModel):
 # ===========================================================================#
 
 
-class ScopeExpansionDrivers(BaseModel):
-    """
-    Identify whether the repair scope increased after the initial estimate and
-    characterize the specific mechanisms responsible for that increase.
-
-    Multiple drivers may be true for the same claim.
-    """
-
-    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
-
-    scope_expanded: YesNoUnknown = indicator_field(
-        "Whether the later estimate or supplement added materially new repair "
-        "scope beyond the initial estimate."
-    )
-
-    missed_item: YesNoUnknown = indicator_field(
-        "Whether a damaged item or repair operation was omitted from the "
-        "initial estimate and later added."
-    )
-
-    additional_damaged_area: YesNoUnknown = indicator_field(
-        "Whether the later estimate added a room, elevation, slope, structure, "
-        "or other damaged area that was not included initially."
-    )
-
-    demolition_increased: YesNoUnknown = indicator_field(
-        "Whether demolition, tear-out, removal, or access-related scope "
-        "materially increased after the initial estimate."
-    )
-
-    additional_layers_or_materials: YesNoUnknown = indicator_field(
-        "Whether additional material layers, assemblies, or component layers "
-        "were later included in the repair scope."
-    )
-
-    matching_issue: YesNoUnknown = indicator_field(
-        "Whether matching considerations materially caused or contributed to scope expansion."
-    )
-
-    hidden_or_concealed_damage: YesNoUnknown = indicator_field(
-        "Whether previously concealed or non-observable damage materially "
-        "caused or contributed to scope expansion."
-    )
-
-    code_required_scope: YesNoUnknown = indicator_field(
-        "Whether building code, ordinance, or required upgrade considerations "
-        "materially added repair scope."
-    )
-
-    contractor_requested_scope: YesNoUnknown = indicator_field(
-        "Whether a contractor or repair representative requested materially "
-        "additional repair scope beyond the initial estimate."
-    )
-
-    added_items_count: int | None = Field(
-        default=None,
-        ge=0,
-        description=(
-            "Approximate number of distinct repair line items or components "
-            "newly added after the initial estimate when reliably determinable."
-        ),
-    )
-
-    added_rooms_or_areas_count: int | None = Field(
-        default=None,
-        ge=0,
-        description=(
-            "Approximate number of newly added rooms, elevations, roof areas, "
-            "structures, or other materially distinct damage areas."
-        ),
-    )
-
-
-class QuantityChangeDrivers(BaseModel):
-    """
-    Characterize revisions to measurements, quantities, dimensions, labor
-    amounts, or material amounts after the initial estimate.
-    """
-
-    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
-
-    quantities_changed: YesNoUnknown = indicator_field(
-        "Whether one or more material repair quantities changed between the "
-        "initial and later estimate."
-    )
-
-    measurement_correction: YesNoUnknown = indicator_field(
-        "Whether corrected or revised measurements materially contributed to the supplement."
-    )
-
-    dimensions_changed: YesNoUnknown = indicator_field(
-        "Whether documented dimensions materially changed after the initial estimate."
-    )
-
-    roof_squares_changed: YesNoUnknown = indicator_field(
-        "Whether the estimated number of roofing squares materially changed."
-    )
-
-    material_quantity_changed: YesNoUnknown = indicator_field(
-        "Whether the quantity of a repair material materially changed."
-    )
-
-    labor_quantity_changed: YesNoUnknown = indicator_field(
-        "Whether labor hours, labor units, or another labor quantity materially changed."
-    )
-
-    initial_roof_squares: float | None = Field(
-        default=None,
-        ge=0,
-        description=(
-            "Roofing squares reflected in the initial estimate when the value "
-            "can be reliably established."
-        ),
-    )
-
-    revised_roof_squares: float | None = Field(
-        default=None,
-        ge=0,
-        description=(
-            "Roofing squares reflected after revision or supplementation when "
-            "the value can be reliably established."
-        ),
-    )
-
-    material_quantity_change_pct: float | None = Field(
-        default=None,
-        description=(
-            "Approximate percentage change in a material quantity when a "
-            "meaningful comparable quantity can be calculated from the file."
-        ),
-    )
-
-
-class PricingChangeDrivers(BaseModel):
-    """
-    Identify supplements primarily associated with price changes rather than
-    new physical repair scope.
-    """
-
-    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
-
-    pricing_materially_changed: YesNoUnknown = indicator_field(
-        "Whether changes in pricing materially contributed to the supplement."
-    )
-
-    unit_price_changed: YesNoUnknown = indicator_field(
-        "Whether one or more unit prices materially changed from the initial estimate."
-    )
-
-    labor_rate_changed: YesNoUnknown = indicator_field(
-        "Whether a change in labor rate materially contributed to the supplement."
-    )
-
-    material_price_changed: YesNoUnknown = indicator_field(
-        "Whether a change in material pricing materially contributed to the supplement."
-    )
-
-    pricing_database_or_price_list_changed: YesNoUnknown = indicator_field(
-        "Whether use of a different estimating price list, database version, "
-        "location, or pricing period materially contributed to the change."
-    )
-
-    market_condition_adjustment: YesNoUnknown = indicator_field(
-        "Whether documented local market conditions or actual contractor costs "
-        "materially exceeded initial estimating assumptions."
-    )
-
-
-class AdditionalCostDrivers(BaseModel):
-    """
-    Capture identifiable cost categories that may be added after the original
-    estimate even when the underlying physical damage is largely unchanged.
-    """
-
-    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
-
-    code_or_ordinance_added: YesNoUnknown = indicator_field(
-        "Whether code, ordinance, permit-driven upgrade, or required compliance "
-        "costs were materially added after the initial estimate."
-    )
-
-    matching_added: YesNoUnknown = indicator_field(
-        "Whether additional cost attributable to matching considerations was "
-        "materially added after the initial estimate."
-    )
-
-    overhead_and_profit_added: YesNoUnknown = indicator_field(
-        "Whether contractor overhead and profit was newly added or materially "
-        "increased after the initial estimate."
-    )
-
-    permit_or_fee_added: YesNoUnknown = indicator_field(
-        "Whether permits, inspections, engineering charges, disposal fees, or "
-        "similar required fees were materially added."
-    )
-
-    equipment_or_access_cost_added: YesNoUnknown = indicator_field(
-        "Whether scaffolding, lifts, steep/high charges, access equipment, "
-        "mobilization, or similar costs were materially added."
-    )
-
-    code_related_amount: float | None = Field(
-        default=None,
-        ge=0,
-        description=(
-            "Approximate dollar amount attributable to code or ordinance "
-            "changes when separately identifiable."
-        ),
-    )
-
-    matching_related_amount: float | None = Field(
-        default=None,
-        ge=0,
-        description=(
-            "Approximate dollar amount attributable to matching when separately identifiable."
-        ),
-    )
-
-    overhead_and_profit_amount: float | None = Field(
-        default=None,
-        ge=0,
-        description=(
-            "Approximate dollar amount attributable to newly added or increased "
-            "overhead and profit when separately identifiable."
-        ),
-    )
-
-
-class SupplementDiscoveryFeatures(BaseModel):
-    """
-    Determine whether genuinely new information or newly observable damage
-    emerged after the initial estimate.
-
-    These features help separate potentially preventable initial-estimate
-    deficiencies from changes that could not reasonably have been known earlier.
-    """
-
-    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
-
-    new_damage_discovered: YesNoUnknown = indicator_field(
-        "Whether material damage not known at the initial-estimate stage was later discovered."
-    )
-
-    concealed_damage_discovered_after_demolition: YesNoUnknown = indicator_field(
-        "Whether material damage became discoverable only after demolition, "
-        "tear-off, removal of finishes, or another invasive repair step."
-    )
-
-    additional_damage_became_visible_later: YesNoUnknown = indicator_field(
-        "Whether material damage became observable later even if formal "
-        "demolition was not required."
-    )
-
-    condition_changed_after_initial_estimate: YesNoUnknown = indicator_field(
-        "Whether the physical condition materially changed after the initial "
-        "estimate in a way that affected repair scope or cost."
-    )
-
-    new_loss_or_additional_event_occurred: YesNoUnknown = indicator_field(
-        "Whether a later event, additional damage occurrence, or separate loss "
-        "materially contributed to the revised scope or amount."
-    )
-
-    later_information_required_to_identify_change: YesNoUnknown = indicator_field(
-        "Whether information unavailable at the initial-estimate stage was "
-        "reasonably necessary to identify the later change."
-    )
-
-
-class SupplementInitiationFeatures(BaseModel):
-    """
-    Capture who or what initiated reconsideration of the original estimate and
-    the nature of any estimate disagreement.
-    """
-
-    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
-
-    contractor_initiated: YesNoUnknown = indicator_field(
-        "Whether a contractor or repair representative initiated or materially "
-        "prompted the supplement request."
-    )
-
-    insured_initiated: YesNoUnknown = indicator_field(
-        "Whether the insured initiated or materially prompted the supplement request."
-    )
-
-    adjuster_initiated: YesNoUnknown = indicator_field(
-        "Whether the carrier adjuster independently initiated or materially "
-        "prompted revision of the estimate."
-    )
-
-    reinspection_initiated: YesNoUnknown = indicator_field(
-        "Whether findings from a reinspection initiated or materially prompted "
-        "revision of the estimate."
-    )
-
-    contractor_estimate_received: YesNoUnknown = indicator_field(
-        "Whether a contractor estimate was received as part of or before the supplement process."
-    )
-
-    contractor_estimate_amount: float | None = Field(
-        default=None,
-        ge=0,
-        description=(
-            "Total contractor estimate amount associated with the supplement "
-            "when the amount can be reliably determined."
-        ),
-    )
-
-    disagreement_with_initial_scope: YesNoUnknown = indicator_field(
-        "Whether disagreement with the physical repair scope of the initial "
-        "estimate materially contributed to supplementation."
-    )
-
-    disagreement_with_initial_pricing: YesNoUnknown = indicator_field(
-        "Whether disagreement with pricing in the initial estimate materially "
-        "contributed to supplementation."
-    )
-
-
-class InitialIdentifiabilityFeatures(BaseModel):
-    """
-    Capture factual evidence needed to assess whether the later supplement
-    could reasonably have been anticipated or incorporated initially.
-
-    Prefer these lower-level factual questions over asking the LLM whether
-    Hover itself caused, prevented, or failed to prevent a supplement.
-    """
-
-    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
-
-    supplemented_damage_visible_initially: YesNoUnknown = indicator_field(
-        "Whether the damage ultimately included in the supplement was physically "
-        "visible or reasonably observable at the initial inspection."
-    )
-
-    supplemented_damage_in_initial_photos: YesNoUnknown = indicator_field(
-        "Whether the damage ultimately included in the supplement is visible or "
-        "otherwise materially documented in initial photographs."
-    )
-
-    supplemented_damage_in_initial_notes: YesNoUnknown = indicator_field(
-        "Whether the damage ultimately included in the supplement was described "
-        "or materially referenced in initial claim or inspection notes."
-    )
-
-    supplemented_component_known_initially: YesNoUnknown = indicator_field(
-        "Whether the component later supplemented was known to be damaged or "
-        "implicated in the loss during the initial estimating process."
-    )
-
-    supplemented_component_in_initial_estimate: YesNoUnknown = indicator_field(
-        "Whether the component later supplemented was already represented in "
-        "the initial estimate, even if its quantity or scope later changed."
-    )
-
-    accurate_quantity_possible_initially: YesNoUnknown = indicator_field(
-        "Whether the later-supported quantity or measurement could reasonably "
-        "have been obtained during the initial inspection using information and "
-        "access available at that time."
-    )
-
-    later_demolition_required_for_discovery: YesNoUnknown = indicator_field(
-        "Whether demolition, tear-off, removal, or another invasive step was "
-        "required before the supplemented condition could reasonably be known."
-    )
-
-    later_information_required: YesNoUnknown = indicator_field(
-        "Whether material information unavailable during the initial estimating "
-        "process was required to support the later supplement."
-    )
-
-    could_reasonably_have_been_identified_initially: InitialIdentifiability = Field(
-        default="unclear",
-        description=(
-            "Overall evidence-based assessment of whether the supplemented "
-            "scope or condition could reasonably have been identified "
-            "during the original inspection and estimating process. Use "
-            "clearly_yes only when evidence strongly supports initial "
-            "identifiability; probably_yes when more likely than not; "
-            "unclear when evidence is insufficient or conflicting; "
-            "probably_no when later discovery was likely necessary; and "
-            "clearly_no when the condition could not reasonably have been "
-            "identified initially."
-        ),
-    )
-
-
 class SupplementFinancialFeatures(BaseModel):
     """
     Extract financial values associated with the supplement and revised estimate.
@@ -1025,7 +750,7 @@ class SupplementFinancialFeatures(BaseModel):
 
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
-    supplement_requested_amount: float | None = Field(
+    supplement_requested_amount: Number = Field(
         default=None,
         ge=0,
         description=(
@@ -1034,7 +759,7 @@ class SupplementFinancialFeatures(BaseModel):
         ),
     )
 
-    supplement_approved_amount: float | None = Field(
+    supplement_approved_amount: Number = Field(
         default=None,
         ge=0,
         description=(
@@ -1043,7 +768,7 @@ class SupplementFinancialFeatures(BaseModel):
         ),
     )
 
-    supplement_denied_amount: float | None = Field(
+    supplement_denied_amount: Number = Field(
         default=None,
         ge=0,
         description=(
@@ -1052,7 +777,7 @@ class SupplementFinancialFeatures(BaseModel):
         ),
     )
 
-    revised_estimate_amount: float | None = Field(
+    revised_estimate_amount: Number = Field(
         default=None,
         ge=0,
         description=(
@@ -1061,7 +786,7 @@ class SupplementFinancialFeatures(BaseModel):
         ),
     )
 
-    supplement_pct_of_initial_estimate: float | None = Field(
+    supplement_pct_of_initial_estimate: Number = Field(
         default=None,
         ge=0,
         description=(
@@ -1071,113 +796,380 @@ class SupplementFinancialFeatures(BaseModel):
     )
 
 
+class SupplementDrivers(BaseModel):
+    """Any occurrence across the entire supplied history, not just the main request."""
+
+    model_config = ConfigDict(extra="forbid")
+    missed_item: YesNoUnknown = indicator_field("A documented damaged item/operation was omitted.")
+    additional_area: YesNoUnknown = indicator_field("An additional room, slope or area was sought.")
+    measurement_correction: YesNoUnknown = indicator_field(
+        "An incorrect dimension, area or count contributed; exclude repairability disagreements."
+    )
+    pricing_change: YesNoUnknown = indicator_field("Pricing changes contributed to a request.")
+    concealed_damage_after_demolition: YesNoUnknown = indicator_field(
+        "Damage became discoverable only after demolition or removal."
+    )
+    later_visible_damage: YesNoUnknown = indicator_field(
+        "Damage became observable later without demolition."
+    )
+    changed_condition: YesNoUnknown = indicator_field("Physical conditions changed after cutoff.")
+    new_loss_or_event: YesNoUnknown = indicator_field("A new loss or event contributed.")
+    matching: YesNoUnknown = indicator_field("Matching requirements contributed.")
+    code_or_ordinance: YesNoUnknown = indicator_field("Code or ordinance requirements contributed.")
+    overhead_and_profit: YesNoUnknown = indicator_field("Overhead and profit contributed.")
+    repair_versus_replace: YesNoUnknown = indicator_field(
+        "Known damage was disputed on repairability/remedy, rather than measurement accuracy."
+    )
+    other_contractor_scope_disagreement: YesNoUnknown = indicator_field(
+        "Other contractor scope disagreement contributed."
+    )
+    coverage_or_administrative: YesNoUnknown = indicator_field(
+        "Coverage or administrative issues contributed."
+    )
+    other: YesNoUnknown = indicator_field("Another documented driver contributed; explain it.")
+
+
+class PreventionIndicators(BaseModel):
+    """Supported prevention actions for any supplement in the history."""
+
+    model_config = ConfigDict(extra="forbid")
+    measurement_accuracy: YesNoUnknown = indicator_field(
+        "Correcting an initially wrong measurement could have prevented a supplement."
+    )
+    measurement_scope: YesNoUnknown = indicator_field(
+        "Measuring an omitted component could have prevented a supplement."
+    )
+    photo_documentation: YesNoUnknown = indicator_field(
+        "Better photographs could have prevented a supplement."
+    )
+    damage_assessment_or_repairability: YesNoUnknown = indicator_field(
+        "Better damage/repairability assessment or documentation could have prevented a supplement."
+    )
+    estimate_construction: YesNoUnknown = indicator_field(
+        "Correct estimate construction from sound inputs could have prevented a supplement."
+    )
+    pricing_currency: YesNoUnknown = indicator_field(
+        "Correct/current pricing could have prevented a supplement."
+    )
+    coverage_determination: YesNoUnknown = indicator_field(
+        "A correct coverage determination could have prevented a supplement."
+    )
+    contractor_expectation_setting: YesNoUnknown = indicator_field(
+        "Up-front communication could have prevented a request despite a correct estimate."
+    )
+    process_or_timing: YesNoUnknown = indicator_field(
+        "Better timing, handoffs or sequencing could have prevented a supplement."
+    )
+
+
+class SupplementHistory(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    completeness: Annotated[Literal["complete", "partial", "unclear"], Category] = Field(
+        default="unclear",
+        description="Completeness of the supplement history in supplied evidence.",
+    )
+    total_count: Count = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Exact number of distinct substantive requests. Revisions and negotiations within "
+            "an unresolved request are one supplement. Null if the total is unsupported."
+        ),
+    )
+    approved_count: Count = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Exact count approved in full or part. Null if the whole-history count is unsupported."
+        ),
+    )
+    denied_count: Count = Field(
+        default=None,
+        ge=0,
+        description=("Exact count denied in full, excluding partial denials. Null if unsupported."),
+    )
+    pending_count: Count = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Exact count still pending. Unknown disposition is not pending. Null if unsupported."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def consistent_counts(self):
+        if self.completeness != "complete" and self.total_count is not None:
+            raise ValueError("Exact total_count requires complete history")
+        counts = (self.approved_count, self.denied_count, self.pending_count)
+        if (
+            self.total_count is not None
+            and sum(c for c in counts if c is not None) > self.total_count
+        ):
+            raise ValueError("Known disposition counts exceed total_count")
+        return self
+
+
 class SupplementMechanismFeatures(BaseModel):
-    """
-    Primary post-estimate LLM feature group.
+    """One directly extracted claim summary; all primary fields refer to the same supplement.
 
-    This model retrospectively describes what changed after the initial estimate,
-    why the estimate changed, who initiated reconsideration, what new information
-    emerged, and whether the later change appears potentially identifiable at
-    the original estimating stage.
-
-    These variables are primarily intended for:
-    - supplement mechanism decomposition,
-    - root-cause analysis,
-    - operational improvement analysis,
-    - analysis of potentially avoidable supplements,
-    - descriptive comparison between Hover and pre-Hover claims.
-
-    CAUSAL WARNING:
-    Most fields in this model occur downstream of the original estimating
-    process. They generally should NOT be included as covariates in the primary
-    model estimating Hover's total effect on supplement incidence or dollars.
+    These retrospective fields are excluded from baseline prediction and primary adjustment.
+    Dollar associations are claim dollars, never allocated causes or recoverable savings.
     """
 
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
-
     supplement_present: YesNoUnknown = indicator_field(
-        "Whether the claim had a material post-initial-estimate supplement or "
-        "comparable estimate revision."
+        "Whether any substantive post-estimate request/revision exists, including denied/pending."
     )
-
-    scope: ScopeExpansionDrivers = Field(
-        description=("Features describing new or expanded physical repair scope.")
+    history: SupplementHistory = Field(
+        default_factory=SupplementHistory,
+        description="Whole-history completeness and exact counts where supported.",
     )
-
-    quantity: QuantityChangeDrivers = Field(
-        description=(
-            "Features describing changes to measurements, dimensions, material "
-            "quantities, roof quantities, or labor quantities."
-        )
-    )
-
-    pricing: PricingChangeDrivers = Field(
-        description=(
-            "Features describing price-based changes independent of physical scope expansion."
-        )
-    )
-
-    additional_costs: AdditionalCostDrivers = Field(
-        description=(
-            "Features describing code, matching, overhead and profit, fees, "
-            "equipment, access, and similar additional cost categories."
-        )
-    )
-
-    discovery: SupplementDiscoveryFeatures = Field(
-        description=(
-            "Features describing newly discovered damage, later-observable "
-            "conditions, or other genuinely new information."
-        )
-    )
-
-    initiation: SupplementInitiationFeatures = Field(
-        description=(
-            "Features describing who initiated supplementation and the nature "
-            "of disagreements with the initial estimate."
-        )
-    )
-
-    initial_identifiability: InitialIdentifiabilityFeatures = Field(
-        description=(
-            "Factual evidence used to evaluate whether the supplemented issue "
-            "could reasonably have been identified initially."
-        )
-    )
-
-    financials: SupplementFinancialFeatures = Field(
-        description=(
-            "Extracted supplement request, approval, denial, and revised estimate financial values."
-        )
-    )
-
     primary_mechanism: PrimarySupplementMechanism = Field(
         default="unclear",
         description=(
-            "Best high-level characterization of the dominant reason for the "
-            "supplement. Use multiple when several materially important "
-            "mechanisms contributed and no single mechanism dominates; "
-            "not_applicable when there was no supplement; and unclear when the "
-            "file does not support a reliable classification."
+            "Cause of the main supplement, selected by largest incremental approval, then request "
+            "if none approved, then documented materiality if amounts cannot support ranking. "
+            "Break ties by earliest documented request, then source order."
         ),
     )
-
+    primary_selection_basis: Annotated[
+        Literal[
+            "approved_amount",
+            "requested_amount",
+            "qualitative_materiality",
+            "unclear",
+            "not_applicable",
+        ],
+        Category,
+    ] = Field(
+        default="unclear",
+        description=(
+            "Main supplement selection basis; explain incomplete comparisons in the summary."
+        ),
+    )
+    primary_outcome: SupplementOutcome = Field(
+        default="unclear",
+        description="Disposition of the main supplement only; zero dollars do not prove denial.",
+    )
+    primary_initial_identifiability: Annotated[
+        Literal[
+            "clearly_no",
+            "probably_no",
+            "unclear",
+            "probably_yes",
+            "clearly_yes",
+            "not_applicable",
+        ],
+        Category,
+    ] = Field(
+        default="unclear",
+        description=(
+            "Whether the main issue could reasonably have been identified at the initial estimate. "
+            "Identifiability does not establish avoidability."
+        ),
+    )
     potentially_avoidable: PotentialAvoidability = Field(
         default="unclear",
         description=(
-            "Overall assessment of whether the supplement appears potentially "
-            "avoidable through an accurate and complete initial inspection and "
-            "estimate. Use this as a summarized analytic classification rather "
-            "than a statement that Hover itself caused or could have prevented "
-            "the supplement."
+            "Avoidability of the MAIN supplement through reasonable initial carrier actions, "
+            "without hindsight. Preventing a supplement does not establish indemnity savings."
         ),
     )
-
-    mechanism_summary: str | None = text_field(
-        "Concise factual explanation of the principal changes between the "
-        "initial estimate and later supplement, including the strongest evidence "
-        "for the identified mechanisms."
+    avoidability_confidence: ConfidenceLevel = Field(
+        default="unknown",
+        description="Confidence in the main supplement's avoidability based on evidence quality.",
     )
+    primary_prevention_area: PreventionArea = Field(
+        default="unclear",
+        description="Main supplement's most relevant prevention action area, if supported.",
+    )
+    primary_unavoidable_reason: UnavoidableReason = Field(
+        default="unclear",
+        description="Reason the main supplement was unavoidable; not_applicable when avoidable.",
+    )
+    primary_request_preventable: Annotated[
+        Literal[
+            "yes",
+            "no",
+            "unknown",
+            "not_applicable",
+        ],
+        Category,
+    ] = Field(
+        default="unknown",
+        description=(
+            "Could the main request have been prevented, separately from estimate correctness? "
+            "Assess even denied requests; not_applicable only if no supplement exists."
+        ),
+    )
+    primary_prevention_action: Text = text_field(
+        "Specific action and brief evidence-based rationale for preventing the main supplement; "
+        "state none identified if supported. Do not estimate savings."
+    )
+    secondary_mechanism: PrimarySupplementMechanism = Field(
+        default="unclear",
+        description=(
+            "Dominant cause among ALL remaining supplements, not the second chronological request. "
+            "Use multiple for no dominant cause, unclear for insufficient evidence, "
+            "not_applicable only when none remain."
+        ),
+    )
+    remaining_outcome: Annotated[
+        Literal[
+            "approved_in_full",
+            "approved_in_part",
+            "denied_in_full",
+            "withdrawn_by_requester",
+            "pending",
+            "mixed",
+            "unclear",
+            "not_applicable",
+        ],
+        Category,
+    ] = Field(
+        default="unclear",
+        description=(
+            "Outcome of all remaining supplements. Mixed requires established different outcomes; "
+            "otherwise incomplete evidence is unclear, and no remainder is not_applicable."
+        ),
+    )
+    remaining_avoidability: Annotated[
+        Literal[
+            "avoidable",
+            "unavoidable",
+            "mixed",
+            "unclear",
+            "not_applicable",
+        ],
+        Category,
+    ] = Field(
+        default="unclear",
+        description=(
+            "Avoidability across all remaining supplements; collapse clearly/probably into their "
+            "direction. Mixed requires supported avoidable and unavoidable supplements."
+        ),
+    )
+    drivers: SupplementDrivers = Field(
+        default_factory=SupplementDrivers,
+        description="Whole-history contributing drivers, including third and later supplements.",
+    )
+    prevention: PreventionIndicators = Field(
+        default_factory=PreventionIndicators,
+        description="Whole-history prevention areas; missing evidence is unknown, not no.",
+    )
+    any_potentially_avoidable: YesNoUnknown = indicator_field(
+        "Whether ANY supplement was clearly/probably avoidable, even if main was unavoidable. "
+        "A positive finding survives incomplete history; no requires coverage of the full history."
+    )
+    mechanism_summary: Text = text_field(
+        "Concise whole-history narrative: main issue and selection, remaining activity, evidence, "
+        "and uncertainty. Explain conflicting facts and incomplete financial comparisons."
+    )
+    financials: SupplementFinancialFeatures = Field(
+        default_factory=SupplementFinancialFeatures,
+        description="Explicit claim-level incremental amounts for QA, never allocations.",
+    )
+
+    @model_validator(mode="after")
+    def consistent_history(self):
+        total = self.history.total_count
+        outcome_count = {
+            "approved_in_full": self.history.approved_count,
+            "approved_in_part": self.history.approved_count,
+            "denied_in_full": self.history.denied_count,
+            "pending": self.history.pending_count,
+        }.get(self.primary_outcome)
+        if outcome_count == 0:
+            raise ValueError("Main outcome conflicts with zero disposition count")
+        if (
+            total is not None
+            and total > 1
+            and any(
+                getattr(self, name) == "not_applicable"
+                for name in ("secondary_mechanism", "remaining_outcome", "remaining_avoidability")
+            )
+        ):
+            raise ValueError("Multiple supplements require applicable remaining classifications")
+        if total == 2 and "mixed" in (self.remaining_outcome, self.remaining_avoidability):
+            raise ValueError(
+                "Mixed remaining classifications require at least two other supplements"
+            )
+        if (
+            self.any_potentially_avoidable == "no"
+            and self.supplement_present != "no"
+            and self.history.completeness != "complete"
+        ):
+            raise ValueError("No avoidable supplement requires complete history")
+        if self.supplement_present == "yes" and total == 0:
+            raise ValueError("Supplement presence conflicts with zero total_count")
+        if self.supplement_present == "no":
+            if any(
+                (getattr(self.history, n) or 0) > 0
+                for n in (
+                    "total_count",
+                    "approved_count",
+                    "denied_count",
+                    "pending_count",
+                )
+            ) or any(
+                (getattr(self.financials, n) or 0) > 0
+                for n in (
+                    "supplement_requested_amount",
+                    "supplement_approved_amount",
+                    "supplement_denied_amount",
+                )
+            ):
+                raise ValueError(
+                    "No supplement conflicts with positive counts or supplement dollars"
+                )
+            if (
+                any(
+                    v == "yes"
+                    for g in (self.drivers, self.prevention)
+                    for v in g.model_dump().values()
+                )
+                or self.any_potentially_avoidable == "yes"
+            ):
+                raise ValueError("No supplement conflicts with positive supplement indicators")
+            for name in (
+                "primary_mechanism",
+                "primary_selection_basis",
+                "primary_outcome",
+                "primary_initial_identifiability",
+                "potentially_avoidable",
+                "primary_prevention_area",
+                "primary_unavoidable_reason",
+                "primary_request_preventable",
+                "secondary_mechanism",
+                "remaining_outcome",
+                "remaining_avoidability",
+            ):
+                if getattr(self, name) not in {"unknown", "unclear", "not_applicable"}:
+                    raise ValueError("No supplement conflicts with supplement classification")
+                setattr(self, name, "not_applicable")
+            self.history = SupplementHistory(
+                completeness="complete",
+                total_count=0,
+                approved_count=0,
+                denied_count=0,
+                pending_count=0,
+            )
+            self.drivers = SupplementDrivers(**dict.fromkeys(SupplementDrivers.model_fields, "no"))
+            self.prevention = PreventionIndicators(
+                **dict.fromkeys(PreventionIndicators.model_fields, "no")
+            )
+            self.any_potentially_avoidable = "no"
+        elif total == 1:
+            for name in ("secondary_mechanism", "remaining_outcome", "remaining_avoidability"):
+                if getattr(self, name) not in {"unclear", "not_applicable"}:
+                    raise ValueError("Single supplement conflicts with remaining classifications")
+                setattr(self, name, "not_applicable")
+        if self.any_potentially_avoidable == "no" and (
+            self.potentially_avoidable in {"clearly_avoidable", "probably_avoidable"}
+            or self.remaining_avoidability in {"avoidable", "mixed"}
+        ):
+            raise ValueError("Avoidability classifications conflict with any_potentially_avoidable")
+        return self
 
     def to_pandas(
         self,

@@ -62,7 +62,7 @@ def run_claim(bundle, **kwargs):
 
 def test_reference_schema_inventory_and_conversion():
     dictionary = feature_dictionary()
-    assert len(dictionary) == 124
+    assert len(dictionary) == 115
     assert dictionary.field.is_unique
     assert dictionary.description.notna().all()
     baseline = unknown_features(BaselineClaimFeatures)
@@ -189,7 +189,7 @@ def test_weighted_scorecard_decomposition_and_sampling():
 
 def test_overlapping_mechanisms_do_not_duplicate_dollars(bundle):
     result = run_claim(bundle)
-    result.supplement.features.scope.missed_item = "yes"
+    result.supplement.features.drivers.missed_item = "yes"
     frame = build_feature_table([result], [bundle.metadata()])
     analysis = mechanism_analysis(frame)
     flags = analysis["mechanism_rates"]
@@ -229,7 +229,7 @@ def test_checkpoint_resume_and_failed_not_reused(tmp_path, bundle, monkeypatch):
 @pytest.mark.parametrize(
     "column,tier",
     [
-        ("supplement_mechanism__scope__missed_item", "secondary"),
+        ("supplement_mechanism__drivers__missed_item", "secondary"),
         ("initial_estimate_amount", "structured"),
         ("baseline__documentation__photo_documentation_adequate", "enriched"),
         ("baseline__property_complexity__roof_involved", "enriched"),

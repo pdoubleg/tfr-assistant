@@ -33,6 +33,12 @@ class EvidenceStore:
         cited = {ref.field_path for ref in references}
         for field in feature_dictionary(type(features)).to_dict("records"):
             path = field["field"].replace("__", ".")
+            # Counts, flags and N/A labels are deterministic consequences of confirmed absence.
+            if (
+                getattr(features, "supplement_present", None) == "no"
+                and path != "supplement_present"
+            ):
+                continue
             if field["pandas_kind"] in {"text", "date"} or path.endswith(
                 "supplement_pct_of_initial_estimate"
             ):

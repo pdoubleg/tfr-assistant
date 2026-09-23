@@ -66,7 +66,10 @@ class ResearchConfig:
                     raise ValueError("Structured models cannot include baseline LLM features")
                 process = col.startswith(
                     ("baseline__documentation__", "baseline__initial_estimate__")
-                )
+                ) or col in {
+                    "baseline__roof__repairability_assessed_initially",
+                    "baseline__roof__repairability_test_performed_initially",
+                }
                 if process and self.tier != "secondary":
                     raise ValueError("Initial process/estimate features are secondary only")
                 if (

@@ -1,14 +1,14 @@
 """Caller-controlled inputs and extraction envelopes, separate from LLM features."""
 
 from datetime import date as Date
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .models import BaselineClaimFeatures, ClaimLLMFeatures, SupplementMechanismFeatures
 
-SCHEMA_VERSION = "1.0"
-PROMPT_VERSION = "1.0"
+SCHEMA_VERSION = "2.0"
+PROMPT_VERSION = "2.0"
 
 
 class StrictModel(BaseModel):
@@ -48,7 +48,12 @@ class ClaimBundle(StrictModel):
             raise ValueError("Evidence IDs must be unique within a claim")
         if any(e.date and e.date > self.initial_estimate_cutoff for e in self.initial_evidence):
             raise ValueError("Initial evidence cannot be dated after the cutoff")
-        if self.supplement_activity == "no" and any(
+        return self
+
+    @property
+    def resolved_supplement_activity(self) -> str:
+        """Positive structured activity wins conflicting absence; zeros prove nothing."""
+        if any(
             (getattr(self, f) or 0) > 0
             for f in (
                 "supplement_approved_amount",
@@ -56,8 +61,8 @@ class ClaimBundle(StrictModel):
                 "supplement_denied_amount",
             )
         ):
-            raise ValueError("No supplement activity conflicts with positive supplement dollars")
-        return self
+            return "yes"
+        return self.supplement_activity
 
     def metadata(self) -> dict:
         return self.model_dump(mode="json", exclude={"initial_evidence", "later_evidence"})
@@ -79,9 +84,17 @@ class SupplementOutput(StrictModel):
     evidence: list[EvidenceReference] = Field(default_factory=list)
 
 
+class LegacySupplementFeatures(StrictModel):
+    """Read-only preservation of v1 aggregate output; never used as an LLM schema."""
+
+    aggregate: dict[str, Any]
+
+
 class PassResult(StrictModel):
     status: Literal["success", "failed", "skipped"]
-    features: BaselineClaimFeatures | SupplementMechanismFeatures | None = None
+    features: (
+        BaselineClaimFeatures | SupplementMechanismFeatures | LegacySupplementFeatures | None
+    ) = None
     evidence: list[EvidenceReference] = Field(default_factory=list)
     error: str | None = None
     usage: dict[str, int] = Field(default_factory=dict)
@@ -105,14 +118,34 @@ class ExtractionResult(StrictModel):
     prompt_version: str = PROMPT_VERSION
     cache_key: str = ""
 
+    @model_validator(mode="before")
+    @classmethod
+    def preserve_legacy(cls, values):
+        if isinstance(values, dict) and values.get("schema_version") == "1.0":
+            values = dict(values)
+            part = values.get("supplement")
+            if isinstance(part, dict) and isinstance(part.get("features"), dict):
+                part = dict(part)
+                if "aggregate" not in part["features"]:
+                    part["features"] = {"aggregate": part["features"]}
+                values["supplement"] = part
+        return values
+
+    @property
+    def is_legacy(self) -> bool:
+        return self.schema_version == "1.0"
+
     @model_validator(mode="after")
     def correct_pass_types(self):
+        if self.schema_version not in {"1.0", SCHEMA_VERSION}:
+            raise ValueError("Unsupported extraction schema version")
         if self.baseline.features is not None and not isinstance(
             self.baseline.features, BaselineClaimFeatures
         ):
             raise ValueError("Baseline pass requires baseline features")
         if self.supplement.features is not None and not isinstance(
-            self.supplement.features, SupplementMechanismFeatures
+            self.supplement.features,
+            LegacySupplementFeatures if self.is_legacy else SupplementMechanismFeatures,
         ):
             raise ValueError("Supplement pass requires supplement features")
         if self.baseline.status == "skipped":
@@ -125,7 +158,7 @@ class ExtractionResult(StrictModel):
 
     @property
     def features(self) -> ClaimLLMFeatures | None:
-        if self.baseline.features is None or self.supplement.features is None:
+        if self.is_legacy or self.baseline.features is None or self.supplement.features is None:
             return None
         return ClaimLLMFeatures(
             baseline=self.baseline.features,

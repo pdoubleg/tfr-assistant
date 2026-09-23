@@ -8,9 +8,14 @@ from pydantic_ai.models.test import TestModel
 
 from .agents import unknown_features
 from .contracts import BaselineOutput, ClaimBundle, Evidence, EvidenceReference, SupplementOutput
-from .models import BaselineClaimFeatures, SupplementMechanismFeatures
+from .models import (
+    BaselineClaimFeatures,
+    PreventionIndicators,
+    SupplementDrivers,
+    SupplementMechanismFeatures,
+)
 
-SYNTHETIC_VERSION = "2"
+SYNTHETIC_VERSION = "3"
 
 
 def _set(features, path, value):
@@ -30,14 +35,14 @@ def synthetic_bundles(n=400, seed=42):
     rng = np.random.default_rng(seed)
     bundles = []
     mechanisms = [
-        "quantity_change",
-        "scope_expansion",
-        "hidden_damage",
+        "quantity_or_measurement_correction",
+        "scope_expansion_missed_item",
+        "concealed_or_hidden_damage",
         "pricing_change",
         "matching",
         "code_or_ordinance",
         "overhead_and_profit",
-        "contractor_disagreement",
+        "repairability_or_repair_versus_replace_dispute",
     ]
     for i in range(n):
         day = int(rng.integers(730))
@@ -75,6 +80,21 @@ def synthetic_bundles(n=400, seed=42):
             "roof.roof_present_in_scope": "yes" if roof else "no",
             "roof.roof_squares": round(float(rng.uniform(15, 55)), 1) if roof else None,
             "roof.complex_geometry": ("yes" if complex_claim else "no") if roof else "unknown",
+            "documentation.measurement_scope": "roof_only" if roof else "interior_only",
+            "documentation.measurement_discrepancy_documented": "yes" if quantity_error else "no",
+            "documentation.overview_and_close_up_photos_present": "yes" if adequate else "unknown",
+            "documentation.all_damaged_elevations_or_slopes_photographed": (
+                "yes" if adequate else "unknown"
+            )
+            if roof
+            else "not_applicable",
+            "roof.repairability_assessed_initially": "yes" if roof and adequate else "unknown",
+            "roof.repairability_test_performed_initially": "unknown",
+            "initial_estimate.repair_versus_replace_rationale_documented": (
+                "yes" if adequate else "unknown"
+            )
+            if roof
+            else "not_applicable",
             "documentation.photo_documentation_adequate": "yes" if adequate else "no",
             "documentation.notes_documentation_adequate": str(
                 rng.choice(["yes", "no", "unknown"], p=[0.75, 0.17, 0.08])
@@ -165,54 +185,34 @@ def synthetic_bundles(n=400, seed=42):
             )
             primary = str(rng.choice(mechanisms, p=weights / weights.sum()))
             flags = {
-                "quantity_change": [
-                    "quantity.quantities_changed",
-                    "quantity.measurement_correction",
-                    "quantity.dimensions_changed",
-                ],
-                "scope_expansion": [
-                    "scope.scope_expanded",
-                    "scope.missed_item",
-                    "scope.additional_damaged_area",
-                ],
-                "hidden_damage": [
-                    "scope.scope_expanded",
-                    "scope.hidden_or_concealed_damage",
-                    "discovery.concealed_damage_discovered_after_demolition",
-                    "discovery.later_information_required_to_identify_change",
-                ],
-                "pricing_change": [
-                    "pricing.pricing_materially_changed",
-                    "pricing.unit_price_changed",
-                    "pricing.material_price_changed",
-                ],
-                "matching": ["scope.matching_issue", "additional_costs.matching_added"],
-                "code_or_ordinance": [
-                    "scope.code_required_scope",
-                    "additional_costs.code_or_ordinance_added",
-                    "additional_costs.permit_or_fee_added",
-                ],
-                "overhead_and_profit": ["additional_costs.overhead_and_profit_added"],
-                "contractor_disagreement": [
-                    "initiation.disagreement_with_initial_scope",
-                    "scope.contractor_requested_scope",
-                ],
+                "quantity_or_measurement_correction": "measurement_correction",
+                "scope_expansion_missed_item": "missed_item",
+                "concealed_or_hidden_damage": "concealed_damage_after_demolition",
+                "pricing_change": "pricing_change",
+                "matching": "matching",
+                "code_or_ordinance": "code_or_ordinance",
+                "overhead_and_profit": "overhead_and_profit",
+                "repairability_or_repair_versus_replace_dispute": "repair_versus_replace",
             }
-            for field in {f for fields in flags.values() for f in fields}:
-                supplement[field] = "no"
+            for field in SupplementDrivers.model_fields:
+                supplement["drivers." + field] = "no"
+            for field in PreventionIndicators.model_fields:
+                supplement["prevention." + field] = "no"
             drivers = [primary]
-            if rng.random() < 0.35:
+            total = int(rng.choice([1, 2, 3], p=[0.55, 0.30, 0.15]))
+            if pending:
+                total = max(total, 2)
+            if total > 1 or rng.random() < 0.35:
                 drivers.append(str(rng.choice([m for m in mechanisms if m != primary])))
             for driver in drivers:
-                for field in flags[driver]:
-                    supplement[field] = "yes"
+                supplement["drivers." + flags[driver]] = "yes"
             avoidability = (
                 str(
                     rng.choice(
                         ["clearly_avoidable", "probably_avoidable", "unclear"], p=[0.3, 0.5, 0.2]
                     )
                 )
-                if primary in {"quantity_change", "scope_expansion"}
+                if primary in {"quantity_or_measurement_correction", "scope_expansion_missed_item"}
                 else str(
                     rng.choice(
                         ["clearly_unavoidable", "probably_unavoidable", "unclear"],
@@ -220,26 +220,111 @@ def synthetic_bundles(n=400, seed=42):
                     )
                 )
             )
+            avoidable = avoidability in {"clearly_avoidable", "probably_avoidable"}
+            prevention = {
+                "quantity_or_measurement_correction": "measurement_accuracy",
+                "scope_expansion_missed_item": "estimate_construction",
+            }.get(primary, "not_preventable" if avoidability != "unclear" else "unclear")
+            if avoidable:
+                supplement["prevention." + prevention] = "yes"
+            remaining_avoidable = total > 1 and drivers[-1] in {
+                "quantity_or_measurement_correction",
+                "scope_expansion_missed_item",
+            }
+            if remaining_avoidable:
+                area = (
+                    "measurement_accuracy"
+                    if drivers[-1] == "quantity_or_measurement_correction"
+                    else "estimate_construction"
+                )
+                supplement["prevention." + area] = "yes"
+            primary_outcome = (
+                ("approved_in_part" if denied else "approved_in_full")
+                if approved
+                else "denied_in_full"
+            )
+            pending_count = int(pending > 0)
+            remaining_outcome = (
+                "not_applicable"
+                if total == 1
+                else "mixed"
+                if pending and total > 2
+                else "pending"
+                if pending
+                else "approved_in_full"
+                if approved
+                else "denied_in_full"
+            )
             supplement.update(
                 {
                     "supplement_present": "yes",
+                    "history.completeness": "complete",
+                    "history.total_count": total,
+                    "history.approved_count": total - pending_count if approved else 0,
+                    "history.denied_count": 0 if approved else total - pending_count,
+                    "history.pending_count": pending_count,
                     "primary_mechanism": primary,
+                    "primary_selection_basis": "approved_amount"
+                    if approved
+                    else "requested_amount",
+                    "primary_outcome": primary_outcome,
                     "potentially_avoidable": avoidability,
-                    "initiation.contractor_initiated": "yes" if rng.random() < 0.7 else "no",
-                    "initiation.contractor_estimate_received": "yes",
-                    "initial_identifiability.could_reasonably_have_been_identified_initially": (
-                        "probably_yes"
-                        if "avoidable" in avoidability and "unavoidable" not in avoidability
-                        else "probably_no"
-                        if primary == "hidden_damage"
-                        else "unclear"
-                    ),
-                    "mechanism_summary": f"Fictional {primary.replace('_', ' ')} request; "
-                    f"additional drivers: {', '.join(drivers[1:]) or 'none'}. "
-                    f"Review classification: {avoidability}. Unresolved "
-                    f"requested dollars: ${pending:,.2f}.",
+                    "avoidability_confidence": "medium",
+                    "primary_prevention_area": prevention,
+                    "primary_unavoidable_reason": "not_applicable" if avoidable else "unclear",
+                    "primary_request_preventable": "unknown",
+                    "primary_prevention_action": "Include the item or correct the measurement."
+                    if avoidable
+                    else "No prevention action established in this fictional file.",
+                    "primary_initial_identifiability": "probably_yes"
+                    if avoidable
+                    else "probably_no"
+                    if primary == "concealed_or_hidden_damage"
+                    else "unclear",
+                    "secondary_mechanism": drivers[-1] if total > 1 else "not_applicable",
+                    "remaining_outcome": remaining_outcome,
+                    "remaining_avoidability": "not_applicable"
+                    if total == 1
+                    else "mixed"
+                    if total > 2 and remaining_avoidable
+                    else "avoidable"
+                    if remaining_avoidable
+                    else "unavoidable",
+                    "any_potentially_avoidable": "yes"
+                    if avoidable or remaining_avoidable
+                    else "unknown"
+                    if avoidability == "unclear"
+                    else "no",
+                    "mechanism_summary": f"Fictional history: {total} requests. Main: {primary}; "
+                    f"other drivers: {', '.join(drivers[1:]) or 'none'}. "
+                    f"Main selected by largest {'approval' if approved else 'request'} increment. "
+                    f"Main avoidability: {avoidability}; unresolved dollars: ${pending:,.2f}.",
                 }
             )
+            if i % 17 == 0:
+                supplement["history.completeness"] = "partial"
+                for name in ("total_count", "approved_count", "denied_count", "pending_count"):
+                    supplement["history." + name] = None
+                for name, value in list(supplement.items()):
+                    if value == "no" or (name.startswith("remaining_") and value != "mixed"):
+                        supplement[name] = "unknown" if value == "no" else "unclear"
+                if total == 1:
+                    supplement["secondary_mechanism"] = "unclear"
+                supplement["mechanism_summary"] = supplement["mechanism_summary"].replace(
+                    f"Fictional history: {total} requests.", "Fictional partial history."
+                )
+                supplement["mechanism_summary"] += (
+                    " Supplied history is incomplete; totals are unknown."
+                )
+            if i % 19 == 0:
+                supplement["primary_selection_basis"] = "qualitative_materiality"
+                supplement["mechanism_summary"] = supplement["mechanism_summary"].replace(
+                    f"Main selected by largest {'approval' if approved else 'request'} increment. ",
+                    "",
+                )
+                supplement["mechanism_summary"] += (
+                    " Individual amounts cannot establish ranking; materiality used."
+                )
         initial = Evidence(
             id="initial",
             source="Fictional initial estimate",
@@ -298,7 +383,7 @@ def synthetic_models(bundle):
     baseline = unknown_features(BaselineClaimFeatures)
     supplement = unknown_features(SupplementMechanismFeatures)
     baseline.baseline_summary = (
-        "Fictional fixture v2 for local workflow validation; not an empirical claim."
+        "Fictional fixture v3 for local workflow validation; not an empirical claim."
     )
     refs = []
     for features, evidence in [
@@ -338,6 +423,7 @@ def synthetic_models(bundle):
             )
     else:
         supplement.supplement_present = "no"
+    supplement = SupplementMechanismFeatures.model_validate(supplement.model_dump())
     return (
         TestModel(
             call_tools=[],

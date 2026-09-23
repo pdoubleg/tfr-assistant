@@ -212,6 +212,11 @@ def business_question_answers(report):
 
 
 def _descriptive_answers(report):
+    scope = (
+        "main supplement"
+        if report.get("supplement_schema_version") == "2.0"
+        else "aggregate history"
+    )
     tables, predictive = report.get("tables", {}), report.get("predictive", {})
     answers = {
         "mechanisms": "No audited primary-mechanism comparison is available.",
@@ -231,7 +236,7 @@ def _descriptive_answers(report):
                 largest = mechanisms.loc[mechanisms.approved_supplement_share.idxmax()]
                 category = str(largest.category).replace("_", " ")
                 descriptions.append(
-                    f"{label}: leading primary category {category} "
+                    f"{label}: leading {scope} category {category} "
                     f"({_number(largest.approved_supplement_share * 100, '%')} "
                     "of approved supplemented claims)"
                 )
@@ -243,7 +248,7 @@ def _descriptive_answers(report):
                 share = selected.approved_supplement_share.sum()
                 avoidable.append(
                     f"{label}: {_number(share * 100, '%')} of approved supplemented "
-                    "claims classified clearly/probably avoidable"
+                    f"claims whose {scope} was clearly/probably avoidable"
                 )
         if descriptions:
             answers["mechanisms"] = (
@@ -361,6 +366,11 @@ def claim_explanation_figure(explanations, claim_id, *, output="incidence", top_
 
 def build_business_figures(report):
     """Return named Plotly figures for notebook display or independent exports."""
+    scope = (
+        "Main supplement"
+        if report.get("supplement_schema_version") == "2.0"
+        else "Legacy aggregate"
+    )
     tables, figures = report.get("tables", {}), {}
     scores = _frame(tables.get("population_scorecard"))
     for metric, (question, label, unit, scale) in OUTCOMES.items():
@@ -493,7 +503,7 @@ def build_business_figures(report):
             data = mechanisms[
                 (mechanisms.denominator == denominator)
                 & mechanisms.mechanism.str.contains(
-                    r"__(?:scope|quantity|pricing|additional_costs|discovery|initiation)__",
+                    r"__(?:drivers|scope|quantity|pricing|additional_costs|discovery|initiation)__",
                     regex=True,
                 )
             ].copy()
@@ -524,13 +534,86 @@ def build_business_figures(report):
                     f"Supplement drivers · {denominator.replace('_', ' ')} · % among known answers",
                     height=max(480, len(ranking) * 35),
                 )
+    if not mechanisms.empty:
+        prevention = mechanisms[
+            mechanisms.mechanism.str.contains("__prevention__", regex=False)
+            & mechanisms.denominator.eq("all_claims")
+        ].copy()
+        if not prevention.empty:
+            prevention = _cohorts(prevention)
+            prevention["label"] = prevention.mechanism.map(feature_label)
+            prevention["percent"] = prevention.rate * 100
+            figures["prevention_areas"] = _style(
+                px.bar(
+                    prevention,
+                    y="label",
+                    x="percent",
+                    color="cohort",
+                    barmode="group",
+                    color_discrete_map=COLORS,
+                    hover_data=["positive_n", "unknown_n", "denominator_weight"],
+                ),
+                "Prevention areas across the whole history · % among known claims",
+                height=520,
+            )
+    prevention_dollars = _frame(tables.get("prevention_area_dollars"))
+    if not prevention_dollars.empty:
+        prevention_dollars = _cohorts(prevention_dollars)
+        prevention_dollars["label"] = prevention_dollars.prevention_area.map(feature_label)
+        figures["prevention_area_dollars"] = _style(
+            px.bar(
+                prevention_dollars,
+                y="label",
+                x="dollars_per_population_claim",
+                color="cohort",
+                barmode="group",
+                color_discrete_map=COLORS,
+                hover_data=[
+                    "associated_approved_dollars",
+                    "positive_n",
+                    "known_dollars_n",
+                    "unknown_dollars_n",
+                    "unknown_classification_n",
+                    "population_denominator_weight",
+                ],
+            ),
+            "Dollars associated with prevention areas · not savings",
+            height=520,
+        )
+        figures["prevention_area_dollars"].update_xaxes(
+            title="Associated approved supplement dollars per population claim ($)",
+            tickprefix="$",
+        )
+    history = _frame(tables.get("supplement_history"))
+    if not history.empty:
+        history = _cohorts(history)
+        history["percent"] = history.repeat_rate * 100
+        figures["repeat_supplements"] = _style(
+            px.bar(
+                history,
+                x="denominator",
+                y="percent",
+                color="cohort",
+                barmode="group",
+                color_discrete_map=COLORS,
+                hover_data=["known_n", "unknown_n", "partial_history_n"],
+            ),
+            "Claims with multiple supplements · % among known counts",
+        )
     classifications = _frame(tables.get("classifications"))
     if not classifications.empty:
         for suffix, title in (
-            ("primary_mechanism", "Primary supplement mechanism"),
-            ("potentially_avoidable", "Potential avoidability"),
+            ("primary_mechanism", f"{scope} mechanism"),
+            ("potentially_avoidable", f"{scope} avoidability"),
+            ("secondary_mechanism", "Remaining supplements: dominant mechanism"),
+            ("primary_outcome", "Main supplement outcome"),
+            ("remaining_outcome", "Remaining supplements: outcomes"),
+            ("remaining_avoidability", "Remaining supplements: avoidability"),
+            ("primary_prevention_area", "Main supplement prevention area"),
         ):
             data = _cohorts(classifications[classifications.classification.str.endswith(suffix)])
+            if data.empty:
+                continue
             data["category"] = data.category.fillna("unknown").str.replace("_", " ")
             data["share_pct"] = data.approved_supplement_share * 100
             figures[suffix] = _style(
@@ -762,11 +845,17 @@ def render_business_report(report, output_dir):
     section(
         "mechanisms",
         "3. What specifically drove supplements?",
-        "Primary categories are mutually exclusive. Driver flags can overlap and "
+        "Main-supplement categories describe one selected request per claim. "
+        "Remaining classifications cover all other requests. Flags cover the entire history and "
         "must not be added. Flag charts show up to 20 frequent drivers; the full "
         "inventory and unknown counts remain in the tables. Rates use known "
         "answers within the named denominator.",
         chart("primary_mechanism")
+        + chart("secondary_mechanism")
+        + chart("primary_outcome")
+        + chart("remaining_outcome")
+        + chart("repeat_supplements")
+        + _table(tables.get("supplement_history"))
         + chart("mechanisms_all_claims")
         + chart("mechanisms_approved_supplements")
         + "<details><summary>All driver classifications and denominators</summary>"
@@ -776,10 +865,22 @@ def render_business_report(report, output_dir):
     section(
         "avoidability",
         "4. Which supplements appear potentially avoidable?",
-        "These are retrospective evidence-based classifications. Dollars are "
+        "Main and remaining supplements are classified separately from retrospective evidence. "
+        "Dollars are "
         "associated claim dollars per population claim, not estimated savings or "
         "allocations to individual causes. Unclear cases are retained.",
         chart("potentially_avoidable")
+        + chart("remaining_avoidability")
+        + chart("primary_prevention_area")
+        + chart("prevention_areas")
+        + chart("prevention_area_dollars")
+        + "<p class='muted'>Prevention-area dollars use documented approved supplement amounts "
+        "on claims with that area marked yes, weighted per population claim. Areas overlap: "
+        "the same claim dollars may appear in several bars. Do not sum the bars or interpret "
+        "them as savings. Missing classifications and amounts are reported below.</p>"
+        + "<details><summary>Prevention-area dollars and coverage</summary>"
+        + _table(tables.get("prevention_area_dollars"))
+        + "</details>"
         + chart("avoidability_dollars")
         + _table(tables.get("classifications")),
     )
@@ -898,6 +999,9 @@ def render_business_report(report, output_dir):
         "or event-level clustering.",
         _table(model_status)
         + _table(tables.get("audit_coverage"))
+        + "<details><summary>Legacy aggregates (excluded from main/remaining metrics)</summary>"
+        + _table(tables.get("legacy_aggregate_claims"))
+        + "</details>"
         + _table(tables.get("population_calendar_coverage"))
         + "<details><summary>Missingness and extraction coverage details</summary>"
         + _table(tables.get("audit_missingness"), limit=10000)
@@ -925,6 +1029,12 @@ def render_business_report(report, output_dir):
             '<div class="scope"><strong>SYNTHETIC DEMONSTRATION</strong> · '
             "Fictional claims and programmed extraction outputs. Patterns are designed "
             "to exercise the workflow, not estimate Hover effectiveness.</div>"
+        )
+    if report.get("supplement_schema_version") != "2.0":
+        html += (
+            '<div class="scope">Historical report: supplement classifications describe the '
+            "aggregate history, not a selected main supplement. Main/remaining details require "
+            "schema-v2 extraction.</div>"
         )
     html += "<nav>" + nav + "</nav><main>" + "".join(sections) + "</main>"
     research_link = (

@@ -7,6 +7,8 @@ import numpy as np
 import pandas as pd
 from pydantic import BaseModel
 
+from .pandas_types import pandas_kind
+
 
 def feature_dictionary(model_type=None, prefix="") -> pd.DataFrame:
     if model_type is None:
@@ -24,7 +26,7 @@ def feature_dictionary(model_type=None, prefix="") -> pd.DataFrame:
                 {
                     "field": path,
                     "description": info.description,
-                    "pandas_kind": (info.json_schema_extra or {}).get("pandas_kind"),
+                    "pandas_kind": pandas_kind(info),
                     "type": str(typ),
                     "choices": list(get_args(typ)) if get_origin(typ) is Literal else [],
                 }
@@ -52,8 +54,12 @@ def prepare_flat_dataframe(
             df[col] = df[col].map({"yes": True, "no": False, "unknown": pd.NA}).astype("boolean")
         elif kind == "date":
             df[col] = pd.to_datetime(df[col])
-        elif unknown_as_na:
-            df[col] = df[col].replace("unknown", pd.NA)
+        elif kind in {"count", "number"}:
+            df[col] = pd.to_numeric(df[col]).astype("Int64" if kind == "count" else "Float64")
+        elif kind in {"category", "indicator", "text"}:
+            df[col] = df[col].astype("string")
+            if unknown_as_na:
+                df[col] = df[col].replace("unknown", pd.NA)
     if column_prefix:
         df = df.add_prefix(column_prefix + "__")
     for name, value in (extra_columns or {}).items():
@@ -112,10 +118,17 @@ def derive_outcomes(df: pd.DataFrame) -> pd.DataFrame:
 def build_feature_table(results, metadata: pd.DataFrame | Sequence[Mapping], *, drop_text=True):
     metadata = metadata.copy() if isinstance(metadata, pd.DataFrame) else pd.DataFrame(metadata)
     validate_claim_ids(metadata)
+    dictionary = feature_dictionary().to_dict("records")
+    if set(metadata) & {r["field"] for r in dictionary}:
+        raise ValueError("Metadata collides with extracted feature columns")
     rows = []
     for result in results:
         row = {
             "claim_id": result.claim_id,
+            "supplement_schema": "legacy_aggregate" if result.is_legacy else "main_summary",
+            "supplement_activity_conflict": any(
+                d.get("field") == "supplement_activity" for d in result.discrepancies
+            ),
             "extraction_status": result.status,
             "baseline_status": result.baseline.status,
             "supplement_status": result.supplement.status,
@@ -125,6 +138,15 @@ def build_feature_table(results, metadata: pd.DataFrame | Sequence[Mapping], *, 
             (result.supplement, "supplement_mechanism"),
         ):
             if part.features is not None and part.status in {"success", "skipped"}:
+                if prefix == "supplement_mechanism" and result.is_legacy:
+                    # Never reinterpret aggregate findings as findings about the main request.
+                    row.update(
+                        pd.json_normalize([part.features.aggregate], sep="__")
+                        .add_prefix("legacy_supplement__")
+                        .iloc[0]
+                        .to_dict()
+                    )
+                    continue
                 row.update(
                     prepare_flat_dataframe(part.features, column_prefix=prefix, drop_text=drop_text)
                     .iloc[0]
@@ -137,6 +159,8 @@ def build_feature_table(results, metadata: pd.DataFrame | Sequence[Mapping], *, 
         else pd.DataFrame(
             columns=[
                 "claim_id",
+                "supplement_schema",
+                "supplement_activity_conflict",
                 "extraction_status",
                 "baseline_status",
                 "supplement_status",
@@ -151,9 +175,27 @@ def build_feature_table(results, metadata: pd.DataFrame | Sequence[Mapping], *, 
     joined = metadata.merge(features, on="claim_id", how="left", validate="one_to_one")
     for col in ("extraction_status", "baseline_status", "supplement_status"):
         joined[col] = joined[col].fillna("not_extracted")
-    for row in feature_dictionary().to_dict("records"):
-        if row["field"] in joined and row["pandas_kind"] == "indicator":
-            joined[row["field"]] = joined[row["field"]].astype("boolean")
+    joined["supplement_activity_conflict"] = joined.supplement_activity_conflict.astype("boolean")
+    absent = {
+        r["field"]: pd.Series(pd.NA, index=joined.index)
+        for r in dictionary
+        if r["field"] not in joined and not (drop_text and r["pandas_kind"] == "text")
+    }
+    joined = pd.concat([joined, pd.DataFrame(absent, index=joined.index)], axis=1)
+    for row in dictionary:
+        col, kind = row["field"], row["pandas_kind"]
+        if col not in joined:
+            continue
+        if kind == "indicator":
+            joined[col] = joined[col].astype("boolean")
+        elif kind in {"count", "number"}:
+            joined[col] = pd.to_numeric(joined[col]).astype(
+                "Int64" if kind == "count" else "Float64"
+            )
+        elif kind == "date":
+            joined[col] = pd.to_datetime(joined[col])
+        elif kind in {"category", "text"}:
+            joined[col] = joined[col].astype("string")
     joined = derive_outcomes(joined)
     # Analysis uses system amounts; original extracted values remain available for QA.
     joined["supplement_mechanism__financials__supplement_pct_of_initial_estimate"] = (

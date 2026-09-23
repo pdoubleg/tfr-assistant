@@ -38,11 +38,35 @@ available or permitted. Assess documentation and estimate quality only against i
 SUPPLEMENT_INSTRUCTIONS = (
     COMMON_INSTRUCTIONS
     + """
-Compare the initial estimate against the combined later supplement history. Multiple mechanisms
-may apply. Distinguish cumulative estimate totals from incremental approved supplement dollars;
-do not add successive cumulative revisions. Requests and denials still constitute supplement
-activity even when approved dollars are zero. Assess initial identifiability and potential
-avoidability from cited evidence. Use unclear for mixed or unsupported avoidability conclusions.
+Produce ONE claim-level summary of the full supplied supplement history, with no round list.
+First establish whether any substantive post-estimate request/revision exists. Requests, denials,
+withdrawals and pending requests count even with zero approved dollars. Absence requires evidence;
+inconclusive files stay unknown. Structured activity is not supplied to bias this assessment.
+Count distinct requests, not duplicate documents, supporting evidence, or negotiations/revisions
+within an unresolved request. A substantive renewed request after disposition can be distinct.
+Report exact counts only where supported; total_count requires complete supplied history. Unknown
+counts are null, not zero or a partial lower bound. Approved includes full/partial approval; denied
+means fully denied; pending is documented pending, not simply unknown. Withdrawals and unclear
+outcomes explain why disposition counts need not sum to total. Indicators cover the WHOLE history,
+including third and later supplements. No requires sufficient evidence; missing facts are unknown.
+Select one MAIN supplement by largest documented incremental approval. If none was approved, use
+largest incremental request. If amounts cannot support ranking, use documented materiality.
+Break amount ties by earliest documented request, then source order. Never rank using cumulative
+estimate totals. Explain incomplete comparisons and the selection basis in mechanism_summary.
+All primary fields and potentially_avoidable refer to that SAME main supplement. Secondary
+mechanism summarizes ALL remaining supplements, not necessarily the second request. Use multiple
+when no cause dominates; unclear when unsupported; not_applicable only when none remain.
+Remaining outcomes/avoidability are mixed only with established differing classifications;
+otherwise incomplete evidence is unclear. A known mixed finding survives additional unknowns.
+Any potentially avoidable is yes if one is supported even with incomplete history; no requires
+coverage of all supplements. Distinguish measurement errors from repair-versus-replace disputes.
+Initial identifiability alone does not establish avoidability. Separate preventing a request
+from estimate correctness; a denied request can still have been preventable by communication.
+Do not assume a denial establishes that the carrier was correct. Name concrete carrier actions
+supported by initial evidence, without hindsight or vendor attribution. Do not estimate savings.
+Distinguish cumulative estimate totals from incremental approved supplement dollars. Do not add
+successive cumulative revisions, allocate dollars to causes, or infer denials by subtraction.
+Financial QA fields require explicitly documented claim-level incremental totals, not arithmetic.
 Leave supplement_pct_of_initial_estimate null; Python calculates it from authoritative amounts.
 """
 )
@@ -174,11 +198,8 @@ async def extract_baseline(bundle: ClaimBundle, model_config: LLMModelConfig, *,
 
 
 async def extract_supplement(bundle: ClaimBundle, model_config: LLMModelConfig, *, model=None):
-    if bundle.supplement_activity == "no":
-        features = unknown_features(SupplementMechanismFeatures)
-        features.supplement_present = "no"
-        features.primary_mechanism = "not_applicable"
-        features.potentially_avoidable = "not_applicable"
+    if bundle.resolved_supplement_activity == "no":
+        features = SupplementMechanismFeatures(supplement_present="no")
         return PassResult(status="skipped", features=features)
     return await _extract(bundle, "supplement", model_config, model)
 
@@ -189,6 +210,25 @@ async def extract_claim(
     baseline = await extract_baseline(bundle, model_config, model=baseline_model)
     supplement = await extract_supplement(bundle, model_config, model=supplement_model)
     discrepancies = []
+    activity = bundle.resolved_supplement_activity
+    if activity != bundle.supplement_activity and bundle.supplement_activity != "unknown":
+        discrepancies.append(
+            {
+                "field": "supplement_activity",
+                "supplied": bundle.supplement_activity,
+                "resolved_from_amounts": activity,
+            }
+        )
+    if isinstance(supplement.features, SupplementMechanismFeatures):
+        extracted_activity = supplement.features.supplement_present
+        if activity != "unknown" and extracted_activity != activity:
+            discrepancies.append(
+                {
+                    "field": "supplement_activity",
+                    "authoritative": activity,
+                    "extracted": extracted_activity,
+                }
+            )
     pairs = []
     if isinstance(baseline.features, BaselineClaimFeatures):
         pairs.append(

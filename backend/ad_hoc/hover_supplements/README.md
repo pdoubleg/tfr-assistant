@@ -21,7 +21,7 @@ successful bootstrap fits, or success below 80%, suppresses confidence intervals
 ## Claim bundles and independent extraction
 
 Inputs are a JSON array or JSONL of `ClaimBundle` records. IDs are stable strings; money
-is in dollars. One record represents one claim and its aggregate supplement history.
+is in dollars. One record represents one claim. Schema v2 directly summarizes its main supplement and remaining history in one flat analysis row; there is no round table.
 
 ```python
 from datetime import date
@@ -61,8 +61,17 @@ only because the caller explicitly put it in that partition. Later evidence must
 contain unrelated claims. Photo descriptions support only what the descriptions say;
 the agent does not inspect original photographs.
 
-`supplement_activity="no"` is an explicit caller assertion and skips the second pass.
-`unknown` does not skip it. A denied request with zero approved dollars still runs.
+Run baseline first, restricted to initial evidence. Positive structured requested, approved,
+or denied amounts establish supplement activity. Otherwise use the supplied
+`supplement_activity`; zero dollars alone never establish absence. Only confirmed `no`
+skips the supplement pass. For `yes` or `unknown`, invoke the supplement extractor once
+with both evidence partitions; it can confirm absence. There is no screening LLM or
+per-request extraction loop. Existing tool/output retries remain available.
+
+Positive amounts override a conflicting caller `no` for routing, and the conflict is
+recorded. Structured-versus-extracted activity conflicts are retained in discrepancies
+and the flat `supplement_activity_conflict` column, without overwriting either finding.
+A denied request with zero approved dollars still runs.
 Missing approved dollars remain unknown; they never become zero or an inferred approval.
 Structured amounts remain authoritative and extracted amounts are retained separately for
 QA. Denied dollars are never inferred as requested minus approved. Ratios use authoritative
@@ -83,11 +92,50 @@ means at least one pass failed; successful claims are still written.
 
 ## Feature tables and sampling
 
-The source is the final Pydantic code in the
-[shared planning conversation](https://chatgpt.com/share/6aac6fae-a418-83ea-bb97-b22e29431a0d).
-All 124 leaf fields, descriptions, nested groups, and enums are retained. The standalone
-supplement `to_pandas()` prefix is normalized to `supplement_mechanism__`, matching the
-combined model. Calculation and conversion live outside the LLM schema.
+Schema v2 contains 115 leaf features including seven targeted baseline additions: measurement
+scope and documented discrepancy, repairability assessment and testing, repair-versus-replace
+rationale, overview/close-up photographs, and coverage of damaged elevations/slopes.
+Pandas conversion metadata travels in `Annotated` types rather than LLM JSON-schema extras.
+Counts use nullable `Int64`, numeric values `Float64`, indicators nullable booleans, and
+conditional categories retain `not_applicable` separately from unknown without companion columns.
+The supplement prefix remains `supplement_mechanism__`, matching the combined model.
+
+The supplement extractor produces these linked groups directly:
+
+- `history`: completeness plus exact total, approved (full/partial), fully denied, and
+  pending request counts. Revisions and negotiation within an unresolved request count
+  once. Withdrawn/unclear dispositions explain why outcome counts may not sum to total.
+  Exact total requires complete history; unsupported counts are null, not partial lower bounds.
+- Main supplement: `primary_mechanism`, `primary_outcome`, `primary_initial_identifiability`,
+  `potentially_avoidable`, confidence, prevention area, unavoidable reason, request
+  preventability, selection basis, and a concrete prevention action. Every main field
+  describes the same selected supplement. Selection uses largest documented incremental
+  approval, or largest request if none approved, or qualitative materiality if amounts
+  cannot support ranking. Ties use earliest documented request, then source order.
+- Remainder: `secondary_mechanism` summarizes ALL other requests, not the second request.
+  Remaining outcome and avoidability allow `mixed`; incomplete evidence is `unclear`
+  unless differing classifications already establish a mixed result. No remainder is
+  `not_applicable`.
+- `drivers`: 15 whole-history indicators; `prevention`: nine supported action-area
+  indicators. These include third/later supplements. Missing evidence is unknown, not no.
+  `any_potentially_avoidable` can be positive even when the main issue is unavoidable.
+- `mechanism_summary`: one concise history narrative, including incomplete comparisons.
+  `financials` retains explicitly documented incremental claim totals for QA only.
+
+Do not interpret identifying damage initially as proof of avoidability, or preventing a
+request as reducing indemnity. Measurement errors and repair-versus-replace disputes are
+separate mechanisms. No avoidable-dollar estimate or dollar allocation is generated.
+
+Confirmed absence gives zero counts and not-applicable classifications; failed, unresolved,
+and unextracted sections remain missing. `build_feature_table` remains one row per claim.
+Use `drop_text=False` for sharing narratives; reports export that complete feature table.
+Model covariate selection excludes retrospective supplement fields. Added baseline
+measurement/process/repairability assessments are secondary adjustment features only.
+
+Schema/prompt versions are `2.0`, so v1 checkpoints are not reused. The result reader
+preserves v1 supplement payloads as legacy aggregates, exported under `legacy_supplement__`.
+They never populate main/remaining fields or new summary metrics. Reports retain them in
+`legacy_aggregate_claims` for inspection. Existing baseline findings remain usable.
 
 `feature_dictionary()` returns the complete inventory and descriptions; research reports
 export it as CSV and JSON. `to_pandas()` flattens nested features, preserves nullable
@@ -158,7 +206,7 @@ the comparison unsupported rather than silently dropping a confounder.
 The full population supplies structured scorecards; weighted audited data supplies LLM
 quality and mechanism analysis. Reports include coverage, missingness, effective sample
 size, cohort distributions, date ranges, bootstrap failures, and unsupported-model reasons.
-Mechanism flags overlap; their rates are not an additive decomposition. Primary mechanism
+Mechanism flags overlap; their rates are not an additive decomposition. Main-supplement mechanism
 and avoidability distributions retain unknown categories, population shares, and shares
 among approved supplements. Dollars by classification are associated claim dollars, not
 recoverable savings or causal dollar allocations to individual mechanisms. The symmetric
@@ -176,6 +224,12 @@ Outputs include CSV tables, `research.json`, `summary.md`, local Plotly HTML cha
 field-level evidence examples, and the complete feature dictionary. Returned predictive
 objects retain fitted sklearn pipelines in memory; reports omit executable model objects.
 Private research output under `backend/data/hover_research` is git-ignored.
+
+The prevention-area percentage chart is followed by associated approved supplement dollars
+per population claim, using study weights and the whole audited cohort as the denominator.
+Each area includes documented claim dollars where its indicator is yes; overlapping areas
+can include the same dollars. Bars must not be summed or interpreted as savings. The
+`prevention_area_dollars` table exports totals, weights, and missing-classification/amount counts.
 
 ## Business questions and explainability
 
@@ -248,10 +302,10 @@ bootstrap rules, preprocessing, actual train/holdout counts, and captured fitted
 and segment-tree parameters remain available to technical reviewers. Older saved runs
 without parameter metadata are explicitly identified instead of inventing settings.
 
-The version-2 synthetic generator covers two years, four perils, heterogeneous property
+The version-3 synthetic generator covers two years, four perils, heterogeneous property
 complexity, lognormal initial costs, Gamma supplement severity, partial denials and
 unresolved requests, eight primary mechanisms, overlapping drivers, varied avoidability,
-and missing initial evidence. Cohort selection and outcomes contain programmed associations;
+one/multiple requests, incomplete histories, and missing initial evidence. Cohort selection and outcomes contain programmed associations;
 they are not calibrated to actual claims or evidence of Hover effectiveness. Offline test
 models read explicit fictional field records in the evidence. This validates workflow
 plumbing, not the accuracy of natural-language extraction. Demo reports carry a visible
@@ -262,8 +316,8 @@ uv run --group explainability python -m ad_hoc.hover_supplements demo data/hover
 ```
 
 ```powershell
-uv run --group explainability pytest tests/test_hover_supplements.py tests/test_hover_outputs.py tests/test_review_agent_runtime_metadata.py
-uv run ruff check ad_hoc tests/test_hover_supplements.py tests/test_hover_outputs.py
+uv run --group explainability pytest tests/test_hover_supplements.py tests/test_hover_summary.py tests/test_hover_outputs.py tests/test_review_agent_runtime_metadata.py
+uv run ruff check ad_hoc tests/test_hover_supplements.py tests/test_hover_summary.py tests/test_hover_outputs.py
 ```
 
 These tests use synthetic data and test models. They do not establish accuracy on real

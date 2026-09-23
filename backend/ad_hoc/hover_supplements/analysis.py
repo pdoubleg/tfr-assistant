@@ -118,7 +118,14 @@ def decompose_dollar_difference(frame):
 
 def mechanism_analysis(frame):
     df = derive_outcomes(frame)
-    rows = []
+    legacy = (
+        df.loc[df.supplement_schema.eq("legacy_aggregate")].copy()
+        if "supplement_schema" in df
+        else pd.DataFrame()
+    )
+    if "supplement_schema" in df:
+        df = df.loc[df.supplement_schema.ne("legacy_aggregate")].copy()
+    rows, prevention_dollars = [], []
     columns = [
         r["field"]
         for r in feature_dictionary().to_dict("records")
@@ -136,6 +143,37 @@ def mechanism_analysis(frame):
                 if "supplement_status" in subset:
                     values = values.mask(subset.supplement_status.eq("skipped"), False)
                 known = values.notna()
+                if denominator == "all_claims" and "__prevention__" in col:
+                    positive = subset.loc[values.eq(True).fillna(False)]
+                    associated = (
+                        (positive.supplement_approved_amount * positive.sampling_weight).sum(
+                            min_count=1
+                        )
+                        if len(positive)
+                        else 0.0
+                        if known.any()
+                        else np.nan
+                    )
+                    population_weight = float(subset.sampling_weight.sum())
+                    prevention_dollars.append(
+                        {
+                            "hover": hover,
+                            "prevention_area": col,
+                            "associated_approved_dollars": associated,
+                            "dollars_per_population_claim": associated / population_weight
+                            if population_weight
+                            else np.nan,
+                            "population_denominator_weight": population_weight,
+                            "positive_n": len(positive),
+                            "unknown_classification_n": int((~known).sum()),
+                            "known_dollars_n": int(
+                                positive.supplement_approved_amount.notna().sum()
+                            ),
+                            "unknown_dollars_n": int(
+                                positive.supplement_approved_amount.isna().sum()
+                            ),
+                        }
+                    )
                 rows.append(
                     {
                         "hover": hover,
@@ -152,6 +190,11 @@ def mechanism_analysis(frame):
     for col in (
         "supplement_mechanism__primary_mechanism",
         "supplement_mechanism__potentially_avoidable",
+        "supplement_mechanism__primary_outcome",
+        "supplement_mechanism__secondary_mechanism",
+        "supplement_mechanism__remaining_outcome",
+        "supplement_mechanism__remaining_avoidability",
+        "supplement_mechanism__primary_prevention_area",
     ):
         if col not in df:
             continue
@@ -176,14 +219,46 @@ def mechanism_analysis(frame):
                         if approved_denominator
                         else np.nan
                     ),
-                    "classification_unknown_n": int(cohort[col].isna().sum()),
+                    "classification_unknown_n": int(
+                        (cohort[col].isna() | cohort[col].isin(["unclear", "unknown"])).sum()
+                    ),
                     "associated_approved_dollars": (
                         g.supplement_approved_amount * g.sampling_weight
                     ).sum(min_count=1),
                     "unknown_dollars_n": int(g.supplement_approved_amount.isna().sum()),
                 }
             )
-    return {"mechanism_rates": pd.DataFrame(rows), "classifications": pd.DataFrame(distributions)}
+    history = []
+    for hover, group in df.groupby("hover"):
+        count_col = "supplement_mechanism__history__total_count"
+        if count_col not in group:
+            continue
+        counts = group[count_col]
+        active = group["supplement_mechanism__supplement_present"].eq(True).fillna(False)
+        for denominator, subset in (("all_claims", group), ("supplement_activity", group[active])):
+            values = counts.loc[subset.index]
+            known = values.notna()
+            history.append(
+                {
+                    "hover": hover,
+                    "denominator": denominator,
+                    "repeat_rate": weighted_mean(values.gt(1).where(known), subset.sampling_weight),
+                    "mean_count": weighted_mean(values, subset.sampling_weight),
+                    "known_n": int(known.sum()),
+                    "unknown_n": int((~known).sum()),
+                    "denominator_weight": float(subset.loc[known, "sampling_weight"].sum()),
+                    "partial_history_n": int(
+                        subset["supplement_mechanism__history__completeness"].eq("partial").sum()
+                    ),
+                }
+            )
+    return {
+        "mechanism_rates": pd.DataFrame(rows),
+        "prevention_area_dollars": pd.DataFrame(prevention_dollars),
+        "classifications": pd.DataFrame(distributions),
+        "supplement_history": pd.DataFrame(history),
+        "legacy_aggregate_claims": legacy,
+    }
 
 
 def diagnostics(frame):
@@ -246,7 +321,7 @@ def representative_claims(results, *, per_category=3):
     rows, counts = [], {}
     for result in sorted(results, key=lambda r: r.claim_id):
         features = result.supplement.features
-        if features is None or result.supplement.status != "success":
+        if features is None or result.supplement.status != "success" or result.is_legacy:
             continue
         category = features.primary_mechanism
         if counts.get(category, 0) >= per_category:
@@ -256,6 +331,11 @@ def representative_claims(results, *, per_category=3):
             {
                 "claim_id": result.claim_id,
                 "primary_mechanism": category,
+                "primary_outcome": features.primary_outcome,
+                "main_avoidability": features.potentially_avoidable,
+                "secondary_mechanism": features.secondary_mechanism,
+                "remaining_outcome": features.remaining_outcome,
+                "remaining_avoidability": features.remaining_avoidability,
                 "summary": features.mechanism_summary,
                 "evidence": [ref.model_dump() for ref in result.supplement.evidence],
             }
